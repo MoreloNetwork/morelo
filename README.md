@@ -8,7 +8,7 @@ Portions Copyright (c) 2012-2013 The Cryptonote developers.
 
 ## Development resources
 
-- Web: [https://morelonetwork.pl](https://morelonetwork.pl)
+- Web: [http://mrl.stx.nl](http://mrl.stx.nl:2002/)
 - Mail: [morelonetwork@gmail.com](mailto:morelonetwork@gmail.com)
 - GitHub: [https://github.com/MoreloNetwork/morelo](https://github.com/MoreloNetwork/morelo)
 - Discord: [https://discord.gg/36HR7KmYCa](https://discord.gg/36HR7KmYCa)

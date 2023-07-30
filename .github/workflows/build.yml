@@ -1,4 +1,4 @@
-name: ci/gh-actions/depends
+name: ci/gh-actions/build
 
 on: [push, pull_request]
 
@@ -11,7 +11,7 @@ env:
         ccache --max-size=150M
         ccache --set-config=compression=true
 jobs:
-  build-macos:
+  build-windows:
     runs-on: ubuntu-20.04
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
@@ -19,22 +19,9 @@ jobs:
       fail-fast: false
       matrix:
         toolchain:
-          - name: "build-depends-armv7"
-            host: "arm-linux-gnueabihf"
-            packages: "python3 gperf g++-arm-linux-gnueabihf"
-          - name: "build-depends-armv8"
-            host: "aarch64-linux-gnu"
-            packages: "python3 gperf g++-aarch64-linux-gnu"
-          - name: "build-depends-armv8 RPi"
-            host: "aarch64-linux-gnu"
-            packages: "python3 gperf g++-aarch64-linux-gnu"
-            cmake_opts: "-DNO_AES=ON"
           - name: "build-depends-windows-x64"
             host: "x86_64-w64-mingw32"
             packages: "cmake python3 g++-mingw-w64-x86-64 qttools5-dev-tools"
-          - name: "build-depends-x86_64-linux"
-            host: "x86_64-unknown-linux-gnu"
-            packages: "gperf cmake python3-zmq libdbus-1-dev libharfbuzz-dev"
     name: ${{ matrix.toolchain.name }}
     steps:
     - uses: actions/checkout@v3
@@ -60,7 +47,7 @@ jobs:
     - name: set apt conf
       run: ${{env.APT_SET_CONF}}
     - name: install dependencies
-      run: sudo apt update; sudo apt -y install build-essential libtool cmake autotools-dev automake pkg-config bsdmainutils curl git ca-certificates ccache ${{ matrix.toolchain.packages }}
+      run: sudo apt update; sudo apt -y install libboost-all-dev libsodium-dev build-essential libtool cmake autotools-dev automake pkg-config bsdmainutils curl git ca-certificates ccache ${{ matrix.toolchain.packages }}
     - name: prepare w64-mingw32
       if: ${{ matrix.toolchain.host == 'x86_64-w64-mingw32' }}
       run: |
@@ -76,3 +63,28 @@ jobs:
         name: ${{ matrix.toolchain.name }}
         path: |
           /home/runner/work/morelo/morelo/build/${{ matrix.toolchain.host }}/release/bin/morelo*
+
+  build-ubuntu:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: recursive
+    - name: remove bundled boost
+      run: sudo rm -rf /usr/local/share/boost
+    - name: set apt conf
+      run: |
+        echo "Acquire::Retries \"3\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
+        echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
+        echo "Acquire::ftp::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
+    - name: update apt
+      run: sudo apt update
+    - name: install morelo dependencies
+      run: sudo apt -y install libboost-all-dev build-essential cmake graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev
+    - name: build
+      run: make -j2
+    - name: Upload linux artifacts
+      uses: actions/upload-artifact@master
+      with:
+        name: linux
+        path: 'build/**/**/morelo*'
