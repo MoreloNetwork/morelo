@@ -5,6 +5,7 @@ nodeps=false
 nocmake=false
 noboost=false
 
+#Parsing arguments
 for arg in "$@"
 do
     if [ $arg = "--no-dependences" ]; then
