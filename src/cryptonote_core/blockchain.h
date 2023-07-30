@@ -51,7 +51,6 @@
 #include "span.h"
 #include "syncobj.h"
 #include "string_tools.h"
-#include "rolling_median.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "common/util.h"
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
