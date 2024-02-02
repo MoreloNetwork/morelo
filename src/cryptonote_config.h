@@ -64,7 +64,7 @@
 	1 Month:	21600 BLOCKS (30 * 720, not exaclly)
 	1 Year: 	262,8K BLOCKS (365 * 720)
 */
-#define HALVING_EVERY_X_BLOCKS							100 // Halving every year
+#define HALVING_EVERY_X_BLOCKS							262800 // Halving every year
 					
 
 
