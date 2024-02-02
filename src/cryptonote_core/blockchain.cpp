@@ -1349,7 +1349,7 @@ if(version >= 16)
   uint64_t devs_reward = get_devs_reward(height, base_reward, version);
   cryptonote::tx_out devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
 
-  if(devs_vout.amount != governance_reward)
+  if(devs_vout.amount != devs_reward)
   {
     MERROR("Devs reward amount incorrect.  Should be: " << print_money(devs_reward) << ", is: " << print_money(devs_vout.amount));
     return false;
@@ -1449,6 +1449,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   size_t median_weight;
   uint64_t already_generated_coins;
   uint64_t pool_cookie;
+  uint64_t hardfork_height = m_hardfork->get_current_version_height();
 
   CRITICAL_REGION_BEGIN(m_blockchain_lock);
   if (m_btc_valid && !from_block) {
@@ -1539,7 +1540,6 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   b.timestamp = time(NULL);
 
   uint8_t version = get_current_hard_fork_version();
-  uint64_t hardfork_height = m_hardfork->get_current_version_height();
   uint64_t blockchain_timestamp_check_window = version > 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V11 : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 
   if(m_db->height() >= blockchain_timestamp_check_window) {
