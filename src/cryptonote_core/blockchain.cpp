@@ -1347,7 +1347,7 @@ if(version >= 16)
 } else if(version >= 17)
 {
   uint64_t devs_reward = get_devs_reward(height, base_reward, version);
-  uint64_t devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
+  cryptonote::tx_out devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
 
   if(devs_vout.amount != governance_reward)
   {
