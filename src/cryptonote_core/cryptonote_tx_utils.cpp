@@ -102,8 +102,18 @@ keypair get_deterministic_keypair_from_height(uint64_t height)
 
 uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version)
 {
+  if(hf_version >= 17)
+	return base_reward * 5 / 100;
+
   if(hf_version >= 16)
-   return base_reward * 10 / 100;
+	return base_reward * 10 / 100;
+  return 0;
+}
+
+uint64_t get_devs_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version)
+{
+  if(hf_version >= 17)
+	return base_reward * 5 / 100;
   return 0;
 }
 
@@ -150,8 +160,39 @@ bool validate_governance_reward_key(uint64_t height, const std::string& governan
 
   return correct_key == output_key;
 }
+
+bool validate_devs_reward_key(uint64_t height, const std::string& devs_wallet_address_str, size_t output_index, const crypto::public_key& output_key, const cryptonote::network_type nettype)
+{
+  keypair dev_key = get_deterministic_keypair_from_height(height);
+
+  cryptonote::address_parse_info devs_wallet_address;
+  switch(nettype)
+  {
+    case STAGENET:
+      cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::STAGENET, devs_wallet_address_str);
+      break;
+    case TESTNET:
+      cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::TESTNET, devs_wallet_address_str);
+      break;
+    case MAINNET:
+      cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::MAINNET, devs_wallet_address_str);
+      break;
+    default:
+      return false;
+  }
+
+  crypto::public_key correct_key;
+
+  if (!get_deterministic_output_key(devs_wallet_address.address, dev_key, output_index, correct_key))
+  {
+    MERROR("Failed to generate deterministic output key for devs wallet output validation");
+    return false;
+  }
+
+  return correct_key == output_key;
+}
 //---------------------------------------------------------------
-bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, network_type nettype) {
+bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, network_type nettype, uint64_t hardfork_height) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
@@ -171,7 +212,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     if (height == 1) {
       block_reward = config::blockchain_settings::MONEY_PREMINE;
     }
-    else if(!get_block_reward(median_weight, current_block_weight, already_generated_coins, block_reward, hard_fork_version))
+    else if(!get_block_reward(median_weight, current_block_weight, already_generated_coins, block_reward, hard_fork_version, height, hardfork_height))
     {
       LOG_PRINT_L0("Block is too big");
       return false;
@@ -181,6 +222,14 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     LOG_PRINT_L1("Creating block template: reward " << block_reward << ", fee " << fee);
 #endif
     uint64_t governance_reward = 0;
+	uint64_t devs_reward = 0;
+	
+	if(hard_fork_version >= 17)
+    {
+      devs_reward = get_devs_reward(height, block_reward, hard_fork_version);
+      block_reward -= devs_reward;
+    }
+	
     if(hard_fork_version >= 16)
     {
       governance_reward = get_governance_reward(height, block_reward, hard_fork_version);
@@ -207,7 +256,49 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     out.target = tk;
     tx.vout.push_back(out);
 
-    if(hard_fork_version >= 16)
+    if(hard_fork_version >= 17)
+    {
+      keypair devs_key = get_deterministic_keypair_from_height(height);
+      add_tx_pub_key_to_extra(tx, devs_key.pub);
+
+      std::string devs_wallet_address_str;
+      cryptonote::address_parse_info devs_wallet_address;
+
+      switch(nettype)
+      {
+        case STAGENET:
+          cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::STAGENET, std::string(config::devs::STAGENET_WALLET_ADDRESS));
+          break;
+        case TESTNET:
+          cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::TESTNET, std::string(config::devs::TESTNET_WALLET_ADDRESS));
+          break;
+        case MAINNET:
+          cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::MAINNET, std::string(config::devs::MAINNET_WALLET_ADDRESS));
+          break;
+        default:
+          return false;
+      }
+
+    crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
+
+    if(!get_deterministic_output_key(devs_wallet_address.address, devs_key, tx.vout.size(), out_eph_public_key))
+    {
+      MERROR("Failed to generate deterministic output key for devs wallet output creation");
+      return false;
+    }
+
+    txout_to_key tk;
+    tk.key = out_eph_public_key;
+
+    tx_out out;
+    summary_amounts += out.amount = devs_reward;
+    out.target = tk;
+    tx.vout.push_back(out);
+
+    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + devs_reward), false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + devs_reward));
+    }
+	
+	if(hard_fork_version >= 16)
     {
       keypair gov_key = get_deterministic_keypair_from_height(height);
       add_tx_pub_key_to_extra(tx, gov_key.pub);
@@ -232,7 +323,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
     crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
 
-    if(!get_deterministic_output_key(governance_wallet_address.address, gov_key, 1 /* second output in miner tx */, out_eph_public_key))
+    if(!get_deterministic_output_key(governance_wallet_address.address, gov_key, tx.vout.size(), out_eph_public_key))
     {
       MERROR("Failed to generate deterministic output key for governance wallet output creation");
       return false;

@@ -56,6 +56,17 @@
 #define EMISSION_SPEED_FACTOR_V16                       (20)
 #define FINAL_SUBSIDY_PER_MINUTE                        ((uint64_t)300000000)
 
+#define BASE_REWARD_V17 								((uint64_t)55550000000) // Static reward before first halving
+/*
+	Blocks per:
+	
+	24h:		720 BLOCKS (3600 * 24 / 120)
+	1 Month:	21600 BLOCKS (30 * 720, not exaclly)
+	1 Year: 	262,8K BLOCKS (365 * 720)
+*/
+#define HALVING_EVERY_X_BLOCKS							262800 // Halving every year
+					
+
 
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2    60000 //size of block (bytes) after which reward for block calculated using block size
@@ -269,9 +280,16 @@ namespace config
 
    namespace governance
    {
-	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX";
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1caG9PKEeWBfu6n1XtpL5b2nSvDLzDM5zqDbkC1bLg5cphR8GEwREdFRJkrCjHv6Ukh92UFt6w2724dpJ91Jx5H53oxMJCW"; // ArqTras
      static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1UJjpbxTgM2kzrQNgrkazZLCyhGvcHaoFvsHypZ8JdvsXFQ9kb6zEMAxxJrkzBWKx1ZgxArfgiTudcrUvFBya7EwgQiftGn";
      static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";
+   }
+   
+   namespace devs
+   {
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1kWHxjqLVPFgSka1MTCMMLiVehbbDGZdGZaeVUsKwi1nfV1mA9K7UjKN2MYCcNALLpWB5CMmsR8Ue1jJTueum5Mxgu1n5JA"; // Morelo devs
+     static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1UJjpbxTgM2kzrQNgrkazZLCyhGvcHaoFvsHypZ8JdvsXFQ9kb6zEMAxxJrkzBWKx1ZgxArfgiTudcrUvFBya7EwgQiftGn";
+     static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";  
    }
 }
 

@@ -1344,6 +1344,38 @@ if(version >= 16)
     MERROR("Governance reward public key incorrect.");
     return false;
   }
+} else if(version >= 17)
+{
+  uint64_t devs_reward = get_devs_reward(height, base_reward, version);
+  uint64_t devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
+
+  if(devs_vout.amount != governance_reward)
+  {
+    MERROR("Devs reward amount incorrect.  Should be: " << print_money(devs_reward) << ", is: " << print_money(devs_vout.amount));
+    return false;
+  }
+
+  std::string devs_wallet_address_str;
+  switch(m_nettype)
+  {
+    case STAGENET:
+      devs_wallet_address_str = std::string(config::devs::STAGENET_WALLET_ADDRESS);
+      break;
+    case TESTNET:
+      devs_wallet_address_str = std::string(config::devs::TESTNET_WALLET_ADDRESS);
+      break;
+    case MAINNET:
+      devs_wallet_address_str = std::string(config::devs::MAINNET_WALLET_ADDRESS);
+      break;
+    default:
+      return false;
+  }
+
+  if(!validate_devs_reward_key(m_db->height(), devs_wallet_address_str, b.miner_tx.vout.size() - 2, boost::get<txout_to_key>(devs_vout.target).key, m_nettype))
+  {
+    MERROR("Devs reward public key incorrect.");
+    return false;
+  }
 }
 
   if(height == 1)
@@ -1507,6 +1539,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   b.timestamp = time(NULL);
 
   uint8_t version = get_current_hard_fork_version();
+  uint64_t hardfork_height = m_hardfork->get_current_version_height();
   uint64_t blockchain_timestamp_check_window = version > 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V11 : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 
   if(m_db->height() >= blockchain_timestamp_check_window) {
@@ -1596,7 +1629,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = hf_version >= 7 ? 1 : 11;
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
+  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype, hardfork_height);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1605,7 +1638,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
+    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype, hardfork_height);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);
