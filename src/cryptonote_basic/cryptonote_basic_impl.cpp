@@ -90,13 +90,13 @@ namespace cryptonote {
 	if(version >= 17)
 	{
 	  base_reward = BASE_REWARD_V17;
-	  blocks_past = height - hardfork_height;
+	  uint64_t blocks_past = height - hardfork_height;
 	  
 	  // Calculate number of halvings
 	  if(blocks_past % HALVING_EVERY_X_BLOCKS == 0)
 	  {
 		  // Divide reward X times
-		  halvings = blocks_past / HALVING_EVERY_X_BLOCKS;
+		  uint64_t halvings = blocks_past / HALVING_EVERY_X_BLOCKS;
 		  for(int i = 0; i <= halvings; i++)
 		  {
 			base_reward /= 2; // Divide reward by 2  
