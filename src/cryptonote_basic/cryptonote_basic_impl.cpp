@@ -97,13 +97,16 @@ namespace cryptonote {
 	  {
 		  // Divide reward X times
 		  uint64_t halvings = blocks_past / HALVING_EVERY_X_BLOCKS;
-		  for(uint64_t i = 0; i <= halvings; i++)
+		  if(halvings)
 		  {
-			base_reward /= 2; // Divide reward by 2  
-		  }
-		  if(base_reward < COIN)
-		  {
-			  base_reward = 0;
+			  for(uint64_t i = 0; i < halvings; i++)
+			  {
+				base_reward /= 2; // Divide reward by 2  
+			  }
+			  if(base_reward < COIN)
+			  {
+				  base_reward = 0;
+			  }
 		  }
 	  }
 	  reward = base_reward;

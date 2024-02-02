@@ -295,7 +295,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     out.target = tk;
     tx.vout.push_back(out);
 
-    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + devs_reward), false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + devs_reward));
+    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + devs_reward + governance_reward), false, "Failed to construct miner tx on V17 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + devs_reward + governance_reward));
     }
 	
 	if(hard_fork_version >= 16)
@@ -337,7 +337,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     out.target = tk;
     tx.vout.push_back(out);
 
-    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward), false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward));
+    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward), false, "Failed to construct miner tx on V16 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward));
     }
 
     tx.version = config::tx_settings::ARQMA_TX_VERSION;
