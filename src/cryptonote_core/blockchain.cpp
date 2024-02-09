@@ -1364,7 +1364,9 @@ if(version >= 16)
     MERROR("Governance reward public key incorrect.");
     return false;
   }
-} else if(version >= 17)
+}
+
+if(version >= 17)
 {
   uint64_t devs_reward = get_devs_reward(height, base_reward, version);
   cryptonote::tx_out devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];

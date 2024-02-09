@@ -224,7 +224,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     uint64_t governance_reward = 0;
 	uint64_t devs_reward = 0;
 	
-	if(hard_fork_version >= 177)
+	if(hard_fork_version >= 17)
     {
       devs_reward = get_devs_reward(height, block_reward, hard_fork_version);
       block_reward -= devs_reward;
@@ -256,7 +256,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     out.target = tk;
     tx.vout.push_back(out);
 
-    if(hard_fork_version >= 177)
+    if(hard_fork_version >= 17)
     {
       keypair devs_key = get_deterministic_keypair_from_height(height);
       add_tx_pub_key_to_extra(tx, devs_key.pub);
@@ -291,7 +291,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     tk.key = out_eph_public_key;
 
     tx_out out;
-    summary_amounts += out.amount = devs_reward;
+    summary_amounts += out.amount = devs_reward + governance_reward;
     out.target = tk;
     tx.vout.push_back(out);
 
