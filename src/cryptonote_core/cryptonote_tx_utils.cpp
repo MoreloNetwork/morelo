@@ -281,7 +281,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
     crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
 
-    if(!get_deterministic_output_key(devs_wallet_address.address, devs_key, tx.vout.size(), out_eph_public_key))
+    if(!get_deterministic_output_key(devs_wallet_address.address, devs_key, tx.vout.size() - 2, out_eph_public_key))
     {
       MERROR("Failed to generate deterministic output key for devs wallet output creation");
       return false;
@@ -350,11 +350,11 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     tk.key = out_eph_public_key;
 
     tx_out out;
-    summary_amounts += out.amount = governance_reward + devs_reward;
+    summary_amounts += out.amount = governance_reward - devs_reward;
     out.target = tk;
     tx.vout.push_back(out);
 
-    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward + devs_reward), false, "Failed to construct miner tx on V16 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward + devs_reward));
+    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward - devs_reward), false, "Failed to construct miner tx on V16 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward + devs_reward));
     }
 
     tx.version = config::tx_settings::ARQMA_TX_VERSION;
