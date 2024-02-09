@@ -1326,19 +1326,37 @@ if(version >= 16)
   }
 
   std::string governance_wallet_address_str;
-  switch(m_nettype)
+  if(version >= 17)
   {
-    case STAGENET:
-      governance_wallet_address_str = std::string(config::governance::STAGENET_WALLET_ADDRESS);
-      break;
-    case TESTNET:
-      governance_wallet_address_str = std::string(config::governance::TESTNET_WALLET_ADDRESS);
-      break;
-    case MAINNET:
-      governance_wallet_address_str = std::string(config::governance::MAINNET_WALLET_ADDRESS);
-      break;
-    default:
-      return false;
+	switch(m_nettype)
+	  {
+		case STAGENET:
+		  governance_wallet_address_str = std::string(config::governance::STAGENET_WALLET_ADDRESS);
+		  break;
+		case TESTNET:
+		  governance_wallet_address_str = std::string(config::governance::TESTNET_WALLET_ADDRESS);
+		  break;
+		case MAINNET:
+		  governance_wallet_address_str = std::string(config::governance::MAINNET_WALLET_ADDRESS);
+		  break;
+		default:
+		  return false;
+	  }
+  } else {
+	  switch(m_nettype)
+	  {
+		case STAGENET:
+		  governance_wallet_address_str = std::string(config::governance_old::STAGENET_WALLET_ADDRESS);
+		  break;
+		case TESTNET:
+		  governance_wallet_address_str = std::string(config::governance_old::TESTNET_WALLET_ADDRESS);
+		  break;
+		case MAINNET:
+		  governance_wallet_address_str = std::string(config::governance_old::MAINNET_WALLET_ADDRESS);
+		  break;
+		default:
+		  return false;
+	  }
   }
 
   if(!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, b.miner_tx.vout.size() - 1, boost::get<txout_to_key>(b.miner_tx.vout.back().target).key, m_nettype))

@@ -305,21 +305,38 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
       std::string governance_wallet_address_str;
       cryptonote::address_parse_info governance_wallet_address;
-
-      switch(nettype)
-      {
-        case STAGENET:
-          cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::STAGENET, std::string(config::governance::STAGENET_WALLET_ADDRESS));
-          break;
-        case TESTNET:
-          cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::TESTNET, std::string(config::governance::TESTNET_WALLET_ADDRESS));
-          break;
-        case MAINNET:
-          cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::MAINNET, std::string(config::governance::MAINNET_WALLET_ADDRESS));
-          break;
-        default:
-          return false;
-      }
+	  if(version >= 17)
+	  {
+		  switch(nettype)
+		  {
+			case STAGENET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::STAGENET, std::string(config::governance::STAGENET_WALLET_ADDRESS));
+			  break;
+			case TESTNET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::TESTNET, std::string(config::governance::TESTNET_WALLET_ADDRESS));
+			  break;
+			case MAINNET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::MAINNET, std::string(config::governance::MAINNET_WALLET_ADDRESS));
+			  break;
+			default:
+			  return false;
+		  }
+	  } else {
+		  switch(nettype)
+		  {
+			case STAGENET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::STAGENET, std::string(config::governance_old::STAGENET_WALLET_ADDRESS));
+			  break;
+			case TESTNET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::TESTNET, std::string(config::governance_old::TESTNET_WALLET_ADDRESS));
+			  break;
+			case MAINNET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::MAINNET, std::string(config::governance_old::MAINNET_WALLET_ADDRESS));
+			  break;
+			default:
+			  return false;
+		  }
+	  }
 
     crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
 
