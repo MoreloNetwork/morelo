@@ -305,7 +305,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
       std::string governance_wallet_address_str;
       cryptonote::address_parse_info governance_wallet_address;
-	  if(version >= 17)
+	  if(hard_fork_version >= 17)
 	  {
 		  switch(nettype)
 		  {
