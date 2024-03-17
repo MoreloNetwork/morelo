@@ -107,7 +107,7 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 5, 0, 1687982396 },
- { 17, 10, 0, 1687982396 },
+ { 17, 10, 0, 1687982396 }
 };
 
 static const struct {
@@ -1316,7 +1316,39 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     return false;
   }
 
-if(version >= 16)
+if(version >= 17)
+{
+  uint64_t devs_reward = get_devs_reward(height, base_reward, version);
+  cryptonote::tx_out devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
+
+  if(devs_vout.amount != devs_reward)
+  {
+    MERROR("Devs reward amount incorrect.  Should be: " << print_money(devs_reward) << ", is: " << print_money(devs_vout.amount));
+    return false;
+  }
+
+  std::string devs_wallet_address_str;
+  switch(m_nettype)
+  {
+    case STAGENET:
+      devs_wallet_address_str = std::string(config::devs::STAGENET_WALLET_ADDRESS);
+      break;
+    case TESTNET:
+      devs_wallet_address_str = std::string(config::devs::TESTNET_WALLET_ADDRESS);
+      break;
+    case MAINNET:
+      devs_wallet_address_str = std::string(config::devs::MAINNET_WALLET_ADDRESS);
+      break;
+    default:
+      return false;
+  }
+
+  if(!validate_devs_reward_key(m_db->height(), devs_wallet_address_str, b.miner_tx.vout.size() - 2, boost::get<txout_to_key>(devs_vout.target).key, m_nettype))
+  {
+    MERROR("Devs reward public key incorrect.");
+    return false;
+  }
+} else if(version >= 16)
 {
   uint64_t governance_reward = get_governance_reward(height, base_reward, version);
 
@@ -1363,40 +1395,6 @@ if(version >= 16)
   if(!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, b.miner_tx.vout.size() - 1, boost::get<txout_to_key>(b.miner_tx.vout.back().target).key, m_nettype))
   {
     MERROR("Governance reward public key incorrect.");
-    return false;
-  }
-}
-
-if(version >= 17)
-{
-  uint64_t devs_reward = get_devs_reward(height, base_reward, version);
-  cryptonote::tx_out devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
-
-  if(devs_vout.amount != devs_reward)
-  {
-    MERROR("Devs reward amount incorrect.  Should be: " << print_money(devs_reward) << ", is: " << print_money(devs_vout.amount));
-    return false;
-  }
-
-  std::string devs_wallet_address_str;
-  switch(m_nettype)
-  {
-    case STAGENET:
-      devs_wallet_address_str = std::string(config::devs::STAGENET_WALLET_ADDRESS);
-      break;
-    case TESTNET:
-      devs_wallet_address_str = std::string(config::devs::TESTNET_WALLET_ADDRESS);
-      break;
-    case MAINNET:
-      devs_wallet_address_str = std::string(config::devs::MAINNET_WALLET_ADDRESS);
-      break;
-    default:
-      return false;
-  }
-
-  if(!validate_devs_reward_key(m_db->height(), devs_wallet_address_str, b.miner_tx.vout.size() - 2, boost::get<txout_to_key>(devs_vout.target).key, m_nettype))
-  {
-    MERROR("Devs reward public key incorrect.");
     return false;
   }
 }
