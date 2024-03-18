@@ -1295,76 +1295,78 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height)
 }
 //------------------------------------------------------------------
 // This function validates the miner transaction reward
-bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version)
+bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool& partial_block_reward, uint8_t version)
 {
-  LOG_PRINT_L3("Blockchain::" << __func__);
-  //validate reward
-  uint64_t money_in_use = 0;
-  for (auto& o: b.miner_tx.vout)
-    money_in_use += o.amount;
-  partial_block_reward = false;
+    LOG_PRINT_L3("Blockchain::" << __func__);
+    // Validate reward
+    uint64_t money_in_use = 0;
+    for (const auto& o : b.miner_tx.vout)
+        money_in_use += o.amount;
+    partial_block_reward = false;
 
-  std::vector<uint64_t> last_blocks_weights;
-  get_last_n_blocks_weights(last_blocks_weights, CRYPTONOTE_REWARD_BLOCKS_WINDOW);
-  if (!get_block_reward(epee::misc_utils::median(last_blocks_weights), cumulative_block_weight, already_generated_coins, base_reward, version))
-  {
-    MERROR_VER("block weight " << cumulative_block_weight << " is bigger than allowed for this blockchain");
-    return false;
-  }
-  uint64_t height = m_db->height();
+    std::vector<uint64_t> last_blocks_weights;
+    get_last_n_blocks_weights(last_blocks_weights, CRYPTONOTE_REWARD_BLOCKS_WINDOW);
+    if (!get_block_reward(epee::misc_utils::median(last_blocks_weights), cumulative_block_weight, already_generated_coins, base_reward, version))
+    {
+        MERROR_VER("Block weight " << cumulative_block_weight << " exceeds the limit for this blockchain");
+        return false;
+    }
 
-if(version >= 16)
-{
-  uint64_t governance_reward = get_governance_reward(height, base_reward, version);
+    uint64_t height = m_db->height();
 
-  if(b.miner_tx.vout.back().amount != governance_reward)
-  {
-    MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(b.miner_tx.vout.back().amount));
-    return false;
-  }
+    if (version >= 16)
+    {
+        uint64_t governance_reward = get_governance_reward(height, base_reward, version);
 
-  std::string governance_wallet_address_str;
-  switch(m_nettype)
-  {
-    case STAGENET:
-      governance_wallet_address_str = std::string(config::governance::STAGENET_WALLET_ADDRESS);
-      break;
-    case TESTNET:
-      governance_wallet_address_str = std::string(config::governance::TESTNET_WALLET_ADDRESS);
-      break;
-    case MAINNET:
-      governance_wallet_address_str = std::string(config::governance::MAINNET_WALLET_ADDRESS);
-      break;
-    default:
-      return false;
-  }
+        if (b.miner_tx.vout.back().amount != governance_reward)
+        {
+            MERROR("Incorrect governance reward amount. Expected: " << print_money(governance_reward) << ", actual: " << print_money(b.miner_tx.vout.back().amount));
+            return false;
+        }
 
-  if(!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, b.miner_tx.vout.size() - 1, boost::get<txout_to_key>(b.miner_tx.vout.back().target).key, m_nettype))
-  {
-    MERROR("Governance reward public key incorrect.");
-    return false;
-  }
-}
+        std::string governance_wallet_address_str;
+        switch (m_nettype)
+        {
+            case STAGENET:
+                governance_wallet_address_str = config::governance::STAGENET_WALLET_ADDRESS;
+                break;
+            case TESTNET:
+                governance_wallet_address_str = config::governance::TESTNET_WALLET_ADDRESS;
+                break;
+            case MAINNET:
+                governance_wallet_address_str = config::governance::MAINNET_WALLET_ADDRESS;
+                break;
+            default:
+                return false;
+        }
 
-  if(height == 1)
-  {
-    base_reward = config::blockchain_settings::MONEY_PREMINE;
-  }
-  else if(height > 1 && base_reward + fee < money_in_use)
-  {
-    MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use) << "). Block reward is " << print_money(base_reward + fee) << "(" << print_money(base_reward) << "+" << print_money(fee) << "), cumulative_block_weight " << cumulative_block_weight);
-    return false;
-  }
-  else {
-    CHECK_AND_ASSERT_MES(money_in_use - fee <= base_reward, false, "base reward calculation bug");
-    if(base_reward + fee != money_in_use)
-      partial_block_reward = true;
-    base_reward = money_in_use - fee;
-  }
-  return true;
+        if (!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, b.miner_tx.vout.size() - 1, boost::get<txout_to_key>(b.miner_tx.vout.back().target).key, m_nettype))
+        {
+            MERROR("Incorrect governance reward public key");
+            return false;
+        }
+    }
+
+    if (height == 1)
+    {
+        base_reward = config::blockchain_settings::MONEY_PREMINE;
+    }
+    else if (height > 1 && base_reward + fee < money_in_use)
+    {
+        MERROR_VER("Coinbase transaction spends too much money (" << print_money(money_in_use) << "). Block reward is " << print_money(base_reward + fee) << "(" << print_money(base_reward) << "+" << print_money(fee) << "), cumulative_block_weight " << cumulative_block_weight);
+        return false;
+    }
+    else
+    {
+        CHECK_AND_ASSERT_MES(money_in_use - fee <= base_reward, false, "Base reward calculation error");
+        if (base_reward + fee != money_in_use)
+            partial_block_reward = true;
+        base_reward = money_in_use - fee;
+    }
+    return true;
 }
 //------------------------------------------------------------------
-// get the block weights of the last <count> blocks, and return by reference <sz>.
+// Get the block weights of the last <count> blocks and return by reference <sz>.
 void Blockchain::get_last_n_blocks_weights(std::vector<uint64_t>& weights, size_t count) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
