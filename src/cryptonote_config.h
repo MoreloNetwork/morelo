@@ -287,7 +287,7 @@ namespace config
    
    namespace governance
    {
-	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX"; // ArqTras
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX";
      static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1UJjpbxTgM2kzrQNgrkazZLCyhGvcHaoFvsHypZ8JdvsXFQ9kb6zEMAxxJrkzBWKx1ZgxArfgiTudcrUvFBya7EwgQiftGn";
      static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";
    }

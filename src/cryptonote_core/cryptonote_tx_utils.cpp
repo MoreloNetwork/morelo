@@ -102,9 +102,6 @@ keypair get_deterministic_keypair_from_height(uint64_t height)
 
 uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version)
 {
-  if(hf_version >= 18)
-	return base_reward * 5 / 100;
-
   if(hf_version >= 16)
 	return base_reward * 10 / 100;
   return 0;
@@ -224,7 +221,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     uint64_t governance_reward = 0;
 	uint64_t devs_reward = 0;
 	
-	//Still not fixed
+	//Still need to be fixed so move it to future v18 hardfork
 	if(hard_fork_version >= 18)
     {
       devs_reward = get_devs_reward(height, block_reward, hard_fork_version);
@@ -257,7 +254,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     out.target = tk;
     tx.vout.push_back(out);
 	
-	//Still need to be fixed
+	//Still need to be fixed so move it to future v18 hardfork
     if(hard_fork_version >= 18)
     {
       keypair devs_key = get_deterministic_keypair_from_height(height);
@@ -281,7 +278,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
           return false;
       }
 
-    crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
+      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
 
     if(!get_deterministic_output_key(devs_wallet_address.address, devs_key, tx.vout.size() - 2, out_eph_public_key))
     {
