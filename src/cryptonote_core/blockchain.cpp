@@ -1316,7 +1316,8 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     return false;
   }
 
-if(version >= 17)
+//Still need to be fixed
+if(version >= 18)
 {
   uint64_t devs_reward = get_devs_reward(height, base_reward, version);
   cryptonote::tx_out devs_vout = b.miner_tx.vout[b.miner_tx.vout.size() - 2];
