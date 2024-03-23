@@ -105,8 +105,8 @@ static const struct {
  // version 1 from the start of the blockchain
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
- { 16, 5, 0, 1687982396 },
- { 17, 422500, 0, 1708459168 }
+ { 16, 2, 0, 1687982396 },
+ { 17, 102, 0, 1708459168 }
 };
 
 static const struct {
