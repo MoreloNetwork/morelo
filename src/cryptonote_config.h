@@ -285,19 +285,13 @@ namespace config
      static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";
    }
    
-   namespace governance
-   {
-	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX";
-     static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1UJjpbxTgM2kzrQNgrkazZLCyhGvcHaoFvsHypZ8JdvsXFQ9kb6zEMAxxJrkzBWKx1ZgxArfgiTudcrUvFBya7EwgQiftGn";
-     static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";
-   }
-   
    namespace devs
    {
-	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1kWHxjqLVPFgSka1MTCMMLiVehbbDGZdGZaeVUsKwi1nfV1mA9K7UjKN2MYCcNALLpWB5CMmsR8Ue1jJTueum5Mxgu1n5JA"; // Morelo devs
-     static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1Qucr6YfHaqbGG9KdYf94E9Y52Vma9Egts5shbxUACsYM3pd9yT9a81DittErZAF7GU191SCSG1qPkD8dwmB238n9SHerRQn";
-     static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";  
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1gezt9GAV78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFcMv42w";
+     static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1j9F9GdLV78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFduQGnP";
+     static constexpr const char* STAGENET_WALLET_ADDRESS = "exojE3iKAX8V78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFd9hNsM";
    }
+   
 }
 
 namespace cryptonote
