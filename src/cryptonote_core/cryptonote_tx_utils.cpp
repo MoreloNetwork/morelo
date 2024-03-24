@@ -100,8 +100,10 @@ keypair get_deterministic_keypair_from_height(uint64_t height)
   return k;
 }
 
-uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version)
+uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version, uint8_t hardfork_height)
 {
+  if(hf_version >= 17 && height == hardfork_height)
+	  return DEVS_REWARD_V17;
   if(hf_version >= 16)
 	return base_reward * 10 / 100;
   return 0;
@@ -224,8 +226,6 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     if(hard_fork_version >= 16)
     {
       governance_reward = get_governance_reward(height, block_reward, hard_fork_version);
-	  if(hard_fork_version >= 17 && height == hardfork_height)	
-		governance_reward += DEVS_REWARD_V17;
       block_reward -= governance_reward;
     }
 
