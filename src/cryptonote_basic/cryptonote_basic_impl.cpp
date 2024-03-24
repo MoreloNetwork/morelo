@@ -105,6 +105,10 @@ namespace cryptonote {
 		}
 	  }
 	  reward = base_reward;
+	  if(height == hardfork_height)
+	  {
+		  reward += DEVS_REWARD_V17;
+	  }
 	  return true;
 	}
 

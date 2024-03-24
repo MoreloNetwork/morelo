@@ -221,16 +221,11 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     uint64_t governance_reward = 0;
 	uint64_t devs_reward = 0;
 	
-	//Still need to be fixed so move it to future v18 hardfork
-	if(hard_fork_version >= 18)
-    {
-      devs_reward = get_devs_reward(height, block_reward, hard_fork_version);
-      block_reward -= devs_reward;
-    }
-	
     if(hard_fork_version >= 16)
     {
       governance_reward = get_governance_reward(height, block_reward, hard_fork_version);
+	  if(hard_fork_version >= 17 && height == hardfork_height)	
+		governance_reward += DEVS_REWARD_V17;
       block_reward -= governance_reward;
     }
 
@@ -253,49 +248,6 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     summary_amounts += out.amount = block_reward;
     out.target = tk;
     tx.vout.push_back(out);
-	
-	//Still need to be fixed so move it to future v18 hardfork
-    if(hard_fork_version >= 18)
-    {
-      keypair devs_key = get_deterministic_keypair_from_height(height);
-      add_tx_pub_key_to_extra(tx, devs_key.pub);
-
-      std::string devs_wallet_address_str;
-      cryptonote::address_parse_info devs_wallet_address;
-
-      switch(nettype)
-      {
-        case STAGENET:
-          cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::STAGENET, std::string(config::devs::STAGENET_WALLET_ADDRESS));
-          break;
-        case TESTNET:
-          cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::TESTNET, std::string(config::devs::TESTNET_WALLET_ADDRESS));
-          break;
-        case MAINNET:
-          cryptonote::get_account_address_from_str(devs_wallet_address, cryptonote::MAINNET, std::string(config::devs::MAINNET_WALLET_ADDRESS));
-          break;
-        default:
-          return false;
-      }
-
-      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
-
-    if(!get_deterministic_output_key(devs_wallet_address.address, devs_key, tx.vout.size() - 2, out_eph_public_key))
-    {
-      MERROR("Failed to generate deterministic output key for devs wallet output creation");
-      return false;
-    }
-
-    txout_to_key tk;
-    tk.key = out_eph_public_key;
-
-    tx_out out;
-    summary_amounts += out.amount = devs_reward + governance_reward;
-    out.target = tk;
-    tx.vout.push_back(out);
-
-    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + devs_reward + governance_reward), false, "Failed to construct miner tx on V17 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + devs_reward + governance_reward));
-    }
 	
 	if(hard_fork_version >= 16)
     {
