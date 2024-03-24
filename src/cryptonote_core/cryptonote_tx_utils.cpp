@@ -225,7 +225,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 	
     if(hard_fork_version >= 16)
     {
-      governance_reward = get_governance_reward(height, block_reward, hard_fork_version);
+      governance_reward = get_governance_reward(height, block_reward, hard_fork_version, hardfork_height);
       block_reward -= governance_reward;
     }
 
