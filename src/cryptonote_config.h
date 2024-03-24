@@ -64,8 +64,8 @@
 	1 Month:	21600 BLOCKS (30 * 720, not exaclly)
 	1 Year: 	262,8K BLOCKS (365 * 720)
 */
-#define HALVING_EVERY_X_BLOCKS							15 // Halving every 30 minutes
-#define DEVS_REWARD_V17									((uint64_t)5000000000000000)
+#define HALVING_EVERY_X_BLOCKS							262800 // Halving every 1 year
+#define DEVS_REWARD_V17									((uint64_t)12000000000000000)
 					
 
 
