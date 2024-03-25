@@ -46,7 +46,7 @@ jobs:
     - name: build
       run: |
         ${{env.CCACHE_SETTINGS}}
-        make release-static-win -j3
+        make release -j3
     - name: Upload windows artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -59,7 +59,7 @@ jobs:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-20.04]
+        os: [ubuntu-22.04, ubuntu-20.04, ubuntu-18.04]
     steps:
     - uses: actions/checkout@v4
       with:
