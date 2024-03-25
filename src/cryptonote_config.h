@@ -56,6 +56,18 @@
 #define EMISSION_SPEED_FACTOR_V16                       (20)
 #define FINAL_SUBSIDY_PER_MINUTE                        ((uint64_t)300000000)
 
+#define BASE_REWARD_V17 								((uint64_t)55550000000) // Static reward before first halving
+/*
+	Blocks per:
+	
+	24h:		720 BLOCKS (3600 * 24 / 120)
+	1 Month:	21600 BLOCKS (30 * 720, not exaclly)
+	1 Year: 	262,8K BLOCKS (365 * 720)
+*/
+#define HALVING_EVERY_X_BLOCKS							262800 // Halving every 1 year
+#define DEVS_REWARD_V17									((uint64_t)12000000000000000)
+					
+
 
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2    60000 //size of block (bytes) after which reward for block calculated using block size
@@ -267,12 +279,20 @@ namespace config
      const size_t FAST_SYNC = 100;
    }
 
-   namespace governance
+   namespace governance_old
    {
-	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX";
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX"; // ArqTras
      static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1UJjpbxTgM2kzrQNgrkazZLCyhGvcHaoFvsHypZ8JdvsXFQ9kb6zEMAxxJrkzBWKx1ZgxArfgiTudcrUvFBya7EwgQiftGn";
      static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";
    }
+   
+   namespace devs
+   {
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1gezt9GAV78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFcMv42w";
+     static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1j9F9GdLV78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFduQGnP";
+     static constexpr const char* STAGENET_WALLET_ADDRESS = "exojE3iKAX8V78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFd9hNsM";
+   }
+   
 }
 
 namespace cryptonote

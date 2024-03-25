@@ -93,7 +93,8 @@ static const struct {
  // version 1 from the start of the blockchain
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
- { 16, 235000, 0, 1687982396 }, 
+ { 16, 235000, 0, 1687982396 },
+ { 17, 430045, 0, 1711899059 }
 };
 
 static const struct {
@@ -105,7 +106,8 @@ static const struct {
  // version 1 from the start of the blockchain
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
- { 16, 235000, 0, 1687982396 },
+ { 16, 2, 0, 1687982396 },
+ { 17, 10, 0, 1708459168 }
 };
 
 static const struct {
@@ -1300,22 +1302,23 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
   LOG_PRINT_L3("Blockchain::" << __func__);
   //validate reward
   uint64_t money_in_use = 0;
+  uint64_t height = m_db->height();
+  uint64_t hardfork_height = m_hardfork->get_current_version_height();
   for (auto& o: b.miner_tx.vout)
     money_in_use += o.amount;
   partial_block_reward = false;
 
   std::vector<uint64_t> last_blocks_weights;
   get_last_n_blocks_weights(last_blocks_weights, CRYPTONOTE_REWARD_BLOCKS_WINDOW);
-  if (!get_block_reward(epee::misc_utils::median(last_blocks_weights), cumulative_block_weight, already_generated_coins, base_reward, version))
+  if (!get_block_reward(epee::misc_utils::median(last_blocks_weights), cumulative_block_weight, already_generated_coins, base_reward, version, height, hardfork_height))
   {
     MERROR_VER("block weight " << cumulative_block_weight << " is bigger than allowed for this blockchain");
     return false;
   }
-  uint64_t height = m_db->height();
 
 if(version >= 16)
 {
-  uint64_t governance_reward = get_governance_reward(height, base_reward, version);
+  uint64_t governance_reward = get_governance_reward(height, base_reward, version, hardfork_height);
 
   if(b.miner_tx.vout.back().amount != governance_reward)
   {
@@ -1324,19 +1327,37 @@ if(version >= 16)
   }
 
   std::string governance_wallet_address_str;
-  switch(m_nettype)
+  if(version >= 17)
   {
-    case STAGENET:
-      governance_wallet_address_str = std::string(config::governance::STAGENET_WALLET_ADDRESS);
-      break;
-    case TESTNET:
-      governance_wallet_address_str = std::string(config::governance::TESTNET_WALLET_ADDRESS);
-      break;
-    case MAINNET:
-      governance_wallet_address_str = std::string(config::governance::MAINNET_WALLET_ADDRESS);
-      break;
-    default:
-      return false;
+    switch(m_nettype)
+    {
+      case STAGENET:
+        governance_wallet_address_str = std::string(config::devs::STAGENET_WALLET_ADDRESS);
+        break;
+      case TESTNET:
+        governance_wallet_address_str = std::string(config::devs::TESTNET_WALLET_ADDRESS);
+        break;
+      case MAINNET:
+        governance_wallet_address_str = std::string(config::devs::MAINNET_WALLET_ADDRESS);
+        break;
+      default:
+        return false;
+    }
+  } else {
+	switch(m_nettype)
+    {
+      case STAGENET:
+        governance_wallet_address_str = std::string(config::governance_old::STAGENET_WALLET_ADDRESS);
+        break;
+      case TESTNET:
+        governance_wallet_address_str = std::string(config::governance_old::TESTNET_WALLET_ADDRESS);
+        break;
+      case MAINNET:
+        governance_wallet_address_str = std::string(config::governance_old::MAINNET_WALLET_ADDRESS);
+        break;
+      default:
+        return false;
+    }
   }
 
   if(!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, b.miner_tx.vout.size() - 1, boost::get<txout_to_key>(b.miner_tx.vout.back().target).key, m_nettype))
@@ -1344,7 +1365,7 @@ if(version >= 16)
     MERROR("Governance reward public key incorrect.");
     return false;
   }
-}
+} 
 
   if(height == 1)
   {
@@ -1417,6 +1438,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   size_t median_weight;
   uint64_t already_generated_coins;
   uint64_t pool_cookie;
+  uint64_t hardfork_height = m_hardfork->get_current_version_height();
 
   CRITICAL_REGION_BEGIN(m_blockchain_lock);
   if (m_btc_valid && !from_block) {
@@ -1596,7 +1618,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = hf_version >= 7 ? 1 : 11;
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
+  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype, hardfork_height);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1605,7 +1627,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
+    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype, hardfork_height);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);

@@ -32,6 +32,8 @@
 #include <string>
 #include <functional>
 #include <boost/optional/optional_fwd.hpp>
+#include <deque>
+#include <set>
 
 namespace tools
 {

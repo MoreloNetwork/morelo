@@ -361,6 +361,13 @@ uint8_t HardFork::get_current_version() const
   return heights[current_fork_index].version;
 }
 
+// Returns on what height current hardfork starts
+uint64_t HardFork::get_current_version_height() const
+{
+  CRITICAL_REGION_LOCAL(lock);
+  return heights[current_fork_index].height;
+}
+
 uint8_t HardFork::get_ideal_version() const
 {
   CRITICAL_REGION_LOCAL(lock);

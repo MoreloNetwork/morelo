@@ -84,7 +84,37 @@ namespace cryptonote {
     return config::tx_settings::TRANSACTION_SIZE_LIMIT;
   }
   //-----------------------------------------------------------------------------------------------
-  bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version) {
+  bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version, uint64_t height, uint64_t hardfork_height) {	  
+	uint64_t base_reward;
+	// HalvingARQ implementation
+	// Base static reward for mined block
+	// Halving every X blocks
+	// That means divide reward by 2
+	if(version >= 17)
+	{
+	  base_reward = BASE_REWARD_V17;
+	  uint64_t blocks_past = height - hardfork_height;
+	  // Calculate number of halvings
+	  uint64_t halvings = blocks_past / HALVING_EVERY_X_BLOCKS;
+	  if(halvings)
+	  {
+		for(uint64_t i = 0; i < halvings; i++)
+		{
+		  base_reward /= 2; // Divide reward by 2  
+	    }
+		if(base_reward < COIN) // If reward is lower than one unit
+		{
+		  base_reward = 0; // Make the reward 0
+		}
+	  }
+	  reward = base_reward;
+	  if(height == hardfork_height)
+	  {
+		  reward += DEVS_REWARD_V17;
+	  }
+	  return true;
+	}
+
     static_assert(DIFFICULTY_TARGET_V2 % 60 == 0,"difficulty targets must be a multiple of 60");
     const int target_minutes = DIFFICULTY_TARGET_V2 / 60;
     const int emission_speed_factor = EMISSION_SPEED_FACTOR_PER_MINUTE - (target_minutes-3);
@@ -94,7 +124,7 @@ namespace cryptonote {
       already_generated_coins -= config::blockchain_settings::PREMINE_BURN;
     }
 
-    uint64_t base_reward = (MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
+    base_reward = (MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
     if (base_reward < FINAL_SUBSIDY_PER_MINUTE*target_minutes)
     {
       base_reward = FINAL_SUBSIDY_PER_MINUTE*target_minutes;

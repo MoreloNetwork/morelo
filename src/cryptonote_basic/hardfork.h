@@ -204,6 +204,11 @@ namespace cryptonote
      * at one point in the past.
      */
     uint8_t get_current_version() const;
+	
+	/**
+     * @brief returns the current hardfork begin height
+     */
+    uint64_t get_current_version_height() const;
 
     /**
      * @brief returns the earliest block a given version may activate
