@@ -477,13 +477,13 @@ namespace nodetool
     }
     else
     {
-      full_addrs.insert("80.60.19.222:38301"); //sniperviperman EU
-      full_addrs.insert("41.164.183.226:38301"); //Kaktus Africa
-      full_addrs.insert("41.164.183.225:38301"); //Kaktus Africa
-      full_addrs.insert("104.202.163.72:38301"); //DocJray  USA
-      full_addrs.insert("136.243.156.104:38301"); //MrKris7100's Home
-      full_addrs.insert("130.162.249.49:38301"); //MrKris7100's Oracle 1
-      full_addrs.insert("193.122.56.95:38301"); //MrKris7100's Oracle 2
+      full_addrs.insert("80.60.19.222:38301"); 				//sniperviperman 	EU
+      full_addrs.insert("104.202.163.72:38301"); 			//DocJray 			USA
+      full_addrs.insert("188.68.247.50:38301"); 			//MrKris7100 		PL
+      full_addrs.insert("130.162.249.49:38301"); 			//MrKris7100 Oracle 1
+      full_addrs.insert("193.122.56.95:38301"); 			//MrKris7100 Oracle 2
+      full_addrs.insert("cryptosyphon.sytes.net:38301");	//CryptoSyphon		HU
+      full_addrs.insert("morelo.mooo.com:38301");			//bigcundy
     }
     return full_addrs;
   }
