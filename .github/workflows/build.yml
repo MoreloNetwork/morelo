@@ -22,7 +22,7 @@ jobs:
     - name: update apt
       run: sudo apt update
     - name: install morelo dependencies
-      run: sudo apt -y install libboost-dev-all build-essential cmake graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev
+      run: sudo apt -y install libboost-all-dev build-essential cmake graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev
     - name: build
       run: make -j3
     - name: Upload linux artifacts
