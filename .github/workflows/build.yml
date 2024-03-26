@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         toolchain:
-          - name: "build-depends-windows-x64"
+          - name: "build-windows-x64"
             host: "x86_64-w64-mingw32"
             packages: "cmake python3 g++-mingw-w64-x86-64 qttools5-dev-tools"
     name: ${{ matrix.toolchain.name }}
@@ -58,11 +58,10 @@ jobs:
         ${{env.CCACHE_SETTINGS}}
         make depends target=${{ matrix.toolchain.host }} cmake_opts=${{ matrix.toolchain.cmake_opts }} -j2
     - uses: actions/upload-artifact@v3
-      if: ${{ matrix.toolchain.host == 'x86_64-w64-mingw32' || matrix.toolchain.host == 'x86_64-unknown-linux-gnu' || matrix.toolchain.host == 'aarch64-linux-gnu' || 'arm-linux-gnueabihf' }}
       with:
-        name: ${{ matrix.toolchain.name }}
+        name: release-windows
         path: |
-          /home/runner/work/morelo/morelo/build/${{ matrix.toolchain.host }}/release/bin/morelo*
+          /home/runner/work/morelo/morelo/build/Windows/release/bin/morelo*
 
   build-ubuntu:
     runs-on: ubuntu-20.04
@@ -86,5 +85,6 @@ jobs:
     - name: Upload linux artifacts
       uses: actions/upload-artifact@master
       with:
-        name: linux
-        path: 'build/**/**/morelo*'
+        name: release-linux
+        path: |
+            /home/runner/work/morelo/morelo/build/Linux/release/bin/morelo*
