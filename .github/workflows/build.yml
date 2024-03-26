@@ -60,7 +60,7 @@ jobs:
     - uses: actions/upload-artifact@v3
       if: ${{ matrix.toolchain.host == 'x86_64-w64-mingw32' || matrix.toolchain.host == 'x86_64-unknown-linux-gnu' || matrix.toolchain.host == 'aarch64-linux-gnu' || 'arm-linux-gnueabihf' }}
       with:
-        name: ${{ matrix.toolchain.name }}
+        name: windows-release
         path: |
           /home/runner/work/morelo/morelo/build/${{ matrix.toolchain.host }}/release/bin/morelo*
 
@@ -86,5 +86,5 @@ jobs:
     - name: Upload linux artifacts
       uses: actions/upload-artifact@master
       with:
-        name: linux
+        name: linux-release
         path: 'build/**/**/morelo*'
