@@ -6,7 +6,9 @@
 
 
 # Morelo Network: 
+
 **Empowering Privacy, Security, and Untraceability in Digital Currency**
+
 [![GitHub issues](https://img.shields.io/github/issues/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/issues)
 [![GitHub contributors](https://img.shields.io/github/contributors/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/graphs/contributors)
 [![GitHub last commit](https://img.shields.io/github/last-commit/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/commits/master)
