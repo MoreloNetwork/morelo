@@ -6,13 +6,12 @@
 
 
 # Morelo Network: 
+**Empowering Privacy, Security, and Untraceability in Digital Currency**
 [![GitHub issues](https://img.shields.io/github/issues/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/issues)
 [![GitHub contributors](https://img.shields.io/github/contributors/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/graphs/contributors)
 [![GitHub last commit](https://img.shields.io/github/last-commit/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/commits/master)
 [![GitHub stars](https://img.shields.io/github/stars/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/network)
-
-**Empowering Privacy, Security, and Untraceability in Digital Currency**
 
 ## Introduction:
 Welcome to Morelo Network, a revolutionary digital currency platform designed to prioritize privacy, security, and untraceability. With Morelo, users can take control of their finances in a decentralized ecosystem while ensuring their transactions remain confidential.
