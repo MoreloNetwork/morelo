@@ -1,37 +1,52 @@
-## Morelo Network
+### Copyright
+- Copyright (c) 2020-2024, The Morelo Network 
+- Copyright (c) 2018-2024, The Arqma Network 
+- Copyright (c) 2014-2021, The Monero Project 
+- Copyright (c) 2012-2013 The Cryptonote developers
 
 
-Copyright (c) 2020-2024, The Morelo Network
-Copyright (c) 2018-2020, The Arqma Network
-Copyright (c) 2014-2021, The Monero Project
-Portions Copyright (c) 2012-2013 The Cryptonote developers.
+# Morelo Network: 
+[![GitHub issues](https://img.shields.io/github/issues/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/issues)
+[![GitHub contributors](https://img.shields.io/github/contributors/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/graphs/contributors)
+[![GitHub last commit](https://img.shields.io/github/last-commit/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/commits/master)
+[![GitHub stars](https://img.shields.io/github/stars/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/network)
 
-## Development resources
+**Empowering Privacy, Security, and Untraceability in Digital Currency**
 
-- Web: [http://mrl.stx.nl](http://mrl.stx.nl:2002/)
-- Mail: [morelonetwork@gmail.com](mailto:morelonetwork@gmail.com)
-- GitHub: [https://github.com/MoreloNetwork/morelo](https://github.com/MoreloNetwork/morelo)
-- Discord: [https://discord.gg/36HR7KmYCa](https://discord.gg/36HR7KmYCa)
+## Introduction:
+Welcome to Morelo Network, a revolutionary digital currency platform designed to prioritize privacy, security, and untraceability. With Morelo, users can take control of their finances in a decentralized ecosystem while ensuring their transactions remain confidential.
 
-## Other Morelo related websites
+### Privacy:
+Morelo employs a robust cryptographic system to safeguard user transactions from prying eyes. By utilizing this technology, all financial activities, including purchases and transfers, remain private by default, protecting sensitive information from unauthorized access.
 
-- CryptUnit: [https://www.cryptunit.com/coin/MRL](https://www.cryptunit.com/coin/MRL)
-- Blockchain Explorer: [https://explorer.morelonetwork.pl/](https://explorer.morelonetwork.pl/)
+### Security:
+The security of Morelo transactions is fortified by a distributed peer-to-peer consensus network. Each wallet is equipped with a 25-word mnemonic seed for added security, while wallet files are encrypted with a passphrase, ensuring assets remain safe even in the event of theft.
 
-## Morelo Social-Media Websites
+### Untraceability:
+Through innovative ring signatures, Morelo ensures transactions are untraceable and introduces an element of ambiguity, preventing them from being linked back to individual users or computers. This pioneering approach to anonymity ensures user privacy is maintained at all times.
 
-- Telegram: [https://t.me/morelonetwork](https://t.me/morelonetwork)
-- Twitter: [https://twitter.com/MoreloNetwork](https://twitter.com/MoreloNetwork)
+### Contributions and Collaboration:
+We welcome contributions from the community to enhance the Morelo Network. Whether it's a small fix or a significant code change, individuals are encouraged to submit their contributions via pull requests to the master branch. Collaboration and discussion are vital to shaping the platform and ensuring it remains at the forefront of privacy-centric digital currency.
 
-## Introduction
+## Morelo Network resources
 
-Morelo is a private, secure, untraceable, decentralised digital currency. You are your bank, you control your funds, and nobody can trace your transfers unless you allow them to do so.
+- **Website:** [morelonetwork.pl](http://morelonetwork.pl)
+- **Explorer:** [explorer.morelonetwork.pl](http://explorer.morelonetwork.pl)
+- **Official Devs Pool:** [pool.morelonetwork.pl](http://pool.morelonetwork.pl)
+- **Paper Wallet:** [generate.morelonetwork.pl](https://generate.morelonetwork.pl)
+- **GitHub:** [github.com/MoreloNetwork/morelo](http://github.com/MoreloNetwork/morelo)
+- **Download:** [github.com/MoreloNetwork/morelo/releases](https://github.com/MoreloNetwork/morelo/releases) 
 
-**Privacy:** Morelo uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has). This ensures that your purchases, receipts, and all transfers remain absolutely private by default.
+## Morelo Network Global resources
 
-**Security:** Using the power of a distributed peer-to-peer consensus network, every transaction on the network is cryptographically secured. Individual wallets have a 25 word mnemonic seed that is only displayed once, and can be written down to backup the wallet. Wallet files are encrypted with a passphrase to ensure they are useless if stolen.
+- **Bitcointalk:** [bitcointalk.org](https://bitcointalk.org/index.php?topic=5233023)
+- **Discord:** [Join Morelo Discord](https://discord.com/invite/36HR7KmYCa)
+- **Facebook:** [facebook.com](https://www.facebook.com/profile.php?id=61551589695937)
+- **Twitter:** [twitter.com/MoreloNetwork](https://twitter.com/MoreloNetwork)
+- **Mining Pool Stats:** [miningpoolstats.stream](https://miningpoolstats.stream/morelo)
 
-**Untraceability:** By taking advantage of ring signatures, a special property of a certain type of cryptography, Morelo is able to ensure that transactions are not only untraceable, but have an optional measure of ambiguity that ensures that transactions cannot easily be tied back to an individual user or computer.
+Feel free to explore and engage with the Morelo community through these channels and platforms! :rocket:
 
 ## SSL
 
@@ -49,33 +64,13 @@ The use of SSL connections means that there will not be any possibility to use t
 
  * Above example will generate 4096bit SSL Cert at /tmp (which can be changed)*
 
+# Compiling Morelo from source
 
-## About this project
-
-This is the core implementation of Morelo. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Morelo that uses the protocol and network in a compatible manner.
-
-As with many development projects, the repository on Github is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. That having been said, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
-
-**Anyone is welcome to contribute to Morelo's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
-
-## License
-
-See [LICENSE](LICENSE).
-
-## Contributing
-
-If you want to help out, see [CONTRIBUTING](CONTRIBUTING.md) for a set of guidelines.
-
-## Compiling Morelo from source
-
-## Build
-
-### IMPORTANT
+## IMPORTANT
 
 That build is from the master branch, which is used for active development and can be either unstable or incompatible with release software. Please compile release branches.
 
-[![TravisCI master branch](https://img.shields.io/travis/morelo/morelo/master?label=master%20branch&style=for-the-badge)](https://travis-ci.org/morelo/morelo)
-![Monitored by DiscordHooks](https://img.shields.io/static/v1?label=Monitored%20by&message=DiscordHooks&color=brightgreen&style=for-the-badge)
+
 
 ### Dependencies
 
@@ -579,3 +574,17 @@ The output of `mdb_stat -ea <path to blockchain dir>` will indicate inconsistenc
 The output of `mdb_dump -s blocks <path to blockchain dir>` and `mdb_dump -s block_info <path to blockchain dir>` is useful for indicating whether blocks and block_info contain the same keys.
 
 These records are dumped as hex data, where the first line is the key and the second line is the data.
+
+
+# Disclaimer:
+
+**Important Notice:**
+Morelo Network is provided as-is without any warranties or guarantees. While every effort has been made to ensure the security and reliability of the platform, users are advised to use Morelo at their own discretion. The Morelo development team and contributors cannot be held liable for any loss or damage resulting from the use of Morelo Network.
+
+## License:
+
+Morelo Network is licensed under the [MIT License](https://opensource.org/licenses/MIT). See the LICENSE file for details.
+For inquiries, feedback, or collaboration opportunities, please contact our team.
+
+**Together, let's continue to innovate and shape the future of privacy-centric finance.**
+
