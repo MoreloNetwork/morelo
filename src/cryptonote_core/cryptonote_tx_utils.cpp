@@ -291,7 +291,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
     crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
 
-    if(!get_deterministic_output_key(governance_wallet_address.address, gov_key, tx.vout.size(), out_eph_public_key))
+    if(!get_deterministic_output_key(governance_wallet_address.address, gov_key, 1, out_eph_public_key))
     {
       MERROR("Failed to generate deterministic output key for governance wallet output creation");
       return false;
