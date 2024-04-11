@@ -477,7 +477,6 @@ namespace nodetool
     }
     else
     {
-      full_addrs.insert("80.60.19.222:38301"); 				//sniperviperman 	EU
       full_addrs.insert("104.202.163.72:38301"); 			//DocJray 			USA
       full_addrs.insert("188.68.247.50:38301"); 			//MrKris7100 		PL
       full_addrs.insert("130.162.249.49:38301"); 			//MrKris7100 Oracle 1
