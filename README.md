@@ -6,19 +6,19 @@
 [![GitHub contributors](https://img.shields.io/github/contributors/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/graphs/contributors)
 [![GitHub last commit](https://img.shields.io/github/last-commit/MoreloNetwork/morelo)](https://github.com/MoreloNetwork/morelo/commits/master)
 
-## Introduction:
+## Introduction
 Welcome to Morelo Network, a revolutionary digital currency platform designed to prioritize privacy, security, and untraceability. With Morelo, users can take control of their finances in a decentralized ecosystem while ensuring their transactions remain confidential.
 
-### Privacy:
+### Privacy
 Morelo employs a robust cryptographic system to safeguard user transactions from prying eyes. By utilizing this technology, all financial activities, including purchases and transfers, remain private by default, protecting sensitive information from unauthorized access.
 
-### Security:
+### Security
 The security of Morelo transactions is fortified by a distributed peer-to-peer consensus network. Each wallet is equipped with a 25-word mnemonic seed for added security, while wallet files are encrypted with a passphrase, ensuring assets remain safe even in the event of theft.
 
-### Untraceability:
+### Untraceability
 Through innovative ring signatures, Morelo ensures transactions are untraceable and introduces an element of ambiguity, preventing them from being linked back to individual users or computers. This pioneering approach to anonymity ensures user privacy is maintained at all times.
 
-### Contributions and Collaboration:
+### Contributions and Collaboration
 We welcome contributions from the community to enhance the Morelo Network. Whether it's a small fix or a significant code change, individuals are encouraged to submit their contributions via pull requests to the master branch. Collaboration and discussion are vital to shaping the platform and ensuring it remains at the forefront of privacy-centric digital currency.
 
 ## Morelo Network resources
@@ -27,16 +27,15 @@ We welcome contributions from the community to enhance the Morelo Network. Wheth
 - **Explorer:** [explorer.morelonetwork.pl](http://explorer.morelonetwork.pl)
 - **Official Devs Pool:** [pool.morelonetwork.pl](http://pool.morelonetwork.pl)
 - **Paper Wallet:** [generate.morelonetwork.pl](https://generate.morelonetwork.pl)
-- **GitHub:** [github.com/MoreloNetwork/morelo](http://github.com/MoreloNetwork/morelo)
+- **Mining Pool Stats:** [miningpoolstats.stream/morelo](https://miningpoolstats.stream/morelo)
 - **Download:** [github.com/MoreloNetwork/morelo/releases](https://github.com/MoreloNetwork/morelo/releases) 
 
-## Morelo Network Global ane Contact resources
+## Morelo Network social media
 
-- **Bitcointalk:** [bitcointalk.org](https://bitcointalk.org/index.php?topic=5233023)
-- **Discord:** [Join Morelo Discord](https://discord.com/invite/36HR7KmYCa)
-- **Facebook:** [facebook.com](https://www.facebook.com/profile.php?id=61551589695937)
-- **Twitter:** [twitter.com/MoreloNetwork](https://twitter.com/MoreloNetwork)
-- **Mining Pool Stats:** [miningpoolstats.stream](https://miningpoolstats.stream/morelo)
+- **Discord:** [discord.gg/JB9CeFW66g](https://discord.gg/JB9CeFW66g)
+- **X / Twitter:** [twitter.com/MoreloNetwork](https://twitter.com/MoreloNetwork)
+- **Facebook:** [www.facebook.com/profile.php?id=61551589695937](https://www.facebook.com/profile.php?id=61551589695937)
+- **Bitcointalk:** [bitcointalk.org/index.php?topic=5233023](https://bitcointalk.org/index.php?topic=5233023)
 
 Feel free to explore and engage with the Morelo community through these channels and platforms! :rocket:
 
