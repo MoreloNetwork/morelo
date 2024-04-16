@@ -94,7 +94,8 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 235000, 0, 1687982396 },
- { 17, 433100, 0, 1712271889 }
+ { 17, 433100, 0, 1712271889 },
+ { 18, 433100, 0, 1712271889 }
 };
 
 static const struct {
@@ -107,7 +108,8 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 2, 0, 1687982396 },
- { 17, 10, 0, 1708459168 }
+ { 17, 10, 0, 1708459168 },
+ { 18, 20, 0, 1708459168 }
 };
 
 static const struct {
@@ -1327,7 +1329,23 @@ if(version >= 16)
   }
 
   std::string governance_wallet_address_str;
-  if(version >= 17)
+  if(version >= 18)
+  {
+    switch(m_nettype)
+    {
+      case STAGENET:
+        governance_wallet_address_str = std::string(config::devs_new::STAGENET_WALLET_ADDRESS);
+        break;
+      case TESTNET:
+        governance_wallet_address_str = std::string(config::devs_new::TESTNET_WALLET_ADDRESS);
+        break;
+      case MAINNET:
+        governance_wallet_address_str = std::string(config::devs_new::MAINNET_WALLET_ADDRESS);
+        break;
+      default:
+        return false;
+    }
+  } else if(version >= 17)
   {
     switch(m_nettype)
     {
