@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, The Morelo Network
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -66,7 +66,7 @@
 */
 #define HALVING_EVERY_X_BLOCKS							262800 // Halving every 1 year
 #define DEVS_REWARD_V17									((uint64_t)12000000000000000)
-					
+#define AIRDROP_V18                 ((uint64_t)18000000000000000)
 
 
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
@@ -281,7 +281,7 @@ namespace config
 
    namespace governance_old
    {
-	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX"; // ArqTras
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1hsdY9BLhGUUZqFqNUgGowHwEcW9LzQ9kjN8GJrqbBhXe6L37gZ5Y2pa8eNRiyzabyP8ScDyi2hcbzH4akSvE8SuYr1dFeX";
      static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1UJjpbxTgM2kzrQNgrkazZLCyhGvcHaoFvsHypZ8JdvsXFQ9kb6zEMAxxJrkzBWKx1ZgxArfgiTudcrUvFBya7EwgQiftGn";
      static constexpr const char* STAGENET_WALLET_ADDRESS = "exoiwUAF2AEDC8oniRiMXKEkmsLEtw7XNVm2Lc2NJsejU4nN2zWrCF9cjrPgEgUeiHLQ8gNkwyoHVRmkGpS87Eqh4G1yAjseHF";
    }
@@ -291,6 +291,13 @@ namespace config
 	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1gezt9GAV78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFcMv42w";
      static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1j9F9GdLV78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFduQGnP";
      static constexpr const char* STAGENET_WALLET_ADDRESS = "exojE3iKAX8V78y39PaeoqSyXtcMNTSJoTJ9Wm3ejFoUWzLwKbH8fN17xbLQS96LdBBrPF57b9Cuz4UU8cekbwju2pvFd9hNsM";
+   }
+   
+   namespace devs_new 
+   {
+	 static constexpr const char* MAINNET_WALLET_ADDRESS = "emo1devscWJ4UkbM3zxdcW8ELQUQJ69dZTFWwiWwYRLvYb5mmAtkcUr58yU6MskfrjCBUfPKd3Kio9oY6gcKoKZF7PoR7hBu3i";
+     static constexpr const char* TESTNET_WALLET_ADDRESS = "eto1devsuxxM2jVmx2166mJoSLssgTzbrYWMRBqhodtzGDPJizpZGQw3RN3gRNXidCH9rdto22uJe76Vr8Rfkdfa9DTqUtzQzi";
+     static constexpr const char* STAGENET_WALLET_ADDRESS = "exojDEvSAzPJCS9wCFp5yERNPSsUNyDZRanK35iVxvxaNwdocEWRakZbYA81BhYD9yf7B7XDkBYS2E8WUv6zaqFT2mwhRqnmvt";
    }
    
 }

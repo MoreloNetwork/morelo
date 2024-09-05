@@ -1,3 +1,4 @@
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2017-2018, The Monero Project
 //
@@ -45,9 +46,9 @@ namespace tools
 
     MDEBUG("Checking updates for " << buildtag << " " << software);
 
-    // All four Morelo Network domains have DNSSEC on and valid
+    // All Morelo Network domains have DNSSEC on and valid
     static const std::vector<std::string> dns_urls = {
-       //"" TODO
+       "updates.morelo.cc", "updates.morelonetwork.pl"
     };
 
     if (!tools::dns_utils::load_txt_records_from_dns(records, dns_urls))
@@ -97,17 +98,25 @@ namespace tools
 
   std::string get_update_url(const std::string &software, const std::string &buildtag, const std::string &version, bool user)
   {
-    const char *base = user ? "" : ""; //TODO
-#ifdef _WIN32
-    static const char *extension = strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
-#else
-    static const char extension[] = ".tar.gz";
-#endif
-
-    std::string url;
-    url = base;
-
-    url = url + "/" + software + "-" + buildtag + "-v" + version + extension;
-    return url;
+  	std::string url;
+  	if (user) {
+  		if (buildtag == "source") {
+    		url = "https://github.com/MoreloNetwork/" + software + "/tree/" + version;
+  		} else {
+    		url = "https://github.com/MoreloNetwork/" + software + "/releases/tag/" + version;
+  		}
+	} else {
+  		if (buildtag == "source") {
+    		url = "https://github.com/MoreloNetwork/" + software + "/archive/refs/tags/" + version;
+  		} else {
+    		url = "https://github.com/MoreloNetwork/" + software + "/releases/download/" buildtag "-" + version;
+  		}
+		#ifdef _WIN32
+		    url += strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
+		#else
+		    url += ".tar.gz";
+		#endif
+	}
+	return url;
   }
 }

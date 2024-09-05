@@ -1,3 +1,4 @@
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2020, The Arqma Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -464,25 +465,32 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("188.68.231.40:38311");
-      full_addrs.insert("80.60.19.222:38311");
+      full_addrs.insert("pool.morelo.cc");		// DE3, IPv4 + IPv6
+      full_addrs.insert("0.seed.morelo.cc");	// DE2, IPv4 + IPv6
+      full_addrs.insert("1.seed.morelo.cc");	// DE1, IPv4 + IPv6
     }
     else if (nettype == cryptonote::STAGENET)
     {
-      full_addrs.insert("188.68.231.40:38321");
-      full_addrs.insert("80.60.19.222:38321");
+      full_addrs.insert("pool.morelo.cc");		// DE3, IPv4 + IPv6
+      full_addrs.insert("0.seed.morelo.cc");	// DE2, IPv4 + IPv6
+      full_addrs.insert("1.seed.morelo.cc");	// DE1, IPv4 + IPv6
     }
     else if (nettype == cryptonote::FAKECHAIN)
     {
     }
     else
     {
-      full_addrs.insert("104.202.163.72:38301"); 			//DocJray 			USA
-      full_addrs.insert("188.68.247.50:38301"); 			//MrKris7100 		PL
-      full_addrs.insert("130.162.249.49:38301"); 			//MrKris7100 Oracle 1
-      full_addrs.insert("193.122.56.95:38301"); 			//MrKris7100 Oracle 2
-      full_addrs.insert("cryptosyphon.sytes.net:38301");	//CryptoSyphon		HU
-      full_addrs.insert("morelo.mooo.com:38301");			//bigcundy
+      // Primary
+      full_addrs.insert("pool.morelo.cc");     // DE3, IPv4 + IPv6
+      full_addrs.insert("0.seed.morelo.cc");   // DE2, IPv4 + IPv6
+      full_addrs.insert("1.seed.morelo.cc");   // DE1, IPv4 + IPv6
+      // Secondary
+      full_addrs.insert("20.seed.morelo.cc");  // PL1, IPv4 + IPv6
+      full_addrs.insert("21.seed.morelo.cc");  // PL2, IPv4 only
+      full_addrs.insert("22.seed.morelo.cc");  // PL3, IPv6 only (TODO support)
+      // Community
+      full_addrs.insert("98.seed.morelo.cc");  // CryptoSyphon, HU, IPv4 only
+      full_addrs.insert("99.seed.morelo.cc");  // bigcundy, UK, IPv4 only
     }
     return full_addrs;
   }

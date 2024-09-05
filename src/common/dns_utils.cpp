@@ -1,3 +1,4 @@
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The ArQmA Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -45,12 +46,12 @@ using namespace epee;
 
 static const char *DEFAULT_DNS_PUBLIC_ADDR[] =
 {
-  "1.1.1.1",      // Cloudflare
-  "8.8.8.8",      // Google
-  "64.6.64.6",    // Verisign
-  "209.244.0.3",  // Level3
-  "8.26.56.26",   // Comodo
-  "77.88.8.8",    // Yandex
+  "208.67.222.222",  // OpenDNS
+  "1.1.1.1",         // Cloudflare
+  "8.8.8.8",         // Google
+  "9.9.9.9",         // Quad9
+  "8.26.56.26",      // Comodo
+  "45.90.28.190"     // NextDNS
 };
 
 static boost::mutex instance_lock;
@@ -103,8 +104,8 @@ get_builtin_ds(void)
 {
   static const char * const ds[] =
   {
-    ". IN DS 19036 8 2 49AAC11D7B6F6446702E54A1607371607A1A41855200FD2CE1CDDE32F24E8FB5\n",
-    ". IN DS 20326 8 2 E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D\n",
+    ". IN DS 2371 13 2 BE68DD85DB1FAF3AC8E2D9BA050E84222CB85C552AAE68DCE2D768557B6E2863\n", // morelo.cc
+    ". IN DS 2371 13 2 1D064892752E6DBA91DA1C100B3E681AFEE6D2046DABFD71748BCDDF9E385EF1\n", // morelonetwork.pl
     NULL
   };
   return ds;
@@ -285,7 +286,7 @@ DNSResolver::DNSResolver() : m_data(new DNSResolverData())
     // should be a valid DNSSEC record, and switch to known good
 	// DNSSEC resolvers if verification fails
 	bool available, valid;
-	static const char *probe_hostname = ""; //TODO
+	static const char *probe_hostname = "updates.morelo.cc";
 	auto records = get_txt_record(probe_hostname, available, valid);
 	if (!valid)
 	{
