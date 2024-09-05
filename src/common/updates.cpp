@@ -42,7 +42,7 @@ namespace tools
   bool check_updates(const std::string &software, const std::string &buildtag, std::string &version, std::string &hash)
   {
     std::vector<std::string> records;
-    uint8_t found = 0;
+    bool found = false;
 
     MDEBUG("Checking updates for " << buildtag << " " << software);
 
@@ -76,24 +76,22 @@ namespace tools
       }
 
       // use highest version
-      if(found != 0)
+      if(found)
       {
         int cmp = vercmp(version.c_str(), fields[2].c_str());
         if(cmp > 0)
           continue;
-        if(cmp == 0 && hash != fields[3]) {
-          MWARNING("Two matches found for " << software << " version " << version << " on " << buildtag);
-          continue;
-        }
+        if(cmp == 0 && hash != fields[3])
+          MWARNING("Multiple matches found for " << software << " version " << version << " on " << buildtag);
       }
 
       version = fields[2];
       hash = fields[3];
 
       MINFO("Found new version " << version << " with hash " << hash);
-      ++found;
+      found = true;
     }
-    return found == records.size();
+    return found;
   }
 
   std::string get_update_url(const std::string &software, const std::string &buildtag, const std::string &version, bool user)

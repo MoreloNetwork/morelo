@@ -286,18 +286,18 @@ namespace cryptonote
     if(!epee::serialization::load_t_from_json_file(hashes, json_hashfile_fullpath))
     {
       MERROR("Error loading checkpoints from " << json_hashfile_fullpath);
-      return false;
+      return true;
     }
     for(std::vector<t_hashline>::const_iterator it = hashes.hashlines.begin(); it != hashes.hashlines.end(); )
     {
       uint64_t height;
       height = it->height;
       if (height <= prev_max_height) {
-	LOG_PRINT_L1("ignoring checkpoint height " << height);
+	      LOG_PRINT_L1("ignoring checkpoint height " << height);
       } else {
-	std::string blockhash = it->hash;
-	LOG_PRINT_L1("Adding checkpoint height " << height << ", hash=" << blockhash);
-	ADD_CHECKPOINT(height, blockhash);
+	      std::string blockhash = it->hash;
+	      LOG_PRINT_L1("Adding checkpoint height " << height << ", hash=" << blockhash);
+	      ADD_CHECKPOINT(height, blockhash);
       }
       ++it;
     }
@@ -309,18 +309,15 @@ namespace cryptonote
   {
     std::vector<std::string> records;
 
-	return false;
-    // All four Morelo Network domains have DNSSEC on and valid
-    static const std::vector<std::string> dns_urls = { };//TODO "checkpoints.morelonetwork.pl" };
+    // All Morelo Network domains have DNSSEC on and valid
+    static const std::vector<std::string> dns_urls = { "checkpoints.morelo.cc", "checkpoints.morelonetwork.pl" };
 
-    static const std::vector<std::string> testnet_dns_urls = {
-    };
+    static const std::vector<std::string> testnet_dns_urls = { "testnet.checkpoints.morelo.cc", "testnet.checkpoints.morelonetwork.pl" };
 
-    static const std::vector<std::string> stagenet_dns_urls = {
-    };
+    static const std::vector<std::string> stagenet_dns_urls = { "stagenet.checkpoints.morelo.cc", "stagenet.checkpoints.morelonetwork.pl" };
 
     if (!tools::dns_utils::load_txt_records_from_dns(records, nettype == TESTNET ? testnet_dns_urls : nettype == STAGENET ? stagenet_dns_urls : dns_urls))
-      return true; // why true ?
+      return true;
 
     for (const auto& record : records)
     {
@@ -335,7 +332,7 @@ namespace cryptonote
         std::stringstream ss(record.substr(0, pos));
         if (!(ss >> height))
         {
-    continue;
+          continue;
         }
 
         // parse the second part as crypto::hash,
@@ -343,13 +340,13 @@ namespace cryptonote
         std::string hashStr = record.substr(pos + 1);
         if (!epee::string_tools::hex_to_pod(hashStr, hash))
         {
-    continue;
+          continue;
         }
 
         ADD_CHECKPOINT(height, hashStr);
       }
     }
-    return false;
+    return true;
   }
 
   bool checkpoints::load_new_checkpoints(const std::string &json_hashfile_fullpath, network_type nettype, bool dns)
