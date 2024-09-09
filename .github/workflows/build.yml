@@ -51,8 +51,8 @@ jobs:
       run: ${{ env.APT_INSTALL }} libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 g++-mingw-w64-x86-64 qttools5-dev-tools
     - name: prepare toolchain
       run: |
-        sudo update-alternatives --set x86_64-w64-mingw32-g++ x86_64-w64-mingw32-g++-posix
-        sudo update-alternatives --set x86_64-w64-mingw32-gcc x86_64-w64-mingw32-gcc-posix
+        sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
+        sudo update-alternatives --set x86_64-w64-mingw32-gcc $(which x86_64-w64-mingw32-gcc-posix)
     - name: build
       run: |
         ${{ env.CCACHE_SETTINGS }}
