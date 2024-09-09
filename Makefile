@@ -34,10 +34,10 @@ ifneq ($(dotgit), .git/config)
   USE_SINGLE_BUILDDIR=1
 endif
 
-subbuilddir:=$(shell echo  `uname | sed -e 's|[:/\\ \(\)]|_|g'`/`git branch | grep '\* ' | cut -f2- -d' '| sed -e 's|[:/\\ \(\)]|_|g'`)
+subbuilddir:=$(shell echo `uname | sed -e 's|[:/\\ \(\)]|_|g'`)
 ifeq ($(USE_SINGLE_BUILDDIR),)
   builddir := build/"$(subbuilddir)"
-  topdir   := ../../../..
+  topdir   := ../../..
   deldirs  := $(builddir)
 else
   builddir := build

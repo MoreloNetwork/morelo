@@ -92,7 +92,7 @@ fork the gitian.sigs repository and clone it on your host machine,
 or pass the signed assert file back to your build machine.
 
 ```
-git clone git@github.com:arqma/gitian.sigs.git
+git clone git@github.com:morelo/gitian.sigs.git
 git remote add malbit git@github.com:malbit/gitian.sigs.git
 ```
 
@@ -117,7 +117,7 @@ gpg --output $VERSION-win-unsigned/$NAME/morelo-win-$VERSION-build.assert.sig --
 ```
 
 Make a pull request (both the `.assert` and `.assert.sig` files) to the
-[arqma/gitian.sigs](https://github.com/arqma/gitian.sigs/) repository:
+[morelo/gitian.sigs](https://github.com/morelo/gitian.sigs/) repository:
 
 ```
 git checkout -b v0.10.0
@@ -126,7 +126,7 @@ git push --set-upstream $NAME v0.10.0
 ```
 
 ```bash
-    gpg --detach-sign ${VERSION}-linux/${SIGNER}morelo-linux-*-build.assert
+    gpg --detach-sign ${VERSION}-linux/${SIGNER}/morelo-linux-*-build.assert
     gpg --detach-sign ${VERSION}-win-unsigned/${SIGNER}/morelo-win-*-build.assert
     gpg --detach-sign ${VERSION}-osx-unsigned/${SIGNER}/morelo-osx-*-build.assert
 ```
