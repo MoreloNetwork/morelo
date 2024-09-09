@@ -59,7 +59,7 @@ target_link_libraries(cryptonote_core
     multisig
     ringct
     device
-    morelo_mq
+    arqma_mq
     daemonizer
     ${Boost_DATE_TIME_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}

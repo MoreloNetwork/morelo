@@ -113,7 +113,7 @@ target_link_libraries(rpc_base
 
 target_link_libraries(rpc
   PUBLIC
-    morelo_mq
+    arqma_mq
     rpc_base
     rpc_sig
     common
@@ -128,7 +128,7 @@ target_link_libraries(rpc
 
 target_link_libraries(daemon_messages
   PRIVATE
-    morelo_mq
+    arqma_mq
     cryptonote_core
     cryptonote_protocol
     version

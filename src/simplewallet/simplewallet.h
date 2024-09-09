@@ -54,7 +54,7 @@
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
 
-constexpr const char MORELO_DONATION_ADDR[] = "";
+constexpr const char MORELO_DONATION_ADDR[] = "emo1doNaTecChRLZ2EPURM3pm4k6Fcs9SgoaxNJ6cjouje51tMJTdGKgHknr33HvpTFNeaVCpyqi5es4j9UsdftR4YHw2hpEa9";
 
 /*!
  * \namespace cryptonote
