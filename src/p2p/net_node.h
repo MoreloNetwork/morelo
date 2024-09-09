@@ -268,7 +268,9 @@ namespace nodetool
     virtual void clear_used_stripe_peers();
 
   private:
-    const std::vector<std::string> m_seed_nodes_list = { "seeds.morelo.cc", "seeds.morelonetwork.pl" };
+    const std::vector<std::string> m_seed_nodes_list = {
+      "seeds.morelo.cc", "seeds.morelonetwork.pl", "seeds.morelo.vip"
+    };
 
     bool islimitup=false;
     bool islimitdown=false;

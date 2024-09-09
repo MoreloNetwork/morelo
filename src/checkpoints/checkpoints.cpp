@@ -310,11 +310,15 @@ namespace cryptonote
     std::vector<std::string> records;
 
     // All Morelo Network domains have DNSSEC on and valid
-    static const std::vector<std::string> dns_urls = { "checkpoints.morelo.cc", "checkpoints.morelonetwork.pl" };
-
-    static const std::vector<std::string> testnet_dns_urls = { "testnet.checkpoints.morelo.cc", "testnet.checkpoints.morelonetwork.pl" };
-
-    static const std::vector<std::string> stagenet_dns_urls = { "stagenet.checkpoints.morelo.cc", "stagenet.checkpoints.morelonetwork.pl" };
+    static const std::vector<std::string> dns_urls = {
+      "mainpoints.morelo.cc", "mainpoints.morelonetwork.pl", "mainpoints.morelo.vip"
+    };
+    static const std::vector<std::string> testnet_dns_urls = {
+      "testpoints.morelo.cc", "testpoints.morelonetwork.pl", "testpoints.morelo.vip"
+    };
+    static const std::vector<std::string> stagenet_dns_urls = {
+      "stagepoints.morelo.cc", "stagepoints.morelonetwork.pl", "stagepoints.morelo.vip"
+    };
 
     if (!tools::dns_utils::load_txt_records_from_dns(records, nettype == TESTNET ? testnet_dns_urls : nettype == STAGENET ? stagenet_dns_urls : dns_urls))
       return true;

@@ -475,10 +475,7 @@ namespace nodetool
       full_addrs.insert("0.seed.morelo.cc");	// DE2, IPv4 + IPv6
       full_addrs.insert("1.seed.morelo.cc");	// DE1, IPv4 + IPv6
     }
-    else if (nettype == cryptonote::FAKECHAIN)
-    {
-    }
-    else
+    else if (nettype == cryptonote::MAINNET)
     {
       // Primary
       full_addrs.insert("pool.morelo.cc");     // DE3, IPv4 + IPv6

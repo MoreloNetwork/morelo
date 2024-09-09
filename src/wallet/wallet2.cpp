@@ -1090,6 +1090,7 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_last_block_reward(0),
   m_encrypt_keys_after_refresh(boost::none),
   m_unattended(unattended),
+  m_use_dns(false),
   m_offline(false),
   m_credits_target(0)
 {
@@ -12435,11 +12436,12 @@ uint64_t wallet2::get_segregation_fork_height() const
   if (m_segregation_height > 0)
     return m_segregation_height;
 
-  static const bool use_dns = true;
-  if (use_dns)
+  if (m_use_dns && !m_offline)
   {
     // All Morelo Network domains have DNSSEC on and valid
-    static const std::vector<std::string> dns_urls = { "segregation.morelo.cc", "segregation.morelonetwork.pl" };
+    static const std::vector<std::string> dns_urls = {
+      "segheights.morelo.cc", "segheights.morelonetwork.pl", "segheights.morelo.vip"
+    };
 
     const uint64_t current_height = get_blockchain_current_height();
     uint64_t best_diff = std::numeric_limits<uint64_t>::max(), best_height = 0;

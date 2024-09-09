@@ -106,6 +106,7 @@ get_builtin_ds(void)
   {
     "morelo.cc. DS 2371 13 2 BE68DD85DB1FAF3AC8E2D9BA050E84222CB85C552AAE68DCE2D768557B6E2863",
     "morelonetwork.pl. DS 2371 13 2 1D064892752E6DBA91DA1C100B3E681AFEE6D2046DABFD71748BCDDF9E385EF1",
+    "morelo.vip. DS 25517 13 2 140CE388B1DC001A0312D3769449313312A041FB356BF8DE8FBB6D07CD589B09",
     NULL
   };
   return ds;
@@ -408,8 +409,8 @@ namespace dns_utils
 // TODO: parse the string in a less stupid way, probably with regex
 std::string address_from_txt_record(const std::string& s)
 {
-  // make sure the txt record has "oa1:arq" and find it
-  auto pos = s.find("oa1:arq");
+  // make sure the txt record has "oa1:mrl" and find it
+  auto pos = s.find("oa1:mrl");
   if (pos == std::string::npos)
     return {};
   // search from there to find "recipient_address="
@@ -421,31 +422,31 @@ std::string address_from_txt_record(const std::string& s)
   auto pos2 = s.find(";", pos);
   if (pos2 != std::string::npos)
   {
-    // length of address == 97, we can at least validate that much here
-    if (pos2 - pos == 97)
+    // length of address == 98, we can at least validate that much here
+    if (pos2 - pos == 98)
     {
-      return s.substr(pos, 97);
+      return s.substr(pos, 98);
     }
-    else if (pos2 - pos == 109) // length of address == 109 --> integrated address
+    else if (pos2 - pos == 110) // length of address == 110 --> integrated address
     {
-      return s.substr(pos, 109);
+      return s.substr(pos, 110);
     }
   }
   return {};
 }
 /**
- * @brief gets a Arqma address from the TXT record of a DNS entry
+ * @brief gets a Morelo address from the TXT record of a DNS entry
  *
- * gets the Arqma address from the TXT record of the DNS entry associated
+ * gets the Morelo address from the TXT record of the DNS entry associated
  * with <url>.  If this lookup fails, or the TXT record does not contain an
- * XMR address in the correct format, returns an empty string.  <dnssec_valid>
+ * MRL address in the correct format, returns an empty string.  <dnssec_valid>
  * will be set true or false according to whether or not the DNS query passes
  * DNSSEC validation.
  *
  * @param url the url to look up
  * @param dnssec_valid return-by-reference for DNSSEC status of query
  *
- * @return a Arqma address (as a string) or an empty string
+ * @return a Morelo address (as a string) or an empty string
  */
 std::vector<std::string> addresses_from_url(const std::string& url, bool& dnssec_valid)
 {
@@ -462,7 +463,7 @@ std::vector<std::string> addresses_from_url(const std::string& url, bool& dnssec
   }
   else dnssec_valid = false;
 
-  // for each txt record, try to find a Arqma address in it.
+  // for each txt record, try to find a Morelo address in it.
   for (auto& rec : records)
   {
     std::string addr = address_from_txt_record(rec);
