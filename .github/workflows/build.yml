@@ -10,9 +10,7 @@ on:
       - '**/*.md'
 
 env:
-  REMOVE_BUNDLED_PACKAGES : sudo rm -rf /usr/local
-  BUILD_DEFAULT_LINUX: make -j2
-  APT_INSTALL_LINUX: 'sudo apt -y install build-essential cmake libboost-all-dev miniupnpc libunbound-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libzmq3-dev libsodium-dev libhidapi-dev libnorm-dev libusb-1.0-0-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
+  APT_INSTALL_LINUX: 'sudo apt -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
   APT_SET_CONF: |
         echo "Acquire::Retries \"3\";"         | sudo tee -a /etc/apt/apt.conf.d/80-custom
         echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
@@ -23,29 +21,7 @@ env:
   USE_DEVICE_TREZOR_MANDATORY: ON
 
 jobs:
-  build-macos:
-    runs-on: macOS-latest
-    env:
-      CCACHE_TEMPDIR: /tmp/.ccache-temp
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - uses: actions/cache@v4
-      with:
-        path: /Users/runner/Library/Caches/ccache
-        key: ccache-${{ runner.os }}-build-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-
-    - name: install dependencies
-      run: |
-        HOMEBREW_NO_AUTO_UPDATE=1 brew install boost hidapi openssl zmq libpgm miniupnpc expat libunwind-headers protobuf@21 ccache
-        brew link protobuf@21
-    - name: build
-      run: |
-        ${{env.CCACHE_SETTINGS}}
-        make -j3
-
-  build-windows:
+  windows:
     runs-on: windows-latest
     env:
       CCACHE_TEMPDIR: C:\Users\runneradmin\.ccache-temp
@@ -61,7 +37,7 @@ jobs:
       with:
         path: C:\Users\runneradmin\.ccache
         key: ccache-${{ runner.os }}-build-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-
+        restore-keys: ccache-${{ runner.os }}-build
     - uses: msys2/setup-msys2@v2
       with:
         update: true
@@ -76,13 +52,14 @@ jobs:
         ${{env.CCACHE_SETTINGS}}
         make release-static-win64 -j2
 
-  build-ubuntu:
+  ubuntu:
     runs-on: ${{ matrix.os }}
-    env:
-      CCACHE_TEMPDIR: /tmp/.ccache-temp
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
+        os: [ ubuntu-24.04, ubuntu-22.04, ubuntu-20.04 ]
+    env:
+      CCACHE_TEMPDIR: /tmp/.ccache-temp
+      BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || ( matrix.os == 'ubuntu-22.04' && 'ubuntu22' || 'ubuntu20' ) }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -92,20 +69,20 @@ jobs:
         path: ~/.ccache
         key: ccache-${{ runner.os }}-build-${{ matrix.os }}-${{ github.sha }}
         restore-keys: ccache-${{ runner.os }}-build-${{ matrix.os }}
-    - name: remove bundled packages
-      run: ${{env.REMOVE_BUNDLED_PACKAGES}}
+    - name: remove bundled boost
+      run: sudo rm -rf /usr/local/share/boost
     - name: set apt conf
-      run: ${{env.APT_SET_CONF}}
+      run: ${{ env.APT_SET_CONF }}
     - name: update apt
       run: sudo apt update
     - name: install morelo dependencies
-      run: ${{env.APT_INSTALL_LINUX}}
+      run: ${{ env.APT_INSTALL_LINUX }}
     - name: build
       run: |
-        ${{env.CCACHE_SETTINGS}}
-        ${{env.BUILD_DEFAULT_LINUX}}
+        ${{ env.CCACHE_SETTINGS }}
+        make -j2 release-static-${{ env.BUILD_NAME }}
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: linux-release
-        path: '/home/runner/work/morelo/morelo/build/Linux/release/bin/morelo*'
+        name: ${{ env.BUILD_NAME }}-release
+        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'

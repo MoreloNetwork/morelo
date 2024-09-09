@@ -29,21 +29,9 @@
 
 ANDROID_STANDALONE_TOOLCHAIN_PATH ?= /usr/local/toolchain
 
-dotgit=$(shell ls -d .git/config)
-ifneq ($(dotgit), .git/config)
-  USE_SINGLE_BUILDDIR=1
-endif
-
-subbuilddir:=$(shell echo `uname | sed -e 's|[:/\\ \(\)]|_|g'`)
-ifeq ($(USE_SINGLE_BUILDDIR),)
-  builddir := build/"$(subbuilddir)"
-  topdir   := ../../..
-  deldirs  := $(builddir)
-else
-  builddir := build
-  topdir   := ../..
-  deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
-endif
+builddir := build
+topdir   := ../..
+deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
 
 all: release-all
 
@@ -135,6 +123,18 @@ release-static-linux-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-x64" $(topdir) && $(MAKE)
 
+release-static-ubuntu20:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu20-x64" $(topdir) && $(MAKE)
+
+release-static-ubuntu22:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu22-x64" $(topdir) && $(MAKE)
+
+release-static-ubuntu24:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu24-x64" $(topdir) && $(MAKE)
+
 release-static-freebsd-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="freebsd-x64" $(topdir) && $(MAKE)
@@ -143,7 +143,7 @@ release-static-mac-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="mac-x64" $(topdir) && $(MAKE)
 
-release-static-win:
+release-static-win-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D_FORTIFY_SOURCE=0 -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
 

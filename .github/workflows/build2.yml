@@ -1,8 +1,16 @@
 name: ci/gh-actions/build2
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
 
 env:
+  APT_INSTALL_LINUX: 'sudo apt -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
   APT_SET_CONF: |
         echo "Acquire::Retries \"3\";"         | sudo tee -a /etc/apt/apt.conf.d/80-custom
         echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
@@ -10,8 +18,10 @@ env:
   CCACHE_SETTINGS: |
         ccache --max-size=150M
         ccache --set-config=compression=true
+  USE_DEVICE_TREZOR_MANDATORY: ON
+
 jobs:
-  build-windows:
+  windows:
     runs-on: ubuntu-20.04
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
@@ -22,19 +32,16 @@ jobs:
           - name: "build-depends-windows-x64"
             host: "x86_64-w64-mingw32"
             packages: "cmake python3 g++-mingw-w64-x86-64 qttools5-dev-tools"
-    name: ${{ matrix.toolchain.name }}
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: recursive
-# Most volatile cache
     - name: ccache
       uses: actions/cache@v3
       with:
         path: ~/.ccache
         key: ccache-${{ matrix.toolchain.host }}-${{ github.sha }}
         restore-keys: ccache-${{ matrix.toolchain.host }}-
-# Less volatile cache
     - name: depends cache
       uses: actions/cache@v3
       with:
@@ -43,7 +50,6 @@ jobs:
         restore-keys: |
           depends-${{ matrix.toolchain.host }}-${{ hashFiles('contrib/depends/packages/*') }}
           depends-${{ matrix.toolchain.host }}-
-# Static cache
     - name: set apt conf
       run: ${{env.APT_SET_CONF}}
     - name: install dependencies
@@ -61,30 +67,70 @@ jobs:
       if: ${{ matrix.toolchain.host == 'x86_64-w64-mingw32' || matrix.toolchain.host == 'x86_64-unknown-linux-gnu' || matrix.toolchain.host == 'aarch64-linux-gnu' || 'arm-linux-gnueabihf' }}
       with:
         name: windows-release
-        path: |
-          /home/runner/work/morelo/morelo/build/${{ matrix.toolchain.host }}/release/bin/morelo*
+        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
 
-  build-ubuntu:
+  ubuntu20:
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
     - name: remove bundled boost
       run: sudo rm -rf /usr/local/share/boost
     - name: set apt conf
-      run: |
-        echo "Acquire::Retries \"3\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::ftp::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
+      run: ${{env.APT_SET_CONF}}
     - name: update apt
       run: sudo apt update
     - name: install morelo dependencies
-      run: sudo apt -y install libboost-all-dev build-essential cmake graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev
+      run: ${{env.APT_INSTALL_LINUX}}
     - name: build
-      run: make -j2
-    - name: Upload linux artifacts
-      uses: actions/upload-artifact@master
+      run: make -j2 release-static-ubuntu20
+    - name: upload artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: linux-release
-        path: 'build/**/**/morelo*'
+        name: ubuntu20-release
+        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
+
+  ubuntu22:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: remove bundled boost
+      run: sudo rm -rf /usr/local/share/boost
+    - name: set apt conf
+      run: ${{env.APT_SET_CONF}}
+    - name: update apt
+      run: sudo apt update
+    - name: install morelo dependencies
+      run: ${{env.APT_INSTALL_LINUX}}
+    - name: build
+      run: make -j2 release-static-ubuntu22
+    - name: upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ubuntu22-release
+        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
+
+  ubuntu24:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: remove bundled boost
+      run: sudo rm -rf /usr/local/share/boost
+    - name: set apt conf
+      run: ${{env.APT_SET_CONF}}
+    - name: update apt
+      run: sudo apt update
+    - name: install morelo dependencies
+      run: ${{env.APT_INSTALL_LINUX}}
+    - name: build
+      run: make -j2 release-static-ubuntu24
+    - name: upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ubuntu24-release
+        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
