@@ -10,7 +10,7 @@ on:
       - '**/*.md'
 
 env:
-  APT_INSTALL_LINUX: 'sudo apt -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
+  APT_INSTALL_LINUX: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
   APT_SET_CONF: |
         echo "Acquire::Retries \"3\";"         | sudo tee -a /etc/apt/apt.conf.d/80-custom
         echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
@@ -69,8 +69,13 @@ jobs:
         name: windows-release
         path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
 
-  ubuntu20:
-    runs-on: ubuntu-20.04
+  linux:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-24.04, ubuntu-22.04, ubuntu-20.04 ]
+    env:
+      BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || ( matrix.os == 'ubuntu-22.04' && 'ubuntu22' || 'ubuntu20' ) }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -78,59 +83,15 @@ jobs:
     - name: remove bundled boost
       run: sudo rm -rf /usr/local/share/boost
     - name: set apt conf
-      run: ${{env.APT_SET_CONF}}
+      run: ${{ env.APT_SET_CONF }}
     - name: update apt
       run: sudo apt update
     - name: install morelo dependencies
-      run: ${{env.APT_INSTALL_LINUX}}
+      run: ${{ env.APT_INSTALL_LINUX }}
     - name: build
-      run: make -j2 release-static-ubuntu20
+      run: make -j2 release-static-${{ env.BUILD_NAME }}
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ubuntu20-release
-        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
-
-  ubuntu22:
-    runs-on: ubuntu-22.04
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: remove bundled boost
-      run: sudo rm -rf /usr/local/share/boost
-    - name: set apt conf
-      run: ${{env.APT_SET_CONF}}
-    - name: update apt
-      run: sudo apt update
-    - name: install morelo dependencies
-      run: ${{env.APT_INSTALL_LINUX}}
-    - name: build
-      run: make -j2 release-static-ubuntu22
-    - name: upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ubuntu22-release
-        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
-
-  ubuntu24:
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: remove bundled boost
-      run: sudo rm -rf /usr/local/share/boost
-    - name: set apt conf
-      run: ${{env.APT_SET_CONF}}
-    - name: update apt
-      run: sudo apt update
-    - name: install morelo dependencies
-      run: ${{env.APT_INSTALL_LINUX}}
-    - name: build
-      run: make -j2 release-static-ubuntu24
-    - name: upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ubuntu24-release
+        name: ${{ env.BUILD_NAME }}-release
         path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
