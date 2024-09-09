@@ -31,8 +31,8 @@
 #include "version.h"
 #include "daemon/command_parser_executor.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 
@@ -762,7 +762,7 @@ bool t_command_parser_executor::rpc_payments(const std::vector<std::string>& arg
 
 bool t_command_parser_executor::version(const std::vector<std::string>& args)
 {
-  std::cout << "Morelo '" << ARQMA_RELEASE_NAME << "' (v" << ARQMA_VERSION_FULL << ")" << std::endl;
+  std::cout << "Morelo '" << MORELO_RELEASE_NAME << "' (v" << MORELO_VERSION_FULL << ")" << std::endl;
   return true;
 }
 

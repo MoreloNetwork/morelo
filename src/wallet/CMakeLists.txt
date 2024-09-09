@@ -47,9 +47,9 @@ set(wallet_private_headers
   node_rpc_proxy.h
   wallet_rpc_helpers.h)
 
-arqma_private_headers(wallet
+morelo_private_headers(wallet
   ${wallet_private_headers})
-arqma_add_library(wallet
+morelo_add_library(wallet
   ${wallet_sources}
   ${wallet_private_headers})
 target_link_libraries(wallet
@@ -80,9 +80,9 @@ if(NOT IOS)
   set(wallet_rpc_private_headers
     wallet_rpc_server.h)
 
-  arqma_private_headers(wallet_rpc_server
+  morelo_private_headers(wallet_rpc_server
     ${wallet_rpc_private_headers})
-  arqma_add_executable(wallet_rpc_server
+  morelo_add_executable(wallet_rpc_server
     ${wallet_rpc_sources}
     ${wallet_rpc_headers}
     ${wallet_rpc_private_headers})

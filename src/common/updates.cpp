@@ -34,8 +34,8 @@
 #include "dns_utils.h"
 #include "updates.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "updates"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "updates"
 
 namespace tools
 {

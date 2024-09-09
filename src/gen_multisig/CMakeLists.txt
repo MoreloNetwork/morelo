@@ -30,8 +30,8 @@
 set(gen_multisig_sources
   gen_multisig.cpp)
 
-arqma_add_executable(gen_multisig
-  ${gen_multisig_sources})
+morelo_add_executable(gen_multisig
+  ${morelo_})
 target_link_libraries(gen_multisig
   PRIVATE
     wallet
