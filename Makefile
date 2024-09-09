@@ -36,12 +36,12 @@ deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
 all: release-all
 
 depends:
-	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p build/$(target)/release
-	cd build/$(target)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake ../../.. && $(MAKE)
+	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../../.. && $(MAKE)
 
 depends-compat:
-	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p build/$(target)-compat/release
-	cd build/$(target)-compat/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake ../../.. && $(MAKE)
+	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../../.. && $(MAKE)
 
 cmake-debug:
 	mkdir -p $(builddir)/debug
@@ -125,15 +125,15 @@ release-static-linux-x86_64:
 
 release-ubuntu20:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu20-x64" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-x64-ubuntu20" $(topdir) && $(MAKE)
 
 release-ubuntu22:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu22-x64" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-x64-ubuntu22" $(topdir) && $(MAKE)
 
 release-ubuntu24:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu24-x64" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-x64-ubuntu24" $(topdir) && $(MAKE)
 
 release-static-freebsd-x86_64:
 	mkdir -p $(builddir)/release
