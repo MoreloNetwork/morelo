@@ -1449,6 +1449,7 @@ private:
     size_t m_subaddress_lookahead_major, m_subaddress_lookahead_minor;
     std::string m_device_name;
     bool m_offline;
+    bool m_use_dns;
     crypto::secret_key m_rpc_client_secret_key;
     rpc_payment_state_t m_rpc_payment_state;
     uint64_t m_credits_target;
