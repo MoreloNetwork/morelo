@@ -89,7 +89,7 @@ jobs:
     - name: install morelo dependencies
       run: ${{ env.APT_INSTALL_LINUX }}
     - name: build
-      run: make -j2 release-static-${{ env.BUILD_NAME }}
+      run: make -j2 release-${{ env.BUILD_NAME }}
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:

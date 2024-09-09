@@ -123,15 +123,15 @@ release-static-linux-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-x64" $(topdir) && $(MAKE)
 
-release-static-ubuntu20:
+release-ubuntu20:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu20-x64" $(topdir) && $(MAKE)
 
-release-static-ubuntu22:
+release-ubuntu22:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu22-x64" $(topdir) && $(MAKE)
 
-release-static-ubuntu24:
+release-ubuntu24:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake  -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="ubuntu24-x64" $(topdir) && $(MAKE)
 
@@ -146,6 +146,10 @@ release-static-mac-x86_64:
 release-static-win-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D_FORTIFY_SOURCE=0 -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+
+release-win-x86_64:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D_FORTIFY_SOURCE=0 -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
 
 #fuzz:
 #	mkdir -p $(builddir)/fuzz

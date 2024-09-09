@@ -10,14 +10,9 @@ on:
       - '**/*.md'
 
 env:
-  APT_INSTALL_LINUX: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
-  APT_SET_CONF: |
-        echo "Acquire::Retries \"3\";"         | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::ftp::Timeout \"120\";"  | sudo tee -a /etc/apt/apt.conf.d/80-custom
   CCACHE_SETTINGS: |
-        ccache --max-size=150M
-        ccache --set-config=compression=true
+    ccache --max-size=150M
+    ccache --set-config=compression=true
   USE_DEVICE_TREZOR_MANDATORY: ON
 
 jobs:
@@ -41,11 +36,37 @@ jobs:
     - uses: msys2/setup-msys2@v2
       with:
         update: true
-        install: mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound git
+        install: mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound git mingw-w64-x86_64-graphviz mingw-w64-x86_64-doxygen mingw-w64-x86_64-libunwind mingw-w64-x86_64-pkgconf mingw-w64-x86_64-gperf mingw-w64-x86_64-readline mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-protobuf ccache mingw-w64-x86_64-make protobuf
     - name: build
       run: |
         ${{env.CCACHE_SETTINGS}}
         make release-static-win-x86_64 -j2
+
+  windows2:
+    runs-on: windows-latest
+    env:
+      CCACHE_TEMPDIR: C:\Users\runneradmin\.ccache-temp
+      CCACHE_DIR: C:\Users\runneradmin\.ccache
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: actions/cache@v4
+      with:
+        path: C:\Users\runneradmin\.ccache
+        key: ccache-${{ runner.os }}-build-${{ github.sha }}
+        restore-keys: ccache-${{ runner.os }}-build
+    - uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound git mingw-w64-x86_64-graphviz mingw-w64-x86_64-doxygen mingw-w64-x86_64-libunwind mingw-w64-x86_64-pkgconf mingw-w64-x86_64-gperf mingw-w64-x86_64-readline mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-protobuf ccache mingw-w64-x86_64-make protobuf
+    - name: build
+      run: |
+        ${{env.CCACHE_SETTINGS}}
+        make release-win-x86_64 -j2
 
   linux:
     runs-on: ${{ matrix.os }}
@@ -67,15 +88,18 @@ jobs:
     - name: remove bundled boost
       run: sudo rm -rf /usr/local/share/boost
     - name: set apt conf
-      run: ${{ env.APT_SET_CONF }}
+      run: |
+        echo "Acquire::Retries \"3\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
+        echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
+        echo "Acquire::ftp::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
     - name: update apt
       run: sudo apt update
     - name: install morelo dependencies
-      run: ${{ env.APT_INSTALL_LINUX }}
+      run: sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache
     - name: build
       run: |
         ${{ env.CCACHE_SETTINGS }}
-        make -j2 release-static-${{ env.BUILD_NAME }}
+        make -j2 release-${{ env.BUILD_NAME }}
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:
