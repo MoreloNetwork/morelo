@@ -59,8 +59,10 @@ jobs:
         make depends target=x86_64-w64-mingw32 buildtag=win-x64 -j2
     - uses: actions/upload-artifact@v4
       with:
-        name: windows-release
+        name: win-x64
         path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
+        compression-level: 9
+        retention-days: 5
 
   linux:
     runs-on: ${{ matrix.os }}
@@ -91,8 +93,13 @@ jobs:
       run: |
         ${{ env.CCACHE_SETTINGS }}
         make -j2 release-${{ env.BUILD_NAME }}
+    - name: package
+      run: |
+        cd /home/runner/work/morelo/morelo/build/release/bin
+        tar cJf /tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.BUILD_NAME }}-release
-        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
+        name: linux-x64-${{ env.BUILD_NAME }}
+        path: '/tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz'
+        retention-days: 5

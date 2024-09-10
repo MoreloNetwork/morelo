@@ -114,7 +114,7 @@ namespace tools
       #ifdef _WIN32
         url += strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
       #else
-        url += ".tar.gz";
+        url += ".tar.xz";
       #endif
     }
     return url;

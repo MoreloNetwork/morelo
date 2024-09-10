@@ -37,11 +37,11 @@ all: release-all
 
 depends:
 	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../../.. && $(MAKE)
+	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../.. && $(MAKE)
 
 depends-compat:
 	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../../.. && $(MAKE)
+	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../.. && $(MAKE)
 
 cmake-debug:
 	mkdir -p $(builddir)/debug
