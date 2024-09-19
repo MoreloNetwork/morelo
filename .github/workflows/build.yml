@@ -62,7 +62,7 @@ jobs:
         cd /home/runner/work/morelo/morelo/build/release/bin
         zip -9 /tmp/win-x64.zip morelo*
         cd /tmp
-        mv win-x64.zip $(sha256sum win-x64.zip).zip
+        mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
     - uses: actions/upload-artifact@v4
       with:
         name: win-x64
@@ -103,7 +103,7 @@ jobs:
         cd /home/runner/work/morelo/morelo/build/release/bin
         tar cJf /tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
         cd /tmp
-        mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz).tar.xz
+        mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:
