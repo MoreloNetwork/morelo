@@ -48,7 +48,7 @@ jobs:
     - name: update apt
       run: sudo apt update
     - name: install dependencies
-      run: ${{ env.APT_INSTALL }} libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 g++-mingw-w64-x86-64 qttools5-dev-tools
+      run: ${{ env.APT_INSTALL }} libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 g++-mingw-w64-x86-64 qttools5-dev-tools zip
     - name: prepare toolchain
       run: |
         sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
@@ -57,12 +57,17 @@ jobs:
       run: |
         ${{ env.CCACHE_SETTINGS }}
         make depends target=x86_64-w64-mingw32 buildtag=win-x64 -j2
+    - name: package
+      run: |
+        cd /home/runner/work/morelo/morelo/build/release/bin
+        zip -9 /tmp/win-x64.zip morelo*
+        cd /tmp
+        mv win-x64.zip $(sha256sum win-x64.zip).zip
     - uses: actions/upload-artifact@v4
       with:
         name: win-x64
-        path: '/home/runner/work/morelo/morelo/build/release/bin/morelo*'
-        compression-level: 9
-        retention-days: 5
+        path: '/tmp/*.zip'
+        compression-level: 0
 
   linux:
     runs-on: ${{ matrix.os }}
@@ -97,9 +102,11 @@ jobs:
       run: |
         cd /home/runner/work/morelo/morelo/build/release/bin
         tar cJf /tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
+        cd /tmp
+        mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz).tar.xz
     - name: upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: linux-x64-${{ env.BUILD_NAME }}
-        path: '/tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz'
-        retention-days: 5
+        path: '/tmp/*.tar.xz'
+        compression-level: 0
