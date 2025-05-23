@@ -42,7 +42,6 @@ namespace cryptonote
 
   keypair get_deterministic_keypair_from_height(uint64_t height);
   uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version, uint64_t hardfork_height);
-  uint64_t get_devs_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version);
   bool get_deterministic_output_key(const account_public_address& address, const keypair& tx_key, size_t output_index, crypto::public_key& output_key);
   bool validate_governance_reward_key(uint64_t height, const std::string& governance_wallet_address_str, size_t output_index, const crypto::public_key& output_key, const cryptonote::network_type nettype);
   bool validate_devs_reward_key(uint64_t height, const std::string& devs_wallet_address_str, size_t output_index, const crypto::public_key& output_key, const cryptonote::network_type nettype);

@@ -51,10 +51,10 @@
 #include "common/password.h"
 #include "crypto/crypto.h"  // for definition of crypto::secret_key
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
 
-constexpr const char ARQMA_DONATION_ADDR[] = "ar46iCiw5uB7SjnYhL5EJLP1LpqGkZbCcWhWgdbLL1c4DicNuYi3ZeRJPi8FFmEhYnagbxRyaQKyTYBA95JqmPcr1XZytK9o3";
+constexpr const char MORELO_DONATION_ADDR[] = "emo1doNaTecChRLZ2EPURM3pm4k6Fcs9SgoaxNJ6cjouje51tMJTdGKgHknr33HvpTFNeaVCpyqi5es4j9UsdftR4YHw2hpEa9";
 
 /*!
  * \namespace cryptonote

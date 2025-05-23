@@ -29,13 +29,13 @@
 #
 # Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-function(arqma_private_headers group)
+function(morelo_private_headers group)
   source_group("${group}\\Private"
     FILES
       ${ARGN})
 endfunction()
 
-function(arqma_install_headers subdir)
+function(morelo_install_headers subdir)
   install(
     FILES       ${ARGN}
     DESTINATION "include/${subdir}"
@@ -53,7 +53,7 @@ function(enable_stack_trace target)
   endif()
 endfunction()
 
-function(arqma_add_executable name)
+function(morelo_add_executable name)
   source_group("${name}"
     FILES
       ${ARGN})
@@ -72,31 +72,31 @@ function(arqma_add_executable name)
   enable_stack_trace("${name}")
 endfunction()
 
-function(arqma_add_library name)
-    arqma_add_library_with_deps(NAME "${name}" SOURCES ${ARGN})
+function(morelo_add_library name)
+    morelo_add_library_with_deps(NAME "${name}" SOURCES ${ARGN})
 endfunction()
 
-function(arqma_add_library_with_deps)
-  cmake_parse_arguments(ARQMA_ADD_LIBRARY "" "NAME" "DEPENDS;SOURCES" ${ARGN})
-  source_group("${ARQMA_ADD_LIBRARY_NAME}" FILES ${ARQMA_ADD_LIBRARY_SOURCES})
+function(morelo_add_library_with_deps)
+  cmake_parse_arguments(morelo_ADD_LIBRARY "" "NAME" "DEPENDS;SOURCES" ${ARGN})
+  source_group("${morelo_ADD_LIBRARY_NAME}" FILES ${morelo_ADD_LIBRARY_SOURCES})
 
   # Define a ("virtual") object library and an actual library that links those
   # objects together. The virtual libraries can be arbitrarily combined to link
   # any subset of objects into one library archive. This is used for releasing
   # libwallet, which combines multiple components.
-  set(objlib obj_${ARQMA_ADD_LIBRARY_NAME})
-  add_library(${objlib} OBJECT ${ARQMA_ADD_LIBRARY_SOURCES})
-  add_library("${ARQMA_ADD_LIBRARY_NAME}" $<TARGET_OBJECTS:${objlib}>)
-  if(ARQMA_ADD_LIBRARY_DEPENDS)
-    add_dependencies(${objlib} ${ARQMA_ADD_LIBRARY_DEPENDS})
+  set(objlib obj_${morelo_ADD_LIBRARY_NAME})
+  add_library(${objlib} OBJECT ${morelo_ADD_LIBRARY_SOURCES})
+  add_library("${morelo_ADD_LIBRARY_NAME}" $<TARGET_OBJECTS:${objlib}>)
+  if(morelo_ADD_LIBRARY_DEPENDS)
+    add_dependencies(${objlib} ${morelo_ADD_LIBRARY_DEPENDS})
   endif()
-  set_property(TARGET "${ARQMA_ADD_LIBRARY_NAME}" PROPERTY FOLDER "libs")
+  set_property(TARGET "${morelo_ADD_LIBRARY_NAME}" PROPERTY FOLDER "libs")
   target_compile_definitions(${objlib}
-    PRIVATE $<TARGET_PROPERTY:${ARQMA_ADD_LIBRARY_NAME},INTERFACE_COMPILE_DEFINITIONS>)
+    PRIVATE $<TARGET_PROPERTY:${morelo_ADD_LIBRARY_NAME},INTERFACE_COMPILE_DEFINITIONS>)
 endfunction()
 
 include(Version)
-arqma_add_library(version SOURCES ${CMAKE_BINARY_DIR}/version.cpp DEPENDS genversion)
+morelo_add_library(version SOURCES ${CMAKE_BINARY_DIR}/version.cpp DEPENDS genversion)
 
 add_subdirectory(common)
 add_subdirectory(crypto)

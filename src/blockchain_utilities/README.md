@@ -15,13 +15,13 @@ See also each utility's "--help" option.
 
 `$ morelo-blockchain-export`
 
-This loads the existing blockchain and exports it to `$ARQMA_DATA_DIR/export/blockchain.raw`
+This loads the existing blockchain and exports it to `$MORELO_DATA_DIR/export/blockchain.raw`
 
 ### Import the exported file
 
 `$ morelo-blockchain-import`
 
-This imports blocks from `$ARQMA_DATA_DIR/export/blockchain.raw` (exported using the
+This imports blocks from `$MORELO_DATA_DIR/export/blockchain.raw` (exported using the
 `morelo-blockchain-export` tool as described above) into the current database.
 
 Defaults: `--batch on`, `--batch size 20000`, `--verify on`

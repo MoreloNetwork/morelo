@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, The Morelo Network
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -66,7 +66,6 @@
 */
 #define HALVING_EVERY_X_BLOCKS							262800 // Halving every 1 year
 #define DEVS_REWARD_V17									((uint64_t)12000000000000000)
-					
 
 
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
@@ -86,7 +85,7 @@
 #define DYNAMIC_FEE_PER_KB_BASE_FEE                     ((uint64_t)20000)
 #define DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD            ((uint64_t)10000000000)
 #define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)20000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
-#define DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13               ((uint64_t)(DYNAMIC_FEE_PER_KB_BASE_FEE_V5) * 50 / 1000)
+#define DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13               ((uint64_t)(DYNAMIC_FEE_PER_KB_BASE_FEE_V5) / 20)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)750)
 
 #define ORPHANED_BLOCKS_MAX_COUNT                       100
@@ -266,8 +265,8 @@ namespace config
 
    namespace tx_settings
    {
-     const uint8_t ARQMA_TX_CONFIRMATIONS_REQUIRED = 4; // How many blocks are needed to confirm transaction sent.
-     const uint8_t ARQMA_TX_VERSION = 2; // Current Transaction Version Valid on Morelo Network
+     const uint8_t MORELO_TX_CONFIRMATIONS_REQUIRED = 4; // How many blocks are needed to confirm transaction sent.
+     const uint8_t MORELO_TX_VERSION = 2; // Current Transaction Version Valid on Morelo Network
      const uint64_t TRANSACTION_SIZE_LIMIT = 48 * 1024; // I did set it to 48kB for now but it need to be verified.
      const uint64_t MAX_TRANSACTIONS_IN_BLOCK = 1024; // Maximum allowed transactions in One Block
    }

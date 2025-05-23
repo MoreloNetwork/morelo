@@ -1,3 +1,4 @@
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -44,8 +45,8 @@ using namespace epee;
 #include "int-util.h"
 #include "common/dns_utils.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "cn"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "cn"
 
 namespace cryptonote {
 
@@ -85,32 +86,34 @@ namespace cryptonote {
   }
   //-----------------------------------------------------------------------------------------------
   bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version, uint64_t height, uint64_t hardfork_height) {	  
-	uint64_t base_reward;
-	
-	if(version >= 17)
-	{
-	  base_reward = BASE_REWARD_V17;
-	  uint64_t blocks_past = height - hardfork_height;
-	  // Calculate number of halvings
-	  uint64_t halvings = blocks_past / HALVING_EVERY_X_BLOCKS;
-	  if(halvings)
-	  {
-		for(uint64_t i = 0; i < halvings; i++)
-		{
-		  base_reward /= 2; // Divide reward by 2  
-	    }
-		if(base_reward < COIN)
-		{
-		  base_reward = 0;
-		}
-	  }
-	  reward = base_reward;
-	  if(height == hardfork_height)
-	  {
-		  reward += DEVS_REWARD_V17;
-	  }
-	  return true;
-	}
+    uint64_t base_reward;
+    // HalvingARQ implementation
+    // Base static reward for mined block
+    // Halving every X blocks
+    // That means divide reward by 2
+    if(version >= 17)
+    {
+      base_reward = BASE_REWARD_V17;
+      uint64_t blocks_past = height - hardfork_height;
+      // Calculate number of halvings
+      uint64_t halvings = blocks_past / HALVING_EVERY_X_BLOCKS;
+      if(halvings)
+      {
+        for(uint64_t i = 0; i < halvings; i++)
+        {
+          base_reward /= 2; // Divide reward by 2  
+        }
+      }
+      reward = base_reward;
+      if(height == hardfork_height)
+      {
+		if(version = 17 || version = 18)
+        {
+          reward += DEVS_REWARD_V17;
+        }
+      }
+      return true;
+    }
 
     static_assert(DIFFICULTY_TARGET_V2 % 60 == 0,"difficulty targets must be a multiple of 60");
     const int target_minutes = DIFFICULTY_TARGET_V2 / 60;

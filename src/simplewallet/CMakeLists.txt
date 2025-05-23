@@ -35,9 +35,9 @@ set(simplewallet_headers)
 set(simplewallet_private_headers
   simplewallet.h)
 
-arqma_private_headers(simplewallet
+morelo_private_headers(simplewallet
   ${simplewallet_private_headers})
-arqma_add_executable(simplewallet
+morelo_add_executable(simplewallet
   ${simplewallet_sources}
   ${simplewallet_headers}
   ${simplewallet_private_headers})

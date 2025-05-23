@@ -52,8 +52,8 @@
 #include "common/stack_trace.h"
 #endif // STACK_TRACE
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace po = boost::program_options;
 namespace bf = boost::filesystem;
@@ -175,7 +175,7 @@ int main(int argc, char const * argv[])
 
     if (command_line::get_arg(vm, command_line::arg_help))
     {
-      std::cout << "Morelo '" << ARQMA_RELEASE_NAME << "' (v" << ARQMA_VERSION_FULL << ")" << ENDL << ENDL;
+      std::cout << "Morelo '" << MORELO_RELEASE_NAME << "' (v" << MORELO_VERSION_FULL << ")" << ENDL << ENDL;
       std::cout << "Usage: " + std::string{argv[0]} + " [options|settings] [daemon_command...]" << std::endl << std::endl;
       std::cout << visible_options << std::endl;
       return 0;
@@ -184,7 +184,7 @@ int main(int argc, char const * argv[])
     // Morelo Version
     if (command_line::get_arg(vm, command_line::arg_version))
     {
-      std::cout << "Morelo '" << ARQMA_RELEASE_NAME << "' (v" << ARQMA_VERSION_FULL << ")" << ENDL;
+      std::cout << "Morelo '" << MORELO_RELEASE_NAME << "' (v" << MORELO_VERSION_FULL << ")" << ENDL;
       return 0;
     }
 
@@ -270,7 +270,7 @@ int main(int argc, char const * argv[])
 	  tools::set_max_concurrency(command_line::get_arg(vm, daemon_args::arg_max_concurrency));
 
 	// logging is now set up
-	MGINFO("Morelo '" << ARQMA_RELEASE_NAME << "' (v" << ARQMA_VERSION_FULL << ")");
+	MGINFO("Morelo '" << MORELO_RELEASE_NAME << "' (v" << MORELO_VERSION_FULL << ")");
 
 
     // If there are positional options, we're running a daemon command

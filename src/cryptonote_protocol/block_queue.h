@@ -38,8 +38,8 @@
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/uuid/uuid.hpp>
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "cn.block_queue"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "cn.block_queue"
 
 namespace cryptonote
 {

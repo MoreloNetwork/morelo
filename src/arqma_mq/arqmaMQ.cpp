@@ -60,8 +60,8 @@ using namespace epee;
 #include "p2p/net_node.h"
 #include "version.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon.zmq"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon.zmq"
 
 /*
 namespace cryptonote

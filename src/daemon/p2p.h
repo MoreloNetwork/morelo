@@ -35,8 +35,8 @@
 #include "p2p/net_node.h"
 #include "daemon/protocol.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize
 {

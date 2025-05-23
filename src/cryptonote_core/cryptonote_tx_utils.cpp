@@ -102,17 +102,12 @@ keypair get_deterministic_keypair_from_height(uint64_t height)
 
 uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version, uint64_t hardfork_height)
 {
-  if(hf_version >= 17 && height == hardfork_height)
-	  return DEVS_REWARD_V17;
+  if(height == hardfork_height) {
+    if(hf_version == 17 || hf_version == 18)
+      return DEVS_REWARD_V17;
+  }
   if(hf_version >= 16)
-	return base_reward * 10 / 100;
-  return 0;
-}
-
-uint64_t get_devs_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version)
-{
-  if(hf_version >= 18)
-	return base_reward * 5 / 100;
+    return base_reward * 10 / 100;
   return 0;
 }
 
@@ -324,7 +319,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward - devs_reward), false, "Failed to construct miner tx on V16 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward + devs_reward));
     }
 
-    tx.version = config::tx_settings::ARQMA_TX_VERSION;
+    tx.version = config::tx_settings::MORELO_TX_VERSION;
 
     //lock
     tx.unlock_time = height + config::blockchain_settings::ARQMA_BLOCK_UNLOCK_CONFIRMATIONS;
@@ -375,7 +370,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
       msout->c.clear();
     }
 
-    tx.version = config::tx_settings::ARQMA_TX_VERSION;
+    tx.version = config::tx_settings::MORELO_TX_VERSION;
     tx.unlock_time = unlock_time;
 
     tx.extra = extra;

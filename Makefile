@@ -29,31 +29,19 @@
 
 ANDROID_STANDALONE_TOOLCHAIN_PATH ?= /usr/local/toolchain
 
-dotgit=$(shell ls -d .git/config)
-ifneq ($(dotgit), .git/config)
-  USE_SINGLE_BUILDDIR=1
-endif
-
-subbuilddir:=$(shell echo  `uname | sed -e 's|[:/\\ \(\)]|_|g'`/`git branch | grep '\* ' | cut -f2- -d' '| sed -e 's|[:/\\ \(\)]|_|g'`)
-ifeq ($(USE_SINGLE_BUILDDIR),)
-  builddir := build/"$(subbuilddir)"
-  topdir   := ../../../..
-  deldirs  := $(builddir)
-else
-  builddir := build
-  topdir   := ../..
-  deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
-endif
+builddir := build
+topdir   := ../..
+deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
 
 all: release-all
 
 depends:
-	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p build/$(target)/release
-	cd build/$(target)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake ../../.. && $(MAKE)
+	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../.. && $(MAKE)
 
 depends-compat:
-	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p build/$(target)-compat/release
-	cd build/$(target)-compat/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake ../../.. && $(MAKE)
+	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -D BUILD_TAG="$(buildtag)" ../.. && $(MAKE)
 
 cmake-debug:
 	mkdir -p $(builddir)/debug
@@ -143,9 +131,13 @@ release-static-mac-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="mac-x64" $(topdir) && $(MAKE)
 
-release-static-win:
+release-static-win-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D_FORTIFY_SOURCE=0 -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+
+release-win-x86_64:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D ARCH="x86-64" -D BUILD_64=ON -D_FORTIFY_SOURCE=0 -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
 
 #fuzz:
 #	mkdir -p $(builddir)/fuzz

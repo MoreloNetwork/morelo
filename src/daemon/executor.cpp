@@ -36,8 +36,8 @@
 
 #include <string>
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize
 {
@@ -59,7 +59,7 @@ namespace daemonize
       boost::program_options::variables_map const & vm
     )
   {
-    LOG_PRINT_L0("Morelo '" << ARQMA_RELEASE_NAME << "' (v" << ARQMA_VERSION_FULL << ") Daemonised");
+    LOG_PRINT_L0("Morelo '" << MORELO_RELEASE_NAME << "' (v" << MORELO_VERSION_FULL << ") Daemonised");
     return t_daemon{vm, public_rpc_port};
   }
 

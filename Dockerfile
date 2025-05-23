@@ -182,24 +182,24 @@ RUN set -ex && \
     rm -rf /var/lib/apt
 COPY --from=builder /src/build/release/bin /usr/local/bin/
 
-# Below command is creating Arqma user to do not run daemon as a root
-RUN adduser --system --group --disabled-password arqma && \
-	mkdir -p /wallet /home/arqma/.arqma && \
-	chown -R arqma:arqma /home/arqma/.arqma && \
-	chown -R arqma:arqma /wallet
+# Below command is creating Morelo user to do not run daemon as a root
+RUN adduser --system --group --disabled-password morelo && \
+	mkdir -p /wallet /home/morelo/.morelo && \
+	chown -R morelo:morelo /home/morelo/.morelo && \
+	chown -R morelo:morelo /wallet
 
 # Contains the blockchain
-VOLUME /home/arqma/.arqma
+VOLUME /home/morelo/.morelo
 
 # Generate your wallet via accessing the container and run:
 # cd /wallet
-# arqma-wallet-cli
+# morelo-wallet-cli
 VOLUME /wallet
 
 EXPOSE 19993
 EXPOSE 19994
 
-# switch to user arqma
-USER arqma
+# switch to user morelo
+USER morelo
 
-ENTRYPOINT ["arqmad", "--p2p-bind-ip=0.0.0.0", "--p2p-bind-port=19993", "--rpc-bind-ip=0.0.0.0", "--rpc-bind-port=19994", "--non-interactive", "--confirm-external-bind"]
+ENTRYPOINT ["morelod", "--rpc-bind-ip=0.0.0.0", "--non-interactive", "--confirm-external-bind"]

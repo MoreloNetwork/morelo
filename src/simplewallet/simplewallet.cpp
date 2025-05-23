@@ -91,8 +91,8 @@ using boost::lexical_cast;
 namespace po = boost::program_options;
 typedef cryptonote::simple_wallet sw;
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
 
 #define EXTENDED_LOGS_FILE "wallet_details.log"
 
@@ -2050,7 +2050,7 @@ bool simple_wallet::welcome(const std::vector<std::string> &args)
 
 bool simple_wallet::version(const std::vector<std::string> &args)
 {
-  message_writer() << "Morelo '" << ARQMA_RELEASE_NAME << "' (v" << ARQMA_VERSION_FULL << ")";
+  message_writer() << "Morelo '" << MORELO_RELEASE_NAME << "' (v" << MORELO_VERSION_FULL << ")";
   return true;
 }
 
@@ -2750,7 +2750,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::donate, this, _1),
                            tr(USAGE_DONATE),
-                           tr("Donate <amount> to the development team (donations.arqma.com)."));
+                           tr("Donate <amount> to the development team (donate.morelo.cc)."));
   m_cmd_binder.set_handler("sign_transfer",
                            boost::bind(&simple_wallet::sign_transfer, this, _1),
                            tr(USAGE_SIGN_TRANSFER),
@@ -6516,11 +6516,11 @@ bool simple_wallet::donate(const std::vector<std::string> &args_)
   amount_str = local_args.back();
   local_args.pop_back();
   // push back address, amount, payment id
-  local_args.push_back(ARQMA_DONATION_ADDR);
+  local_args.push_back(MORELO_DONATION_ADDR);
   local_args.push_back(amount_str);
   if (!payment_id_str.empty())
     local_args.push_back(payment_id_str);
-  message_writer() << (boost::format(tr("Donating %s %s to The Morelo Network (donations.arqma.com or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % ARQMA_DONATION_ADDR).str();
+  message_writer() << (boost::format(tr("Donating %s %s to The Morelo Network (donate.morelo.cc or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MORELO_DONATION_ADDR).str();
   transfer(local_args);
   return true;
 }
@@ -7408,7 +7408,7 @@ bool simple_wallet::get_transfers(std::vector<std::string>& local_args, std::vec
         const uint64_t unlock_time = pd.m_unlock_time;
         if(pd.m_unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
         {
-          uint64_t bh = std::max(pd.m_unlock_time, pd.m_block_height + config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED);
+          uint64_t bh = std::max(pd.m_unlock_time, pd.m_block_height + config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED);
           if(bh >= last_block_height)
             locked_msg = std::to_string(bh - last_block_height) + " blks";
         }
@@ -8895,7 +8895,7 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
       success_msg_writer() << "Payment ID: " << payment_id;
       if (pd.m_unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
       {
-        uint64_t bh = std::max(pd.m_unlock_time, pd.m_block_height + config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED);
+        uint64_t bh = std::max(pd.m_unlock_time, pd.m_block_height + config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED);
         uint64_t last_block_reward = m_wallet->get_last_block_reward();
         uint64_t suggested_threshold = last_block_reward ? (pd.m_amount + last_block_reward - 1) / last_block_reward : 0;
         if (bh >= last_block_height)

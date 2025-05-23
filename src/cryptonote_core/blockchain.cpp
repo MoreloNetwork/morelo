@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, The Morelo Network
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -58,8 +58,8 @@
 #include "common/varint.h"
 #include "common/pruning.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "blockchain"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "blockchain"
 
 #define FIND_BLOCKCHAIN_SUPPLEMENT_MAX_SIZE (100*1024*1024) // 100 MB
 
@@ -95,7 +95,7 @@ static const struct {
  { 15, 1, 0, 1573257000 },
  { 16, 235000, 0, 1687982396 },
  { 17, 433100, 0, 1712271889 },
- { 18, 433100, 0, 1712271889 }
+ { 18, 528420, 0, 1725374651 }
 };
 
 static const struct {
@@ -109,7 +109,7 @@ static const struct {
  { 15, 1, 0, 1573257000 },
  { 16, 2, 0, 1687982396 },
  { 17, 10, 0, 1708459168 },
- { 18, 20, 0, 1708459168 }
+ { 18, 20, 0, 1725374651 }
 };
 
 static const struct {
@@ -122,11 +122,13 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 235000, 0, 1687982396 },
+ { 17, 433100, 0, 1712271889 },
+ { 18, 528420, 0, 1725374651 }
 };
 //------------------------------------------------------------------
 Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_db(), m_tx_pool(tx_pool), m_hardfork(NULL), m_timestamps_and_difficulties_height(0), m_current_block_cumul_weight_limit(0), m_current_block_cumul_weight_median(0),
-  m_enforce_dns_checkpoints(false), m_max_prepare_blocks_threads(4), m_db_sync_on_blocks(true), m_db_sync_threshold(1), m_db_sync_mode(db_async), m_db_default_sync(false),
+  m_enforce_dns_checkpoints(true), m_max_prepare_blocks_threads(4), m_db_sync_on_blocks(true), m_db_sync_threshold(1), m_db_sync_mode(db_async), m_db_default_sync(false),
   m_fast_sync(true), m_show_time_stats(false), m_sync_counter(0), m_bytes_to_sync(0), m_cancel(false),
   m_long_term_block_weights_window(CRYPTONOTE_LONG_TERM_BLOCK_WEIGHT_WINDOW_SIZE),
   m_long_term_effective_median_block_weight(0),
@@ -2105,7 +2107,7 @@ uint64_t Blockchain::get_num_mature_outputs(uint64_t amount) const
   {
     const tx_out_index toi = m_db->get_output_tx_and_index(amount, num_outs - 1);
     const uint64_t height = m_db->get_tx_block_height(toi.first);
-    if (height + config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED <= blockchain_height)
+    if (height + config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED <= blockchain_height)
       break;
     --num_outs;
   }
@@ -3065,7 +3067,7 @@ bool Blockchain::check_tx_inputs(transaction &tx, tx_verification_context &tvc, 
     }
 
     // min/max tx version based on HF, and we accept v1 txes if having a non mixable
-    const size_t max_tx_version = config::tx_settings::ARQMA_TX_VERSION;
+    const size_t max_tx_version = config::tx_settings::MORELO_TX_VERSION;
     if (tx.version > max_tx_version)
     {
       MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);

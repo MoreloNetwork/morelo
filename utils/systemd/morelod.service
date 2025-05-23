@@ -1,19 +1,17 @@
 [Unit]
-Description=Arqma Full Node
+Description=Morelo Full Node
 After=network.target
 
 [Service]
-User=arqma
-Group=arqma
+User=morelo
+Group=morelo
 WorkingDirectory=~
-RuntimeDirectory=arqma
 
 # Clearnet config
 #
 Type=forking
-PIDFile=/run/arqma/arqmad.pid
-ExecStart=/usr/bin/arqmad --config-file /etc/arqmad.conf \
-    --detach --pidfile /run/arqma/arqmad.pid
+PIDFile=/run/morelo/morelod.pid
+ExecStart=/usr/bin/morelod --config-file /etc/morelo/morelod.conf --detach --pidfile /run/morelo/morelod.pid
 
 # Tor config
 #
@@ -27,10 +25,10 @@ ExecStart=/usr/bin/arqmad --config-file /etc/arqmad.conf \
 ## host in the LAN, VPN, etc, the RPC must bind to 0.0.0.0, but
 ## by default torsocks only allows binding to localhost.
 #Environment=TORSOCKS_ALLOW_INBOUND=1
-#ExecStart=/usr/bin/torsocks /usr/bin/arqmad --config-file /etc/arqmad.conf \
-#    --non-interactive
+#ExecStart=/usr/bin/torsocks /usr/bin/morelod --config-file /etc/morelo/morelod.conf --non-interactive
 
 Restart=always
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
