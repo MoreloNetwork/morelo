@@ -1,30 +1,24 @@
 package=hidapi
-$(package)_version=0.14.0
-$(package)_download_path=https://github.com/libusb/hidapi/archive/refs/tags
+$(package)_version=0.9.0
+$(package)_download_path=https://github.com/libusb/hidapi/archive
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=a5714234abe6e1f53647dd8cba7d69f65f71c558b7896ed218864ffcf405bcbd
-$(package)_linux_dependencies=libusb
-
-# -DHIDAPI_NO_ICONV=ON
-#
-#   `FindIconv.cmake` in CMake 3.16 fails to detect iconv for riscv64, arm, and aarch64 linux targets.
-#   Disable it if we're not building in a release environment.
+$(package)_sha256_hash=630ee1834bdd5c5761ab079fd04f463a89585df8fcae51a7bfe4229b1e02a652
+$(package)_linux_dependencies=libusb eudev
 
 define $(package)_set_vars
-  $(package)_config_opts := -DBUILD_SHARED_LIBS=OFF
-  $(package)_config_opts += -DHIDAPI_WITH_HIDRAW=OFF
-  ifeq ($(GUIX_ENVIRONMENT),)
-  $(package)_config_opts += -DHIDAPI_NO_ICONV=ON
-  endif
-endef
-
-# Remove blobs
-define $(package)_preprocess_cmds
-  rm -rf documentation testgui windows/test/data m4
+$(package)_config_opts=--enable-static --disable-shared
+$(package)_config_opts+=--prefix=$(host_prefix)
+$(package)_config_opts_darwin+=RANLIB="$(host_prefix)/native/bin/x86_64-apple-darwin19.2.0-ranlib" AR="$(host_prefix)/native/bin/x86_64-apple-darwin19.2.0-ar" CC="$(host_prefix)/native/bin/$($(package)_cc)"
+$(package)_config_opts_linux+=libudev_LIBS="-L$(host_prefix)/lib -ludev"
+$(package)_config_opts_linux+=libudev_CFLAGS=-I$(host_prefix)/include
+$(package)_config_opts_linux+=libusb_LIBS="-L$(host_prefix)/lib -lusb-1.0"
+$(package)_config_opts_linux+=libusb_CFLAGS=-I$(host_prefix)/include/libusb-1.0
+$(package)_config_opts_linux+=--with-pic
 endef
 
 define $(package)_config_cmds
-  $($(package)_cmake) .
+  ./bootstrap &&\
+  $($(package)_autoconf) $($(package)_config_opts) AR_FLAGS=$($(package)_arflags)
 endef
 
 define $(package)_build_cmds
@@ -34,3 +28,4 @@ endef
 define $(package)_stage_cmds
   $(MAKE) DESTDIR=$($(package)_staging_dir) install
 endef
+
