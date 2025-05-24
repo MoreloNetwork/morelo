@@ -92,7 +92,7 @@ jobs:
     - name: build
       run: |
         ${{ env.CCACHE_SETTINGS }}
-        make -j2 release-${{ env.BUILD_NAME }}
+        make -j2 release
     - name: package
       run: |
         cd /home/runner/work/morelo/morelo/build/release/bin
