@@ -10,7 +10,7 @@ on:
       - '**/*.md'
 
 env:
-  APT_INSTALL: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
+  APT_INSTALL: 'sudo apt-get -y install build-essential libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
   APT_SET_CONF: |
     echo "Acquire::Retries \"3\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
     echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
@@ -49,6 +49,15 @@ jobs:
       run: sudo apt update
     - name: install dependencies
       run: ${{ env.APT_INSTALL }} libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 g++-mingw-w64-x86-64 qttools5-dev-tools
+    - name: install cmake 3.17
+      run: |
+        wget https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3.tar.gz
+        tar -xvf cmake-3.17.3.tar.gz
+        cd cmake-3.17.3
+        ./bootstrap
+        make -j4
+        sudo make install
+        cd ..
     - name: prepare toolchain
       run: |
         sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
