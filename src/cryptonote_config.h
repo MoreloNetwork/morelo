@@ -88,7 +88,7 @@
 #define DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13               ((uint64_t)(DYNAMIC_FEE_PER_KB_BASE_FEE_V5) / 20)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)750)
 
-#define NEW_FEE_V18										((uint64_t)(DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13 / 100) // Divide it 100 times
+#define NEW_FEE_V18										((uint64_t)(DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13 / 100)) // Divide it 100 times
 
 #define ORPHANED_BLOCKS_MAX_COUNT                       100
 
