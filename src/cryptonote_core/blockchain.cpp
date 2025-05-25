@@ -3407,7 +3407,7 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
     return lo;
   }
   
-  const uint64_t fee_base;
+  uint64_t fee_base;
   if(version >= 18) {
     fee_base = NEW_FEE_V18;
   } else if(version >= 13) {
