@@ -80,8 +80,3 @@ jobs:
           export OUTPUT="$VERSION.tar"
           echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
           git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.OUTPUT }}
-          path: ${{ env.OUTPUT }}
-          - uses: actions/upload-artifact@v4
