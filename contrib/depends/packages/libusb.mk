@@ -1,8 +1,8 @@
 package=libusb
-$(package)_version=1.0.23
+$(package)_version=1.0.28
 $(package)_download_path=https://github.com/libusb/libusb/releases/download/v$($(package)_version)
 $(package)_file_name=$(package)-$($(package)_version).tar.bz2
-$(package)_sha256_hash=db11c06e958a82dac52cf3c65cb4dd2c3f339c8a988665110e0d24d19312ad8d
+$(package)_sha256_hash=966bb0d231f94a474eaae2e67da5ec844d3527a1f386456394ff432580634b29
 
 define $(package)_preprocess_cmds
   autoreconf -i

@@ -103,19 +103,11 @@ namespace cryptonote {
         {
           base_reward /= 2; // Divide reward by 2  
         }
-        if(base_reward < COIN) // If reward is lower than one unit
-        {
-          base_reward = 0; // Make the reward 0
-        }
       }
       reward = base_reward;
       if(height == hardfork_height)
       {
-        if(version >= 18)
-        {
-          reward += AIRDROP_V18;
-        }
-        else if(version >= 17)
+        if(version == 17 || version == 18)
         {
           reward += DEVS_REWARD_V17;
         }

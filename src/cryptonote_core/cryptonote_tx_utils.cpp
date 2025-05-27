@@ -103,9 +103,7 @@ keypair get_deterministic_keypair_from_height(uint64_t height)
 uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version, uint64_t hardfork_height)
 {
   if(height == hardfork_height) {
-    if(hf_version >= 18)
-      return AIRDROP_V18;
-    if(hf_version >= 17)
+    if(hf_version == 17 || hf_version == 18)
       return DEVS_REWARD_V17;
   }
   if(hf_version >= 16)
