@@ -46,7 +46,7 @@ jobs:
     - name: set apt conf
       run: ${{ env.APT_SET_CONF }}
     - name: update apt
-      run: sudo apt update
+      run: sudo apt-get update
     - name: install dependencies
       run: ${{ env.APT_INSTALL }} libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 g++-mingw-w64-x86-64 qttools5-dev-tools zip
     - name: prepare toolchain
@@ -56,17 +56,16 @@ jobs:
     - name: build
       run: |
         ${{ env.CCACHE_SETTINGS }}
-        make depends target=x86_64-w64-mingw32 buildtag=win-x64 -j2
+        make -j$(nproc) depends target=x86_64-w64-mingw32 buildtag=win-x64
     - name: package
       run: |
         cd ${{ github.workspace }}/build/release/bin
-        zip -9 /tmp/win-x64.zip morelo*
-        cd /tmp
-        mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
+        zip -9 ../win-x64.zip morelo*
+        mv ../win-x64.zip ../$(sha256sum win-x64.zip | cut -d " " -f 1).zip
     - uses: actions/upload-artifact@v4
       with:
         name: win-x64
-        path: '/tmp/*.zip'
+        path: '${{ github.workspace }}/build/release/*.zip'
         compression-level: 0
 
   linux:
@@ -86,8 +85,6 @@ jobs:
         path: ~/.ccache
         key: ccache-${{ runner.os }}-build-${{ matrix.os }}-${{ github.sha }}
         restore-keys: ccache-${{ runner.os }}-build-${{ matrix.os }}
-    - name: remove bundled boost
-      run: sudo rm -rf /usr/local/share/boost
     - name: set apt conf
       run: ${{ env.APT_SET_CONF }}
     - name: update apt
@@ -97,16 +94,14 @@ jobs:
     - name: build
       run: |
         ${{ env.CCACHE_SETTINGS }}
-        make -j2 release-${{ env.BUILD_NAME }}
+        make -j$(nproc) release-${{ env.BUILD_NAME }}
     - name: package
       run: |
         cd ${{ github.workspace }}/build/release/bin
-        tar cJf /tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
-        cd /tmp
-        mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
-    - name: upload artifacts
-      uses: actions/upload-artifact@v4
+        tar cJf ../linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
+        mv ../linux-x64-${{ env.BUILD_NAME }}.tar.xz ../$(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
+    - uses: actions/upload-artifact@v4
       with:
         name: linux-x64-${{ env.BUILD_NAME }}
-        path: '/tmp/*.tar.xz'
+        path: '${{ github.workspace }}/build/release/*.tar.xz'
         compression-level: 0

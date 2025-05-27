@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <limits>
 #include <time.h>
 #include <boost/regex.hpp>
 
