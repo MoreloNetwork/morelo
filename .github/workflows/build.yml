@@ -59,7 +59,7 @@ jobs:
         make depends target=x86_64-w64-mingw32 buildtag=win-x64 -j2
     - name: package
       run: |
-        cd /home/runner/work/morelo/morelo/build/release/bin
+        cd ${{ github.workspace }}/build/release/bin
         zip -9 /tmp/win-x64.zip morelo*
         cd /tmp
         mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
@@ -100,7 +100,7 @@ jobs:
         make -j2 release-${{ env.BUILD_NAME }}
     - name: package
       run: |
-        cd /home/runner/work/morelo/morelo/build/release/bin
+        cd ${{ github.workspace }}/build/release/bin
         tar cJf /tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
         cd /tmp
         mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
