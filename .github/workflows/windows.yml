@@ -1,4 +1,4 @@
-name: ci/gh-actions/cli
+name: ci/gh-actions/windows-build-test
 
 on:
   workflow_dispatch:
@@ -46,36 +46,8 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           update: true
-          install: mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-rust git pkg-config
+          install: mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz mingw-w64-x86_64-rust git pkg-config
       - name: build
         run: |
           ${{env.CCACHE_SETTINGS}}
           make release -j2
-
-  source-archive:
-    name: "source archive"
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.04
-      env:
-        DEBIAN_FRONTEND: noninteractive
-    steps:
-      - name: set apt conf
-        run: ${{env.APT_SET_CONF}}
-      - name: update apt
-        run: apt update
-      - name: install dependencies
-        run: apt install -y git python3-pip
-      - name: configure git
-        run: git config --global --add safe.directory '*'
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-      - name: archive
-        run: |
-          pip install git-archive-all
-          export VERSION="monero-$(git describe)"
-          export OUTPUT="$VERSION.tar"
-          echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
-          git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
