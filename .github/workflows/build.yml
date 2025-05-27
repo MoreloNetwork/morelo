@@ -22,7 +22,7 @@ env:
 
 jobs:
   windows:
-    runs-on: ubuntu-20.04
+    runs-on: [ self-hosted, Linux, X64, ubuntu-20.04 ]
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
     steps:
@@ -59,7 +59,7 @@ jobs:
         make depends target=x86_64-w64-mingw32 buildtag=win-x64 -j2
     - name: package
       run: |
-        cd /home/runner/work/morelo/morelo/build/release/bin
+        cd ${{ github.workspace }}/build/release/bin
         zip -9 /tmp/win-x64.zip morelo*
         cd /tmp
         mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
@@ -73,7 +73,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-24.04, ubuntu-22.04, ubuntu-20.04 ]
+        os: [ ubuntu-24.04, ubuntu-22.04, [ self-hosted, Linux, X64, ubuntu-20.04 ] ]
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
       BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || ( matrix.os == 'ubuntu-22.04' && 'ubuntu22' || 'ubuntu20' ) }}
@@ -100,7 +100,7 @@ jobs:
         make -j2 release-${{ env.BUILD_NAME }}
     - name: package
       run: |
-        cd /home/runner/work/morelo/morelo/build/release/bin
+        cd ${{ github.workspace }}/build/release/bin
         tar cJf /tmp/linux-x64-${{ env.BUILD_NAME }}.tar.xz morelo*
         cd /tmp
         mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
