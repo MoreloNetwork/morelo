@@ -34,7 +34,7 @@
   #include <winsock2.h>
   #include <windows.h>
 #endif
-
+#include <limits>
 #include <string.h>
 #include <locale>
 #include <cstdlib>

@@ -44,6 +44,7 @@
 #include "string_tools.h"
 #include "misc_language.h"
 #include "net/local_ip.h"
+#include <limits>
 #include "pragma_comp_defs.h"
 
 #include <sstream>
