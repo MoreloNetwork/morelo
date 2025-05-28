@@ -468,7 +468,7 @@ OAES_RET oaes_sprintf(
 static void oaes_get_seed(char buf[RANDSIZ + 1])
 {
 	struct timeval tv;
-	struct tm *ts = gmtime(&tv.tv_sec);
+	struct tm *ts = gmtime((time_t *)&tv.tv_sec);
 	char * _test = NULL;
 
 	gettimeofday(&tv, NULL);;
@@ -483,7 +483,7 @@ static void oaes_get_seed(char buf[RANDSIZ + 1])
 static uint32_t oaes_get_seed(void)
 {
 	struct timeval tv;
-	struct tm *ts = gmtime(&tv.tv_sec);
+	struct tm *ts = gmtime((time_t *)&tv.tv_sec);
 	char * _test = NULL;
 	uint32_t _ret = 0;
 
