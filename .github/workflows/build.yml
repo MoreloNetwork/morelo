@@ -22,7 +22,7 @@ env:
 
 jobs:
   windows:
-    runs-on: ubuntu-24.04
+    runs-on: [ self-hosted, Linux, X64, ubuntu-20.04 ]
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
     steps:
