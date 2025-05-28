@@ -1,7 +1,13 @@
-name: ci/gh-actions/build-test
+name: ci/gh-actions/windows-build-test
 
 on:
   workflow_dispatch:
+  push:
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
 
 env:
   APT_INSTALL: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 qttools5-dev-tools'
