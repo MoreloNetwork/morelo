@@ -10,7 +10,7 @@ on:
       - '**/*.md'
 
 env:
-  APT_INSTALL: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
+  APT_INSTALL: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 qttools5-dev-tools'
   USE_DEVICE_TREZOR_MANDATORY: ON
   CCACHE_TEMPDIR: /tmp/.ccache-temp
   CCACHE_DIR: ~/.ccache
@@ -19,50 +19,6 @@ env:
     ccache --set-config=compression=true
 
 jobs:
-  windows-msys2:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: ccache
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.USERPROFILE }}\.ccache
-        key: ccache-${{ runner.os }}-msys2-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-msys2
-    - uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        update: true
-        install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz mingw-w64-x86_64-rust git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-readline mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme mingw-w64-x86_64-dlfcn
-    - name: install boost
-      run: |
-        wget https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2
-        tar xvjf boost_1_83_0.tar.bz2
-        cd boost_1_83_0
-        ./bootstrap.bat mingw
-        ./b2 -j$(nproc) --with=all --prefix=/mingw64 --layout=system toolset=gcc link=static runtime-link=static variant=release address-model=64 install
-        cd ..
-    - name: build
-      run: |
-        ${{ env.CCACHE_SETTINGS }}
-        make -j$(nproc) release-static-win-x86_64
-    - name: package
-      run: |
-        cd ${{ github.workspace }}/build/release/bin
-        zip -9 ../win-msys2-x64.zip morelo*
-        cd ..
-        mv win-msys2-x64.zip $(sha256sum win-msys2-x64.zip | cut -d " " -f 1).zip
-    - uses: actions/upload-artifact@v4
-      with:
-        name: win-msys2-x64
-        path: '${{ github.workspace }}/build/release/*.zip'
-        compression-level: 0
-
   windows:
     runs-on: ubuntu-24.04
     steps:
@@ -86,7 +42,7 @@ jobs:
     - name: update apt
       run: sudo apt-get update
     - name: install dependencies
-      run: ${{ env.APT_INSTALL }} libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 g++-mingw-w64-x86-64 qttools5-dev-tools zip
+      run: ${{ env.APT_INSTALL }} g++-mingw-w64-x86-64 zip
     - name: prepare toolchain
       run: |
         sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
