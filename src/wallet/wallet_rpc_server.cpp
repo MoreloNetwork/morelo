@@ -34,6 +34,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <cstdint>
+#include <limits>
 #include "include_base_utils.h"
 using namespace epee;
 

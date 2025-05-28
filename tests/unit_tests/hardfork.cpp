@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include "gtest/gtest.h"
+#include <limits>
 
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"

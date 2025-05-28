@@ -36,6 +36,7 @@
 // (may contain code and/or modifications by other developers)
 // developer rfree: this code is caller of our new network code, and is modded; e.g. for rate limiting
 
+#include <limits>
 #include <boost/interprocess/detail/atomic.hpp>
 #include <list>
 #include <ctime>

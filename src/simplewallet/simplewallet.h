@@ -37,6 +37,7 @@
  */
 #pragma once
 
+#include <limits>
 #include <memory>
 
 #include <boost/optional/optional.hpp>

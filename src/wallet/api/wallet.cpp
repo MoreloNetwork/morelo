@@ -45,6 +45,7 @@
 #include <boost/format.hpp>
 #include <sstream>
 #include <unordered_map>
+#include <limits>
 
 #ifdef WIN32
 #include <boost/locale.hpp>

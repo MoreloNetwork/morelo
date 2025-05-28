@@ -39,6 +39,7 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS 1 // It is just for now :)
 #include <boost/bind/bind.hpp>
 
+#include <limits>
 #include <thread>
 #include <iostream>
 #include <sstream>

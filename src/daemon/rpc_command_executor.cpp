@@ -29,6 +29,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <limits>
 #include "string_tools.h"
 #include "common/password.h"
 #include "common/scoped_message_writer.h"

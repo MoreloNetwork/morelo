@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <limits>
 
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "blockchain_db/blockchain_db.h"

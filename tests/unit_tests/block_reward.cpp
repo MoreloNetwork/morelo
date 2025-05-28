@@ -30,6 +30,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "gtest/gtest.h"
+#include <limits>
 
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 

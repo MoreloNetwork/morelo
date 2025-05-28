@@ -33,6 +33,7 @@
 #include <boost/circular_buffer.hpp>
 #include <memory>  // std::unique_ptr
 #include <cstring>  // memcpy
+#include <limits>
 
 #include "string_tools.h"
 #include "file_io_utils.h"

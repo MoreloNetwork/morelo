@@ -30,6 +30,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
+#include <limits>
 #include <memory>
 
 #include <boost/program_options/options_description.hpp>

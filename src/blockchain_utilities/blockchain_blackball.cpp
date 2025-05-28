@@ -42,6 +42,7 @@
 #include "blockchain_db/blockchain_db.h"
 #include "wallet/ringdb.h"
 #include "version.h"
+#include <limits>
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bcutil"
