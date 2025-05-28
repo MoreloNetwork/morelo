@@ -22,7 +22,7 @@ env:
 
 jobs:
   windows:
-    runs-on: [ self-hosted, Linux, X64, ubuntu-20.04 ]
+    runs-on: [ self-hosted ]
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
     steps:
@@ -73,7 +73,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-24.04, ubuntu-22.04, [ self-hosted, Linux, X64, ubuntu-20.04 ] ]
+        os: [ ubuntu-24.04, ubuntu-22.04 ]
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
       BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || ( matrix.os == 'ubuntu-22.04' && 'ubuntu22' || 'ubuntu20' ) }}
