@@ -11,20 +11,64 @@ on:
 
 env:
   APT_INSTALL: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
-  APT_SET_CONF: |
-    echo "Acquire::Retries \"3\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-    echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-    echo "Acquire::ftp::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
   CCACHE_SETTINGS: |
     ccache --max-size=150M
     ccache --set-config=compression=true
   USE_DEVICE_TREZOR_MANDATORY: ON
 
 jobs:
+  windows-msys2:
+    runs-on: windows-latest
+    env:
+      CCACHE_TEMPDIR: ${{ env.TEMP }}\.ccache-temp
+      CCACHE_DIR: ${{ env.USERPROFILE }}\.ccache
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: ccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.USERPROFILE }}\.ccache
+        key: ccache-${{ runner.os }}-msys2-${{ github.sha }}
+        restore-keys: ccache-${{ runner.os }}-msys2
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz mingw-w64-x86_64-rust git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-readline mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme
+    - name: install boost
+      run: |
+        wget -O https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2
+        tar xvjf boost_1_83_0.tar.bz2
+        cd boost_1_83_0
+        ./bootstrap.bat mingw
+        ./b2 --with=all -j$(nproc) --prefix=/mingw64 --layout=system toolset=gcc link=static runtime-link=static variant=release address-model=64 install
+        cd ..
+    - name: build
+      run: |
+        ${{ env.CCACHE_SETTINGS }}
+        make -j$(nproc) release-static-win-x86_64
+    - name: package
+      run: |
+        cd ${{ github.workspace }}/build/release/bin
+        zip -9 ../win-msys2-x64.zip morelo*
+        cd ..
+        mv win-msys2-x64.zip $(sha256sum win-msys2-x64.zip | cut -d " " -f 1).zip
+    - uses: actions/upload-artifact@v4
+      with:
+        name: win-msys2-x64
+        path: '${{ github.workspace }}/build/release/*.zip'
+        compression-level: 0
+
   windows:
     runs-on: ubuntu-24.04
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
+      CCACHE_DIR: ~/.ccache
     steps:
     - uses: actions/checkout@v4
       with:
@@ -33,18 +77,16 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.ccache
-        key: ccache-x86_64-w64-mingw32-${{ github.sha }}
-        restore-keys: ccache-x86_64-w64-mingw32
+        key: ccache-${{ runner.os }}-x86_64-w64-mingw32-${{ github.sha }}
+        restore-keys: ccache-${{ runner.os }}-x86_64-w64-mingw32
     - name: depends ccache
       uses: actions/cache@v4
       with:
         path: contrib/depends/built
-        key: ccache-depends-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
+        key: ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
         restore-keys: |
-          ccache-depends-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
-          ccache-depends-x86_64-w64-mingw32
-    - name: set apt conf
-      run: ${{ env.APT_SET_CONF }}
+          ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
+          ccache-depends-${{ runner.os }}-x86_64-w64-mingw32
     - name: update apt
       run: sudo apt-get update
     - name: install dependencies
@@ -73,10 +115,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-24.04, ubuntu-22.04, [ self-hosted, Linux, X64, ubuntu-20.04 ] ]
+        os: [ ubuntu-24.04, ubuntu-22.04 ]
     env:
       CCACHE_TEMPDIR: /tmp/.ccache-temp
-      BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || ( matrix.os == 'ubuntu-22.04' && 'ubuntu22' || 'ubuntu20' ) }}
+      CCACHE_DIR: ~/.ccache
+      BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || 'ubuntu22' }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -84,10 +127,8 @@ jobs:
     - uses: actions/cache@v4
       with:
         path: ~/.ccache
-        key: ccache-${{ runner.os }}-build-${{ matrix.os }}-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-${{ matrix.os }}
-    - name: set apt conf
-      run: ${{ env.APT_SET_CONF }}
+        key: ccache-${{ runner.os }}-${{ matrix.os }}-${{ github.sha }}
+        restore-keys: ccache-${{ runner.os }}-${{ matrix.os }}
     - name: update apt
       run: sudo apt-get update
     - name: install dependencies
