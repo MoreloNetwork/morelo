@@ -3455,7 +3455,17 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   }
 
   uint64_t needed_fee;
-  if (version >= HF_VERSION_PER_BYTE_FEE)
+  if (version >= 18)
+  {
+	const bool use_long_term_median_in_fee = version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT;
+    uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
+    MDEBUG("Using " << print_money(fee_per_byte) << "/byte fee");
+    needed_fee = tx_weight * fee_per_byte;
+    // quantize fee up to 8 decimals
+    const uint64_t mask = get_fee_quantization_mask();
+    needed_fee = (needed_fee + mask - 1) / mask * mask;
+	needed_fee /= 100;
+  } else if (version >= HF_VERSION_PER_BYTE_FEE)
   {
     const bool use_long_term_median_in_fee = version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT;
     uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
