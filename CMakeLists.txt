@@ -1,3 +1,4 @@
+# Copyright (c) 2025, The Morelo Network
 # Copyright (c) 2018-2021, The Arqma Network
 # Copyright (c) 2014-2021, The Monero Project
 #
@@ -354,11 +355,11 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
   set(DEFAULT_STACK_TRACE ON)
   set(STACK_TRACE_LIB "easylogging++") # for diag output only
   set(LIBUNWIND_LIBRARIES "")
-elseif (ARM AND STATIC)
+elseif(ARM AND STATIC)
   set(DEFAULT_STACK_TRACE OFF)
   set(LIBUNWIND_LIBRARIES "")
-else()
-  find_package(Libunwind)
+elseif(NOT MINGW)
+  find_package(Libunwind REQUIRED)
   if(LIBUNWIND_FOUND)
     set(DEFAULT_STACK_TRACE ON)
     set(STACK_TRACE_LIB "libunwind") # for diag output only

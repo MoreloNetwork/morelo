@@ -10,10 +10,10 @@ on:
       - '**/*.md'
 
 env:
-  APT_INSTALL: 'sudo apt-get -y install build-essential cmake libboost-all-dev graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache libtool autotools-dev automake bsdmainutils curl git ca-certificates python3 qttools5-dev-tools'
+  APT_INSTALL: 'sudo apt-get update && sudo apt-get -y install build-essential pkg-config cmake libboost-all-dev graphviz doxygen libunwind8-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache bsdmainutils qttools5-dev-tools'
   USE_DEVICE_TREZOR_MANDATORY: ON
   CCACHE_TEMPDIR: /tmp/.ccache-temp
-  CCACHE_DIR: ~/.ccache
+  CCACHE_DIR: /tmp/.ccache
   CCACHE_SETTINGS: |
     ccache --max-size=150M
     ccache --set-config=compression=true
@@ -28,7 +28,7 @@ jobs:
     - name: ccache
       uses: actions/cache@v4
       with:
-        path: ~/.ccache
+        path: /tmp/.ccache
         key: ccache-${{ runner.os }}-x86_64-w64-mingw32-${{ github.sha }}
         restore-keys: ccache-${{ runner.os }}-x86_64-w64-mingw32
     - name: depends ccache
@@ -39,8 +39,6 @@ jobs:
         restore-keys: |
           ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
           ccache-depends-${{ runner.os }}-x86_64-w64-mingw32
-    - name: update apt
-      run: sudo apt-get update
     - name: install dependencies
       run: ${{ env.APT_INSTALL }} g++-mingw-w64-x86-64 zip
     - name: prepare toolchain
@@ -76,11 +74,9 @@ jobs:
         submodules: recursive
     - uses: actions/cache@v4
       with:
-        path: ~/.ccache
+        path: /tmp/.ccache
         key: ccache-${{ runner.os }}-${{ matrix.os }}-${{ github.sha }}
         restore-keys: ccache-${{ runner.os }}-${{ matrix.os }}
-    - name: update apt
-      run: sudo apt-get update
     - name: install dependencies
       run: ${{ env.APT_INSTALL }}
     - name: build
