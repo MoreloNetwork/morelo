@@ -40,7 +40,7 @@ jobs:
         restore-keys: ccache-${{ runner.os }}-msys2
     - name: install boost
       run: |
-        pwd -P && pwd -W && ls -lA && pacman --noconfirm -U --overwrite contrib/mingw-w64-x86_64-boost-1.83.0-2-any.pkg.tar.zst
+        pacman --noconfirm -U contrib/mingw-w64-x86_64-boost-1.83.0-2-any.pkg.tar.zst
     - name: build
       run: |
         ${{ env.CCACHE_SETTINGS }}
