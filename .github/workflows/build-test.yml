@@ -38,15 +38,19 @@ jobs:
       with:
         msystem: MINGW64
         update: true
-        install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz mingw-w64-x86_64-rust git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-readline mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme mingw-w64-x86_64-dlfcn mingw-w64-x86_64-wget mingw-w64-x86_64-icu mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib
+        install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz mingw-w64-x86_64-rust git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-readline mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme mingw-w64-x86_64-dlfcn mingw-w64-x86_64-wget mingw-w64-x86_64-icu mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib mingw-w64-x86_64-openblas mingw-w64-x86_64-python-numpy
     - name: install boost
       continue-on-error: true
       run: |
         wget https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2
         tar xvjf boost_1_83_0.tar.bz2
         cd boost_1_83_0
+        mkdir boost-build
+        cd tools/build
         ./bootstrap.bat mingw
-        ./b2 -j$(nproc) --with=all --prefix=/mingw64 --layout=system toolset=gcc link=static runtime-link=static variant=release address-model=64 install
+        ./b2 install --prefix=../../boost-build
+        cd ../..
+        ./boost-build/b2 -j$(nproc) --with=all --prefix=/mingw64 --layout=system toolset=gcc link=static runtime-link=static variant=release address-model=64 install
         cd ..
     - name: build
       run: |
