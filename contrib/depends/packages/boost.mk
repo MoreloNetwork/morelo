@@ -1,8 +1,8 @@
 package=boost
-$(package)_version=1.73.0
+$(package)_version=1.83.0
 $(package)_download_path=https://archives.boost.io/release/$($(package)_version)/source/
 $(package)_file_name=$(package)_$(subst .,_,$($(package)_version)).tar.bz2
-$(package)_sha256_hash=4eb3b8d442b426dc35346235c8733b5ae35ba431690e38c6a8263dce9fcbb402
+$(package)_sha256_hash=6478edfe2f3305127cffe8caf73ea0176c53769f4bf1585be237eb30798c3b8e
 $(package)_dependencies=libiconv
 
 define $(package)_set_vars
