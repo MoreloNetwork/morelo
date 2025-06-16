@@ -32,10 +32,11 @@ We welcome contributions from the community to enhance the Morelo Network. Wheth
 
 ## Morelo Network social media
 
-- **Discord:** [discord.gg/JB9CeFW66g](https://discord.gg/JB9CeFW66g)
+- **Discord:** [discord.morelonetwork.pl](https://discord.morelonetwork.pl)
 - **X / Twitter:** [twitter.com/MoreloNetwork](https://twitter.com/MoreloNetwork)
 - **Facebook:** [www.facebook.com/profile.php?id=61551589695937](https://www.facebook.com/profile.php?id=61551589695937)
 - **Bitcointalk:** [bitcointalk.org/index.php?topic=5233023](https://bitcointalk.org/index.php?topic=5233023)
+- **Telegram:** [telegram.morelonetwork.pl](https://telegram.morelonetwork.pl)
 
 Feel free to explore and engage with the Morelo community through these channels and platforms! :rocket:
 
@@ -49,9 +50,9 @@ The use of SSL connections means that there will not be any possibility to use t
 
  * Below is an example how to generate SSL Keys with openssl
 
-    `$ openssl genrsa -out /tmp/KEY 4096`    
-    `$ openssl req -new -key /tmp/KEY -out /tmp/REQ`    
-    `$ openssl x509 -req -days 999999 -sha256 -in /tmp/REQ -signkey /tmp/KEY -out /tmp/CERT`    
+`$ openssl genrsa -out /tmp/KEY 4096`    
+`$ openssl req -new -key /tmp/KEY -out /tmp/REQ`    
+`$ openssl x509 -req -days 999999 -sha256 -in /tmp/REQ -signkey /tmp/KEY -out /tmp/CERT`    
 
  * Above example will generate 4096bit SSL Cert at /tmp (which can be changed)*
 
@@ -61,36 +62,22 @@ The use of SSL connections means that there will not be any possibility to use t
 
 That build is from the master branch, which is used for active development and can be either unstable or incompatible with release software. Please compile release branches.
 
-
-
 ### Dependencies
 
-#### In order to sucessfull compile Morelo You need boost 1.73.0 version and cmake version 3.17.3 or higher.
+#### In order to sucessfully compile Morelo You need Boost version 1.73.0 - 1.83.0
 
-##### [Cmake v3.17.3](https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3.tar.gz)
+##### [Download Boost 1.83.0 here](https://archives.boost.io/release/1.83.0/source/)
 
-##### [Boost](https://dl.bintray.com/boostorg/release/1.73.0/source/boost_1_73_0.tar.gz)
-
-### Install cmake and boost from source on Ubuntu/Debian
+### Example installation of Boost from source:
 ```
-wget https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3.tar.gz
-tar -xvf cmake-3.17.3.tar.gz
-cd cmake-3.17.3
-./bootstrap
-make
-sudo make install
-
-wget https://boostorg.jfrog.io/artifactory/main/release/1.73.0/source/boost_1_73_0.tar.gz
-tar -xvf boost_1_73_0.tar.gz
-cd boost_1_73_0
+wget https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2
+tar xvjf boost_1_83_0.tar.gz
+cd boost_1_83_0
 ./bootstrap.sh
-./b2
 sudo ./b2 install
-sudo ./b2 headers
 ```
 
-
-##### Morelo build been tested on Ubuntu Server 20.04 Focal Fosa with above releases as long with [gcc9.3](https://gcc.gnu.org/gcc-9/)
+##### Morelo build has been tested on Ubuntu Server 22.04.5 LTS Jammy Jellyfish and 24.04.2 LTS Noble Numbat.
 
 The following table summarizes the tools and libraries required to build. A
 few of the libraries are also included in this repository (marked as
@@ -106,7 +93,7 @@ library archives (`.a`).
 | GCC          | 7.3.0         | NO       | `build-essential`  | `base-devel` | `gcc`             | NO       |                |
 | CMake        | 3.17.3        | NO       | `cmake`            | `cmake`      | `cmake`           | NO       |                |
 | pkg-config   | any           | NO       | `pkg-config`       | `base-devel` | `pkgconf`         | NO       |                |
-| Boost        | 1.73          | NO       | `libboost-all-dev` | `boost`      | `boost-devel`     | NO       | C++ libraries  |
+| Boost        | 1.73.0        | NO       | `libboost-all-dev` | `boost`      | `boost-devel`     | NO       | C++ libraries  |
 | OpenSSL      | 1.1.1         | NO       | `libssl-dev`       | `openssl`    | `openssl-devel`   | NO       | sha256 sum     |
 | libsodium    | 1.0.16        | NO       | `libsodium-dev`    | ?            | `libsodium-devel` | NO       | Cryptography   |
 | libunwind    | any           | NO       | `libunwind8-dev`   | `libunwind`  | `libunwind-devel` | YES      | Stack traces   |
@@ -117,9 +104,9 @@ library archives (`.a`).
 | GTest        | 1.5           | YES      | `libgtest-dev`[1]  | `gtest`      | `gtest-devel`     | YES      | Test suite     |
 | Doxygen      | any           | NO       | `doxygen`          | `doxygen`    | `doxygen`         | YES      | Documentation  |
 | Graphviz     | any           | NO       | `graphviz`         | `graphviz`   | `graphviz`        | YES      | Documentation  |
-| HIDAPI       | ?             | NO       | `libhidapi-dev`    | ``           | ``                | NO       | for Device     |
-| libusb-1.0   | 1.0           | NO       | `libusb-1.0-0-dev` | ``           | ``                | NO       |                |
-| libudev      | ?             | NO       | `libudev-dev`      | ``           | ``                | NO       |                |
+| HIDAPI       | any           | NO       | `libhidapi-dev`    | ``           | ``                | NO       | for Device     |
+| libusb-1.0   | any           | NO       | `libusb-1.0-0-dev` | ``           | ``                | NO       |                |
+| libudev      | any           | NO       | `libudev-dev`      | ``           | ``                | NO       |                |
 -------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -128,24 +115,23 @@ build the library binary manually. This can be done with the following command:
 
 `$ sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/`
 
-Debian / Ubuntu one liner for all dependencies (Excluding boost and cmake)
+Debian / Ubuntu one-liner for all dependencies (excluding `libboost-all-dev`)
 
-`$ sudo apt update && sudo apt install --yes git build-essential curl pkg-config libssl-dev libsodium-dev libunwind-dev liblzma-dev libreadline-dev libldns-dev libexpat1-dev doxygen graphviz libudev-dev libusb-1.0-0-dev libhidapi-dev xsltproc gperf autoconf automake libtool-bin`
+`$ sudo apt update && sudo apt install -y git build-essential cmake pkg-config libssl-dev libsodium-dev libunwind-dev liblzma-dev libreadline-dev libldns-dev libexpat1-dev libudev-dev libusb-1.0-0-dev libhidapi-dev xsltproc gperf autoconf automake libtool-bin miniupnpc doxygen graphviz libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache`
 
-Install all dependencies at once on OSX:
+Install all dependencies at once on OS X:
 
 `$ brew update && brew bundle --file=contrib/apple/brew`
 
 ### Cloning the repository
 
-Clone recursively to pull-in needed submodule(s):
+Clone Morelo recursively to pull-in needed submodule(s):
 
-`$ git clone https://github.com/morelo/morelo`
+`$ git clone --recursive https://github.com/MoreloNetwork/morelo.git && cd morelo`
 
-If you already have a repo cloned, initialize and update:
+Change branch to the latest stable release:
 
-`$ cd morelo && git checkout release-v0.6.1`
-`$ git submodule init && git submodule update`
+`$ git checkout 0.1.1.0`
 
 ### Build instructions
 
@@ -154,11 +140,13 @@ invokes cmake commands as needed.
 
 #### On Linux and OS X
 
-* Install the dependencies
+* Install the dependencies using the one-liner or the table above.
 
-* Change to the root of the source code directory and build:
+* Build Boost from source using instructions above.
 
-	`$ cd morelo && make release`
+* Build binaries:
+
+	`$ make release`
 
 	*Optional*: If your machine has several cores and enough memory, enable parallel build by running `make -j<number of threads>` instead of `make`. For this to be worthwhile, the machine should have one core and about 2GB of RAM available per thread.
 
@@ -190,27 +178,30 @@ Dependencies need to be built with -fPIC. Static libraries usually aren't, so yo
 
 #### On the Raspberry Pi
 
-Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (2017-09-07 or later) from https://www.raspberrypi.org/downloads/raspbian/. If you are using Raspian Jessie, [please see note in the following section](#note-for-raspbian-jessie-users).
+Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Jessie from https://www.raspberrypi.org/downloads/raspbian/.
 
-* `$ apt-get update && apt-get upgrade` to install all of the latest software
+* Install the dependencies using the 'Debian / Ubuntu' one-liner above.
 
-* Install the dependencies for Morelo from the 'Debian' column in the table above.
+* Build Boost from source using instructions above.
 
 * Increase the system swap size:
 
-	`$ sudo /etc/init.d/dphys-swapfile stop`
-	`$ sudo nano /etc/dphys-swapfile`
-	`$ CONF_SWAPSIZE=1024`
-	`$sudo /etc/init.d/dphys-swapfile start`
+`$ sudo /etc/init.d/dphys-swapfile stop`
+`$ sudo nano /etc/dphys-swapfile`
+`$ CONF_SWAPSIZE=1024`
+`$sudo /etc/init.d/dphys-swapfile start`
 
-* Clone morelo and checkout most recent release version:
+* Clone Morelo recursively to pull-in needed submodule(s):
 
-	`$ git clone https://github.com/morelo/morelo.git`
-	`$ cd morelo`
+`$ git clone --recursive https://github.com/MoreloNetwork/morelo.git && cd morelo`
 
-* Build:
+* Change branch to the latest stable release:
 
-	`$ make release`
+`$ git checkout 0.1.1.0`
+
+* Build binaries:
+
+`$ make release`
 
 * Wait 4-6 hours
 
@@ -221,36 +212,6 @@ Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (
 * Run Morelo with `morelod --detach`
 
 * You may wish to reduce the size of the swap file after the build has finished, and delete the boost directory from your home directory
-
-#### *Note for Raspbian Jessie users:*
-
-If you are using the older Raspbian Jessie image, compiling Morelo is a bit more complicated. The version of Boost available in the Debian Jessie repositories is too old to use with Morelo, and thus you must compile a newer version yourself. The following explains the extra steps, and has been tested on a Raspberry Pi 2 with a clean install of minimal Raspbian Jessie.
-
-* As before, `$ apt-get update && apt-get upgrade` to install all of the latest software, and increase the system swap size
-
-	`$ sudo /etc/init.d/dphys-swapfile stop`
-	`$ sudo nano /etc/dphys-swapfile`
-	`$ CONF_SWAPSIZE=1024`
-	`$ sudo /etc/init.d/dphys-swapfile start`
-
-* Then, install the dependencies for ArQmA except `libunwind` and `libboost-all-dev`
-
-* Install the latest version of boost (this may first require invoking `$ apt-get remove --purge libboost*` to remove a previous version if you're not using a clean install):
-
-	`$ cd`
-	`$ wget https://sourceforge.net/projects/boost/files/boost/1.68.0/boost_1_68_0.tar.bz2`
-	`$ tar xvfo boost_1_68_0.tar.bz2`
-	`$ cd boost_1_68_0`
-	`$ ./bootstrap.sh`
-	`$ sudo ./b2`
-
-* Wait ~8 hours
-
-	`$ sudo ./bjam install`
-
-* Wait ~4 hours
-
-* From here, follow the [general Raspberry Pi instructions](#on-the-raspberry-pi) from the "Clone morelo and checkout most recent release version" step.
 
 #### On Windows:
 
@@ -264,49 +225,47 @@ application.
 
 1. Download and install the [MSYS2 installer](http://msys2.github.io).
 
-2. Open the MSYS shell via the `MSYS2 MSYS` shortcut at Menu Start
+2. Open the MSYS2 shell via the `MSYS2 MSYS` shortcut from the Start Menu
 
 3. Update packages using pacman:
 
-	`$ pacman -Syu`
+`$ pacman -Syu`
 
-4. Exit the MSYS shell using Alt+F4 or by clicking X at top-right corner. It is Very Important to do not exit to shell!!.
+4. After updating close the MSYS2 shell using Alt+F4 or by clicking X at top-right corner. It is Very Important to not exit to the shell!!.
 
-5. Start `MSYS2 MINGW64` from Menu Start
+5. Open `MSYS2 MinGW 64-bit` from the Start Menu
 
 6. Update packages again using pacman:
 
-	`$ pacman -Syu`
+`$ pacman -Syu`
 
-7. Install dependencies:
+7. Install dependencies (excluding `mingw-w64-x86_64-boost`):
 
-    To build for 64-bit Windows:
-
-    `$ pacman -S git mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi automake autoconf binutils patch`
+`$ pacman -S git mingw-w64-x86_64-toolchain mingw-w64-x86_64-autotools mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme mingw-w64-x86_64-dlfcn patch`
 
 **Building**
 
-* Download Morelo with command:
+* Clone Morelo recursively to pull-in needed submodule(s):
 
-	`$ git clone https://github.com/morelo/morelo`
+	`$ git clone --recursive https://github.com/morelo/morelo && cd morelo`
 
-* Change branch to last Release:
+* Change branch to the latest stable release:
 
-	`$ cd morelo && git checkout release-v0.6.1`
+	`$ git checkout 0.1.1.0`
 
-* Activate and update submodules:
+* Install Boost:
 
-  `$ git submodule init && git submodule update`
+  `$ pacman -U contrib/mingw-w64-x86_64-boost-1.83.0-2-any.pkg.tar.zst`
 
-* If you are on a 64-bit system, run:
+* Build binaries:
 
-  `$ USE_SINGLE_BUILDDIR=1 make release-static-win`
+  `$ USE_SINGLE_BUILDDIR=1 make release-static-win-x86_64`
 
 * The resulting executables can be found in `build/release/bin`
 
-* **Optional**: to build Windows binaries suitable for debugging on a 64-bit system, run:
+* **Optional**: to build binaries suitable for debugging, run:
 
-  `$ make debug-static-win`
+  `$ make debug-static-win-x86_64`
 
 * The resulting executables can be found in `build/debug/bin`
 
@@ -340,8 +299,7 @@ To build: `$ env CC=egcc CXX=eg++ CPP=ecpp DEVELOPER_LOCAL_TOOLS=1 BOOST_ROOT=/p
 You will need to add a few packages to your system. `$ pkg_add cmake miniupnpc zeromq libiconv`.
 
 The doxygen and graphviz packages are optional and require the xbase set.
-
-
+s
 Build the Boost library using clang. This guide is derived from: https://github.com/bitcoin/bitcoin/blob/master/doc/build-openbsd.md
 
 We assume you are compiling with a non-root user and you have `doas` enabled.
@@ -413,10 +371,10 @@ By default, in either dynamically or statically linked builds, binaries target t
 You can also cross-compile Morelo static binaries on Linux for Windows and macOS with the `depends` system.
 
 * `make depends target=x86_64-linux-gnu` for 64-bit linux binaries.
-* `make depends target=x86_64-w64-mingw32` for 64-bit windows binaries. Requires: python3 g++-mingw-w64-x86-64 wine1.6 bc
-* `make depends target=x86_64-apple-darwin19.2.0` for macOS binaries. Requires: cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools curl bsdmainutils python3-setuptools
-* `make depends target=arm-linux-gnueabihf` for armv7 binaries. Requires: g++-arm-linux-gnueabihf
-* `make depends target=aarch64-linux-gnu` for armv8 binaries. Requires: g++-aarch64-linux-gnu
+* `make depends target=x86_64-w64-mingw32` for 64-bit windows binaries. Requires `g++-mingw-w64-x86-64`
+* `make depends target=x86_64-apple-darwin19.2.0` for macOS binaries. Requires `cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools curl bsdmainutils python3-setuptools`
+* `make depends target=arm-linux-gnueabihf` for armv7 binaries. Requires `g++-arm-linux-gnueabihf`
+* `make depends target=aarch64-linux-gnu` for armv8 binaries. Requires `g++-aarch64-linux-gnu`
 
 *** For `x86_64-apple-darwin19.2.0` you need to download SDK first ***        
 
@@ -566,7 +524,6 @@ The output of `mdb_dump -s blocks <path to blockchain dir>` and `mdb_dump -s blo
 
 These records are dumped as hex data, where the first line is the key and the second line is the data.
 
-
 # Disclaimer:
 
 **Important Notice:**
@@ -578,4 +535,3 @@ Morelo Network is licensed under the [MIT License](https://opensource.org/licens
 For inquiries, feedback, or collaboration opportunities, please contact our team.
 
 **Together, let's continue to innovate and shape the future of privacy-centric finance.**
-
