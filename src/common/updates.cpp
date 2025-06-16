@@ -109,7 +109,7 @@ namespace tools
       if(buildtag == "source") {
         url = "https://github.com/MoreloNetwork/" + software + "/archive/refs/tags/" + version;
       } else {
-        url = "https://github.com/MoreloNetwork/" + software + "/releases/download/" + buildtag + "-" + version;
+        url = "https://github.com/MoreloNetwork/" + software + "/releases/download/" + version + "/" + buildtag;
       }
       #ifdef _WIN32
         url += strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
