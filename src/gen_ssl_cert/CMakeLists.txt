@@ -30,7 +30,7 @@
 set(gen_ssl_cert_sources
   gen_ssl_cert.cpp)
 
-arqma_add_executable(gen_ssl_cert
+morelo_add_executable(gen_ssl_cert
   ${gen_ssl_cert_sources})
 target_link_libraries(gen_ssl_cert
   PRIVATE

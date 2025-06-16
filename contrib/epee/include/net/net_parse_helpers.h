@@ -31,8 +31,8 @@
 #include "http_base.h"
 #include "reg_exp_definer.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "net"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "net"
 
 namespace epee
 {

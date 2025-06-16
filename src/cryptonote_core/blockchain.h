@@ -1489,7 +1489,7 @@ namespace cryptonote
      * @brief loads block hashes from compiled-in data set
      *
      * A (possibly empty) set of block hashes can be compiled into the
-     * Arqma daemon binary.  This function loads those hashes into
+     * Morelo daemon binary. This function loads those hashes into
      * a useful state.
      *
      * @param get_checkpoints if set, will be called to get checkpoints data

@@ -42,10 +42,10 @@ set(p2p_private_headers
   p2p_protocol_defs.h
   stdafx.h)
 
-arqma_private_headers(p2p
+morelo_private_headers(p2p
   ${p2p_private_headers})
 
-arqma_add_library(p2p
+morelo_add_library(p2p
   ${p2p_sources}
   ${p2p_headers}
   ${p2p_private_headers})

@@ -29,6 +29,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <limits>
 #include <sstream>
 #include <numeric>
 #include <boost/interprocess/detail/atomic.hpp>
@@ -72,8 +73,8 @@
   #include <unistd.h>
 #endif
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "miner"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "miner"
 
 using namespace epee;
 

@@ -29,6 +29,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <limits>
 #include <numeric>
 #include <tuple>
 #include <boost/format.hpp>
@@ -91,8 +92,8 @@ using namespace std;
 using namespace crypto;
 using namespace cryptonote;
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "wallet.wallet2"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "wallet.wallet2"
 
 // used to choose when to stop adding outputs to a tx
 #define APPROXIMATE_INPUT_BYTES 80
@@ -963,12 +964,12 @@ gamma_picker::gamma_picker(const std::vector<uint64_t> &rct_offsets, double shap
     rct_offsets(rct_offsets)
 {
   gamma = std::gamma_distribution<double>(shape, scale);
-  THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED, error::wallet_internal_error, "Bad offset calculation");
+  THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED, error::wallet_internal_error, "Bad offset calculation");
   const size_t blocks_in_a_year = 86400 * 365 / DIFFICULTY_TARGET_V11;
   const size_t blocks_to_consider = std::min<size_t>(rct_offsets.size(), blocks_in_a_year);
   const size_t outputs_to_consider = rct_offsets.back() - (blocks_to_consider < rct_offsets.size() ? rct_offsets[rct_offsets.size() - blocks_to_consider - 1] : 0);
   begin = rct_offsets.data();
-  end = rct_offsets.data() + rct_offsets.size() - config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED;
+  end = rct_offsets.data() + rct_offsets.size() - config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED;
   num_rct_outputs = *(end - 1);
   THROW_WALLET_EXCEPTION_IF(num_rct_outputs == 0, error::wallet_internal_error, "No rct outputs");
   average_output_time = DIFFICULTY_TARGET_V11 * blocks_to_consider / outputs_to_consider; // this assumes constant target over the whole rct range
@@ -1090,6 +1091,7 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_last_block_reward(0),
   m_encrypt_keys_after_refresh(boost::none),
   m_unattended(unattended),
+  m_use_dns(false),
   m_offline(false),
   m_credits_target(0)
 {
@@ -5332,7 +5334,7 @@ std::map<uint32_t, std::pair<uint64_t, uint64_t>> wallet2::unlocked_balance_per_
       }
       else
       {
-        uint64_t unlock_height = td.m_block_height + std::max<uint64_t>(config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED, CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS);
+        uint64_t unlock_height = td.m_block_height + std::max<uint64_t>(config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED, CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS);
         if(td.m_tx.unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER && td.m_tx.unlock_time > unlock_height)
           unlock_height = td.m_tx.unlock_time;
         blocks_to_unlock = unlock_height > blockchain_height ? unlock_height - blockchain_height : 0;
@@ -5530,7 +5532,7 @@ bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height) 
   if(!is_tx_spendtime_unlocked(unlock_time, block_height))
     return false;
 
-  if(block_height + config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED > get_blockchain_current_height())
+  if(block_height + config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED > get_blockchain_current_height())
     return false;
 
   return true;
@@ -7153,7 +7155,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
     if (has_rct_distribution)
     {
       // check we're clear enough of rct start, to avoid corner cases below
-      THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED,
+      THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED,
           error::get_output_distribution, "Not enough rct outputs");
       THROW_WALLET_EXCEPTION_IF(rct_offsets.back() <= max_rct_index,
           error::get_output_distribution, "Daemon reports suspicious number of rct outputs");
@@ -7256,7 +7258,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       const uint64_t amount = td.is_rct() ? 0 : td.amount();
       std::unordered_set<uint64_t> seen_indices;
       // request more for rct in base recent (locked) coinbases are picked, since they're locked for longer
-      size_t requested_outputs_count = base_requested_outputs_count + (td.is_rct() ? config::blockchain_settings::ARQMA_BLOCK_UNLOCK_CONFIRMATIONS - config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED : 0);
+      size_t requested_outputs_count = base_requested_outputs_count + (td.is_rct() ? config::blockchain_settings::ARQMA_BLOCK_UNLOCK_CONFIRMATIONS - config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED : 0);
       size_t start = req.outputs.size();
       bool use_histogram = amount != 0 || !has_rct_distribution;
 
@@ -7325,7 +7327,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       else
       {
         // the base offset of the first rct output in the first unlocked block (or the one to be if there's none)
-        num_outs = rct_offsets[rct_offsets.size() - config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED];
+        num_outs = rct_offsets[rct_offsets.size() - config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED];
         LOG_PRINT_L1("" << num_outs << " unlocked rct outputs");
         THROW_WALLET_EXCEPTION_IF(num_outs == 0, error::wallet_internal_error,
             "histogram reports no unlocked rct outputs, not even ours");
@@ -7540,7 +7542,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
           [](const get_outputs_out &a, const get_outputs_out &b) { return a.index < b.index; });
     }
 
-    if (ELPP->vRegistry()->allowed(el::Level::Debug, ARQMA_DEFAULT_LOG_CATEGORY))
+    if (ELPP->vRegistry()->allowed(el::Level::Debug, MORELO_DEFAULT_LOG_CATEGORY))
     {
       std::map<uint64_t, std::set<uint64_t>> outs;
       for (const auto &i: req.outputs)
@@ -7571,7 +7573,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
     for(size_t idx: selected_transfers)
     {
       const transfer_details &td = m_transfers[idx];
-      size_t requested_outputs_count = base_requested_outputs_count + (td.is_rct() ? config::blockchain_settings::ARQMA_BLOCK_UNLOCK_CONFIRMATIONS - config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED : 0);
+      size_t requested_outputs_count = base_requested_outputs_count + (td.is_rct() ? config::blockchain_settings::ARQMA_BLOCK_UNLOCK_CONFIRMATIONS - config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED : 0);
       outs.push_back(std::vector<get_outs_entry>());
       outs.back().reserve(fake_outputs_count + 1);
       const rct::key mask = td.is_rct() ? rct::commit(td.amount(), td.m_mask) : rct::zeroCommit(td.amount());
@@ -12159,16 +12161,16 @@ std::string wallet2::make_uri(const std::string &address, const std::string &pay
 //----------------------------------------------------------------------------------------------------
 bool wallet2::parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error)
 {
-  static const std::string ARQMA_URI = "morelo:";
-  static const int ARQMA_URI_LEN = ARQMA_URI.length();
+  static const std::string MORELO_URI = "morelo:";
+  static const int MORELO_URI_LEN = MORELO_URI.length();
 
-  if (uri.substr(0, ARQMA_URI_LEN) != ARQMA_URI)
+  if (uri.substr(0, MORELO_URI_LEN) != MORELO_URI)
   {
-    error = std::string("URI has wrong scheme (expected ") + "\"" + ARQMA_URI + "\"): " + uri;
+    error = std::string("URI has wrong scheme (expected ") + "\"" + MORELO_URI + "\"): " + uri;
     return false;
   }
 
-  std::string remainder = uri.substr(ARQMA_URI_LEN);
+  std::string remainder = uri.substr(MORELO_URI_LEN);
   const char *ptr = strchr(remainder.c_str(), '?');
   address = ptr ? remainder.substr(0, ptr-remainder.c_str()) : remainder;
 
@@ -12435,12 +12437,11 @@ uint64_t wallet2::get_segregation_fork_height() const
   if (m_segregation_height > 0)
     return m_segregation_height;
 
-  static const bool use_dns = true;
-  if (use_dns)
+  if (m_use_dns && !m_offline)
   {
-    // All four Arq-Net domains have DNSSEC on and valid
+    // All Morelo Network domains have DNSSEC on and valid
     static const std::vector<std::string> dns_urls = {
-
+      "segheights.morelo.cc", "segheights.morelonetwork.pl", "segheights.morelo.vip"
     };
 
     const uint64_t current_height = get_blockchain_current_height();

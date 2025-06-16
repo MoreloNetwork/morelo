@@ -1,90 +1,96 @@
 name: ci/gh-actions/build
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
 
 env:
-  APT_SET_CONF: |
-        echo "Acquire::Retries \"3\";"         | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::ftp::Timeout \"120\";"  | sudo tee -a /etc/apt/apt.conf.d/80-custom
+  APT_INSTALL: 'sudo apt-get update && sudo apt-get -y install build-essential cmake pkg-config libboost-all-dev libssl-dev libsodium-dev libunwind-dev liblzma-dev libreadline-dev libldns-dev libexpat1-dev libudev-dev libusb-1.0-0-dev libhidapi-dev xsltproc gperf autoconf automake libtool-bin miniupnpc doxygen graphviz libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
+  USE_DEVICE_TREZOR_MANDATORY: ON
+  CCACHE_TEMPDIR: /tmp/.ccache-temp
+  CCACHE_DIR: /tmp/.ccache
   CCACHE_SETTINGS: |
-        ccache --max-size=150M
-        ccache --set-config=compression=true
+    ccache --max-size=150M
+    ccache --set-config=compression=true
+
 jobs:
-  build-windows:
-    runs-on: ubuntu-20.04
-    env:
-      CCACHE_TEMPDIR: /tmp/.ccache-temp
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain:
-          - name: "build-depends-windows-x64"
-            host: "x86_64-w64-mingw32"
-            packages: "cmake python3 g++-mingw-w64-x86-64 qttools5-dev-tools"
-    name: ${{ matrix.toolchain.name }}
+  windows:
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
-# Most volatile cache
     - name: ccache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
-        path: ~/.ccache
-        key: ccache-${{ matrix.toolchain.host }}-${{ github.sha }}
-        restore-keys: ccache-${{ matrix.toolchain.host }}-
-# Less volatile cache
-    - name: depends cache
-      uses: actions/cache@v3
+        path: /tmp/.ccache
+        key: ccache-${{ runner.os }}-x86_64-w64-mingw32-${{ github.sha }}
+        restore-keys: ccache-${{ runner.os }}-x86_64-w64-mingw32
+    - name: depends ccache
+      uses: actions/cache@v4
       with:
         path: contrib/depends/built
-        key: depends-${{ matrix.toolchain.host }}-${{ hashFiles('contrib/depends/packages/*') }}
+        key: ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
         restore-keys: |
-          depends-${{ matrix.toolchain.host }}-${{ hashFiles('contrib/depends/packages/*') }}
-          depends-${{ matrix.toolchain.host }}-
-# Static cache
-    - name: set apt conf
-      run: ${{env.APT_SET_CONF}}
+          ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
+          ccache-depends-${{ runner.os }}-x86_64-w64-mingw32
     - name: install dependencies
-      run: sudo apt update; sudo apt -y install libboost-all-dev libsodium-dev build-essential libtool cmake autotools-dev automake pkg-config bsdmainutils curl git ca-certificates ccache ${{ matrix.toolchain.packages }}
-    - name: prepare w64-mingw32
-      if: ${{ matrix.toolchain.host == 'x86_64-w64-mingw32' }}
+      run: ${{ env.APT_INSTALL }} g++-mingw-w64-x86-64 zip
+    - name: prepare toolchain
       run: |
-        sudo update-alternatives --set ${{ matrix.toolchain.host }}-g++ $(which ${{ matrix.toolchain.host }}-g++-posix)
-        sudo update-alternatives --set ${{ matrix.toolchain.host }}-gcc $(which ${{ matrix.toolchain.host }}-gcc-posix)
+        sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
+        sudo update-alternatives --set x86_64-w64-mingw32-gcc $(which x86_64-w64-mingw32-gcc-posix)
     - name: build
       run: |
-        ${{env.CCACHE_SETTINGS}}
-        make depends target=${{ matrix.toolchain.host }} cmake_opts=${{ matrix.toolchain.cmake_opts }} -j2
-    - uses: actions/upload-artifact@v3
-      if: ${{ matrix.toolchain.host == 'x86_64-w64-mingw32' || matrix.toolchain.host == 'x86_64-unknown-linux-gnu' || matrix.toolchain.host == 'aarch64-linux-gnu' || 'arm-linux-gnueabihf' }}
+        ${{ env.CCACHE_SETTINGS }}
+        make -j$(nproc) depends target=x86_64-w64-mingw32 buildtag=win-x64
+    - name: package
+      run: |
+        cd ${{ github.workspace }}/build/release/bin
+        zip -9 ../win-x64.zip morelo*
+        cd ..
+        mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
+    - uses: actions/upload-artifact@v4
       with:
-        name: windows-release
-        path: |
-          /home/runner/work/morelo/morelo/build/${{ matrix.toolchain.host }}/release/bin/morelo*
+        name: win-x64
+        path: '${{ github.workspace }}/build/release/*.zip'
+        compression-level: 0
 
-  build-ubuntu:
-    runs-on: ubuntu-20.04
+  linux:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-24.04, ubuntu-22.04 ]
+    env:
+      BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || 'ubuntu22' }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - name: remove bundled boost
-      run: sudo rm -rf /usr/local/share/boost
-    - name: set apt conf
-      run: |
-        echo "Acquire::Retries \"3\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::http::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-        echo "Acquire::ftp::Timeout \"120\";" | sudo tee -a /etc/apt/apt.conf.d/80-custom
-    - name: update apt
-      run: sudo apt update
-    - name: install morelo dependencies
-      run: sudo apt -y install libboost-all-dev build-essential cmake graphviz doxygen libunwind8-dev pkg-config libssl-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev
-    - name: build
-      run: make -j2
-    - name: Upload linux artifacts
-      uses: actions/upload-artifact@master
+    - uses: actions/cache@v4
       with:
-        name: linux-release
-        path: 'build/**/**/morelo*'
+        path: /tmp/.ccache
+        key: ccache-${{ runner.os }}-${{ matrix.os }}-${{ github.sha }}
+        restore-keys: ccache-${{ runner.os }}-${{ matrix.os }}
+    - name: install dependencies
+      run: ${{ env.APT_INSTALL }}
+    - name: build
+      run: |
+        ${{ env.CCACHE_SETTINGS }}
+        make -j$(nproc) release-${{ env.BUILD_NAME }}
+    - name: package
+      run: |
+        cd ${{ github.workspace }}/build/release/bin
+        tar cJf ../linux-x64-${{ env.BUILD_NAME }}.tar.xz --owner=0 --group=0 morelo*
+        cd ..
+        mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
+    - uses: actions/upload-artifact@v4
+      with:
+        name: linux-x64-${{ env.BUILD_NAME }}
+        path: '${{ github.workspace }}/build/release/*.tar.xz'
+        compression-level: 0

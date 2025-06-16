@@ -30,6 +30,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
+#include <limits>
 #include <memory>
 
 #include <boost/program_options/options_description.hpp>
@@ -66,8 +67,8 @@
 #include "wallet_light_rpc.h"
 #include "wallet_rpc_helpers.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "wallet.wallet2"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "wallet.wallet2"
 
 #define THROW_ON_RPC_RESPONSE_ERROR(r, error, res, method, ...) \
   do { \
@@ -1449,6 +1450,7 @@ private:
     size_t m_subaddress_lookahead_major, m_subaddress_lookahead_minor;
     std::string m_device_name;
     bool m_offline;
+    bool m_use_dns;
     crypto::secret_key m_rpc_client_secret_key;
     rpc_payment_state_t m_rpc_payment_state;
     uint64_t m_credits_target;

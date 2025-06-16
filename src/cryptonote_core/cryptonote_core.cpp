@@ -58,8 +58,8 @@ using namespace epee;
 #include "common/notify.h"
 #include "version.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "cn"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "cn"
 
 DISABLE_VS_WARNINGS(4355)
 
@@ -788,9 +788,9 @@ namespace cryptonote
     }
     bad_semantics_txes_lock.unlock();
 
-    if (tx.version == 0 || tx.version > config::tx_settings::ARQMA_TX_VERSION)
+    if (tx.version == 0 || tx.version > config::tx_settings::MORELO_TX_VERSION)
     {
-      MERROR_VER("Bad tx version (" << tx.version << ", max is " << config::tx_settings::ARQMA_TX_VERSION << ")");
+      MERROR_VER("Bad tx version (" << tx.version << ", max is " << config::tx_settings::MORELO_TX_VERSION << ")");
       tvc.m_verifivation_failed = true;
       return false;
     }
@@ -1737,7 +1737,7 @@ namespace cryptonote
     if (!tools::check_updates(software, buildtag, version, hash))
       return false;
 
-    if (tools::vercmp(version.c_str(), ARQMA_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), MORELO_VERSION) <= 0)
     {
       m_update_available = false;
       return true;

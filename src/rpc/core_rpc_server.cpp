@@ -29,6 +29,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <limits>
 #include <boost/preprocessor/stringize.hpp>
 #include "include_base_utils.h"
 #include "string_tools.h"
@@ -57,8 +58,8 @@ using namespace epee;
 #include "p2p/net_node.h"
 #include "version.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon.rpc"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon.rpc"
 
 #define MAX_RESTRICTED_FAKE_OUTS_COUNT 40
 #define MAX_RESTRICTED_GLOBAL_FAKE_OUTS_COUNT 5000
@@ -2295,7 +2296,7 @@ namespace cryptonote
       return r;
 
     res.version = CORE_RPC_VERSION;
-    res.release = ARQMA_VERSION_IS_RELEASE;
+    res.release = MORELO_VERSION_IS_RELEASE;
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -2475,7 +2476,7 @@ namespace cryptonote
       res.status = "Error checking for updates";
       return true;
     }
-    if (tools::vercmp(version.c_str(), ARQMA_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), MORELO_VERSION) <= 0)
     {
       res.update = false;
       res.status = CORE_RPC_STATUS_OK;

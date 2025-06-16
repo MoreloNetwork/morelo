@@ -1,3 +1,4 @@
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2017-2018, The Monero Project
 //
@@ -33,8 +34,8 @@
 #include "dns_utils.h"
 #include "updates.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "updates"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "updates"
 
 namespace tools
 {
@@ -45,45 +46,45 @@ namespace tools
 
     MDEBUG("Checking updates for " << buildtag << " " << software);
 
-    // All four Morelo Network domains have DNSSEC on and valid
+    // All Morelo Network domains have DNSSEC on and valid
     static const std::vector<std::string> dns_urls = {
-       //"" TODO
+      "updates.morelo.cc", "updates.morelonetwork.pl", "updates.morelo.vip"
     };
 
-    if (!tools::dns_utils::load_txt_records_from_dns(records, dns_urls))
+    if(!tools::dns_utils::load_txt_records_from_dns(records, dns_urls))
       return false;
 
-    for (const auto& record : records)
+    for(const auto& record : records)
     {
       std::vector<std::string> fields;
       boost::split(fields, record, boost::is_any_of(":"));
-      if (fields.size() != 4)
+      if(fields.size() != 4)
       {
         MWARNING("Updates record does not have 4 fields: " << record);
         continue;
       }
 
-      if (software != fields[0] || buildtag != fields[1])
+      if(software != fields[0] || buildtag != fields[1])
         continue;
 
       bool alnum = true;
-      for (auto c: fields[3])
-        if (!isalnum(c))
+      for(auto c : fields[3])
+        if(!isalnum(c))
           alnum = false;
-      if (fields[3].size() != 64 && !alnum)
+      if(fields[3].size() != 64 && !alnum)
       {
         MWARNING("Invalid hash: " << fields[3]);
         continue;
       }
 
       // use highest version
-      if (found)
+      if(found)
       {
         int cmp = vercmp(version.c_str(), fields[2].c_str());
-        if (cmp > 0)
+        if(cmp > 0)
           continue;
-        if (cmp == 0 && hash != fields[3])
-          MWARNING("Two matches found for " << software << " version " << version << " on " << buildtag);
+        if(cmp == 0 && hash != fields[3])
+          MWARNING("Multiple matches found for " << software << " version " << version << " on " << buildtag);
       }
 
       version = fields[2];
@@ -97,17 +98,25 @@ namespace tools
 
   std::string get_update_url(const std::string &software, const std::string &buildtag, const std::string &version, bool user)
   {
-    const char *base = user ? "" : ""; //TODO
-#ifdef _WIN32
-    static const char *extension = strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
-#else
-    static const char extension[] = ".tar.gz";
-#endif
-
     std::string url;
-    url = base;
-
-    url = url + "/" + software + "-" + buildtag + "-v" + version + extension;
+    if(user) {
+      if(buildtag == "source") {
+        url = "https://github.com/MoreloNetwork/" + software + "/tree/" + version;
+      } else {
+        url = "https://github.com/MoreloNetwork/" + software + "/releases/tag/" + version;
+      }
+    } else {
+      if(buildtag == "source") {
+        url = "https://github.com/MoreloNetwork/" + software + "/archive/refs/tags/" + version;
+      } else {
+        url = "https://github.com/MoreloNetwork/" + software + "/releases/download/" + version + "/" + buildtag;
+      }
+      #ifdef _WIN32
+        url += strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
+      #else
+        url += ".tar.xz";
+      #endif
+    }
     return url;
   }
 }

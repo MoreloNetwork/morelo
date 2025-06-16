@@ -1,8 +1,8 @@
 package=hidapi
-$(package)_version=0.9.0
+$(package)_version=0.15.0
 $(package)_download_path=https://github.com/libusb/hidapi/archive
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=630ee1834bdd5c5761ab079fd04f463a89585df8fcae51a7bfe4229b1e02a652
+$(package)_sha256_hash=5d84dec684c27b97b921d2f3b73218cb773cf4ea915caee317ac8fc73cef8136
 $(package)_linux_dependencies=libusb eudev
 
 define $(package)_set_vars

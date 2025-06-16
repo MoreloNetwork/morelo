@@ -35,6 +35,7 @@
 #include <system_error>
 #include <string>
 #include <vector>
+#include <limits>
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"

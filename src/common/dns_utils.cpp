@@ -1,3 +1,4 @@
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The ArQmA Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -40,17 +41,17 @@
 #include <boost/optional.hpp>
 using namespace epee;
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "net.dns"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "net.dns"
 
 static const char *DEFAULT_DNS_PUBLIC_ADDR[] =
 {
-  "1.1.1.1",      // Cloudflare
-  "8.8.8.8",      // Google
-  "64.6.64.6",    // Verisign
-  "209.244.0.3",  // Level3
-  "8.26.56.26",   // Comodo
-  "77.88.8.8",    // Yandex
+  "208.67.222.222",  // OpenDNS
+  "1.1.1.1",         // Cloudflare
+  "8.8.8.8",         // Google
+  "9.9.9.9",         // Quad9
+  "8.26.56.26",      // Comodo
+  "45.90.28.190"     // NextDNS
 };
 
 static boost::mutex instance_lock;
@@ -103,8 +104,9 @@ get_builtin_ds(void)
 {
   static const char * const ds[] =
   {
-    ". IN DS 19036 8 2 49AAC11D7B6F6446702E54A1607371607A1A41855200FD2CE1CDDE32F24E8FB5\n",
-    ". IN DS 20326 8 2 E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D\n",
+    "morelo.cc. DS 2371 13 2 BE68DD85DB1FAF3AC8E2D9BA050E84222CB85C552AAE68DCE2D768557B6E2863",
+    "morelonetwork.pl. DS 2371 13 2 1D064892752E6DBA91DA1C100B3E681AFEE6D2046DABFD71748BCDDF9E385EF1",
+    "morelo.vip. DS 25517 13 2 140CE388B1DC001A0312D3769449313312A041FB356BF8DE8FBB6D07CD589B09",
     NULL
   };
   return ds;
@@ -285,7 +287,7 @@ DNSResolver::DNSResolver() : m_data(new DNSResolverData())
     // should be a valid DNSSEC record, and switch to known good
 	// DNSSEC resolvers if verification fails
 	bool available, valid;
-	static const char *probe_hostname = ""; //TODO
+	static const char *probe_hostname = "updates.morelo.cc";
 	auto records = get_txt_record(probe_hostname, available, valid);
 	if (!valid)
 	{
@@ -407,8 +409,8 @@ namespace dns_utils
 // TODO: parse the string in a less stupid way, probably with regex
 std::string address_from_txt_record(const std::string& s)
 {
-  // make sure the txt record has "oa1:arq" and find it
-  auto pos = s.find("oa1:arq");
+  // make sure the txt record has "oa1:mrl" and find it
+  auto pos = s.find("oa1:mrl");
   if (pos == std::string::npos)
     return {};
   // search from there to find "recipient_address="
@@ -420,31 +422,31 @@ std::string address_from_txt_record(const std::string& s)
   auto pos2 = s.find(";", pos);
   if (pos2 != std::string::npos)
   {
-    // length of address == 97, we can at least validate that much here
-    if (pos2 - pos == 97)
+    // length of address == 98, we can at least validate that much here
+    if (pos2 - pos == 98)
     {
-      return s.substr(pos, 97);
+      return s.substr(pos, 98);
     }
-    else if (pos2 - pos == 109) // length of address == 109 --> integrated address
+    else if (pos2 - pos == 110) // length of address == 110 --> integrated address
     {
-      return s.substr(pos, 109);
+      return s.substr(pos, 110);
     }
   }
   return {};
 }
 /**
- * @brief gets a Arqma address from the TXT record of a DNS entry
+ * @brief gets a Morelo address from the TXT record of a DNS entry
  *
- * gets the Arqma address from the TXT record of the DNS entry associated
+ * gets the Morelo address from the TXT record of the DNS entry associated
  * with <url>.  If this lookup fails, or the TXT record does not contain an
- * XMR address in the correct format, returns an empty string.  <dnssec_valid>
+ * MRL address in the correct format, returns an empty string.  <dnssec_valid>
  * will be set true or false according to whether or not the DNS query passes
  * DNSSEC validation.
  *
  * @param url the url to look up
  * @param dnssec_valid return-by-reference for DNSSEC status of query
  *
- * @return a Arqma address (as a string) or an empty string
+ * @return a Morelo address (as a string) or an empty string
  */
 std::vector<std::string> addresses_from_url(const std::string& url, bool& dnssec_valid)
 {
@@ -461,7 +463,7 @@ std::vector<std::string> addresses_from_url(const std::string& url, bool& dnssec
   }
   else dnssec_valid = false;
 
-  // for each txt record, try to find a Arqma address in it.
+  // for each txt record, try to find a Morelo address in it.
   for (auto& rec : records)
   {
     std::string addr = address_from_txt_record(rec);

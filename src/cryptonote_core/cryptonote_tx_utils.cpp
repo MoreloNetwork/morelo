@@ -102,17 +102,12 @@ keypair get_deterministic_keypair_from_height(uint64_t height)
 
 uint64_t get_governance_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version, uint64_t hardfork_height)
 {
-  if(hf_version >= 17 && height == hardfork_height)
-	  return DEVS_REWARD_V17;
+  if(height == hardfork_height) {
+    if(hf_version == 17 || hf_version == 18)
+      return DEVS_REWARD_V17;
+  }
   if(hf_version >= 16)
-	return base_reward * 10 / 100;
-  return 0;
-}
-
-uint64_t get_devs_reward(uint64_t height, uint64_t base_reward, uint8_t hf_version)
-{
-  if(hf_version >= 18)
-	return base_reward * 5 / 100;
+    return base_reward * 10 / 100;
   return 0;
 }
 
@@ -224,7 +219,23 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
       std::string governance_wallet_address_str;
       cryptonote::address_parse_info governance_wallet_address;
-	  if(hard_fork_version >= 17)
+	  if(hard_fork_version >= 18)
+	  {
+		  switch(nettype)
+		  {
+			case STAGENET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::STAGENET, std::string(config::devs_new::STAGENET_WALLET_ADDRESS));
+			  break;
+			case TESTNET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::TESTNET, std::string(config::devs_new::TESTNET_WALLET_ADDRESS));
+			  break;
+			case MAINNET:
+			  cryptonote::get_account_address_from_str(governance_wallet_address, cryptonote::MAINNET, std::string(config::devs_new::MAINNET_WALLET_ADDRESS));
+			  break;
+			default:
+			  return false;
+		  }
+	  } else if(hard_fork_version >= 17)
 	  {
 		  switch(nettype)
 		  {
@@ -259,7 +270,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
 
     crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
 
-    if(!get_deterministic_output_key(governance_wallet_address.address, gov_key, tx.vout.size(), out_eph_public_key))
+    if(!get_deterministic_output_key(governance_wallet_address.address, gov_key, 1 /* second output in miner tx */, out_eph_public_key))
     {
       MERROR("Failed to generate deterministic output key for governance wallet output creation");
       return false;
@@ -273,10 +284,10 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
     out.target = tk;
     tx.vout.push_back(out);
 
-    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward), false, "Failed to construct miner tx on V16 hardfork, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward));
+    CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward), false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward));
     }
 
-    tx.version = config::tx_settings::ARQMA_TX_VERSION;
+    tx.version = config::tx_settings::MORELO_TX_VERSION;
 
     //lock
     tx.unlock_time = height + config::blockchain_settings::ARQMA_BLOCK_UNLOCK_CONFIRMATIONS;
@@ -327,7 +338,7 @@ bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_ge
       msout->c.clear();
     }
 
-    tx.version = config::tx_settings::ARQMA_TX_VERSION;
+    tx.version = config::tx_settings::MORELO_TX_VERSION;
     tx.unlock_time = unlock_time;
 
     tx.extra = extra;

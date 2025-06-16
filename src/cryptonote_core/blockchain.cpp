@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, The Morelo Network
+// Copyright (c) 2019-2024, The Morelo Network
 // Copyright (c) 2018-2019, The Arqma Network
 // Copyright (c) 2014-2018, The Monero Project
 //
@@ -30,6 +30,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <limits>
 #include <algorithm>
 #include <cstdio>
 #include <boost/filesystem.hpp>
@@ -58,8 +59,8 @@
 #include "common/varint.h"
 #include "common/pruning.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "blockchain"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "blockchain"
 
 #define FIND_BLOCKCHAIN_SUPPLEMENT_MAX_SIZE (100*1024*1024) // 100 MB
 
@@ -94,7 +95,8 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 235000, 0, 1687982396 },
- { 17, 433100, 0, 1712271889 }
+ { 17, 433100, 0, 1712271889 },
+ { 18, 726100, 0, 1750699889 }
 };
 
 static const struct {
@@ -107,7 +109,8 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 2, 0, 1687982396 },
- { 17, 10, 0, 1708459168 }
+ { 17, 10, 0, 1708459168 },
+ { 18, 710000, 0, 1725374651 }
 };
 
 static const struct {
@@ -120,11 +123,13 @@ static const struct {
  { 1, 0, 0, 1341378000 },
  { 15, 1, 0, 1573257000 },
  { 16, 235000, 0, 1687982396 },
+ { 17, 433100, 0, 1712271889 },
+ { 18, 720000, 0, 1725374651 }
 };
 //------------------------------------------------------------------
 Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_db(), m_tx_pool(tx_pool), m_hardfork(NULL), m_timestamps_and_difficulties_height(0), m_current_block_cumul_weight_limit(0), m_current_block_cumul_weight_median(0),
-  m_enforce_dns_checkpoints(false), m_max_prepare_blocks_threads(4), m_db_sync_on_blocks(true), m_db_sync_threshold(1), m_db_sync_mode(db_async), m_db_default_sync(false),
+  m_enforce_dns_checkpoints(true), m_max_prepare_blocks_threads(4), m_db_sync_on_blocks(true), m_db_sync_threshold(1), m_db_sync_mode(db_async), m_db_default_sync(false),
   m_fast_sync(true), m_show_time_stats(false), m_sync_counter(0), m_bytes_to_sync(0), m_cancel(false),
   m_long_term_block_weights_window(CRYPTONOTE_LONG_TERM_BLOCK_WEIGHT_WINDOW_SIZE),
   m_long_term_effective_median_block_weight(0),
@@ -1327,7 +1332,23 @@ if(version >= 16)
   }
 
   std::string governance_wallet_address_str;
-  if(version >= 17)
+  if(version >= 18)
+  {
+    switch(m_nettype)
+    {
+      case STAGENET:
+        governance_wallet_address_str = std::string(config::devs_new::STAGENET_WALLET_ADDRESS);
+        break;
+      case TESTNET:
+        governance_wallet_address_str = std::string(config::devs_new::TESTNET_WALLET_ADDRESS);
+        break;
+      case MAINNET:
+        governance_wallet_address_str = std::string(config::devs_new::MAINNET_WALLET_ADDRESS);
+        break;
+      default:
+        return false;
+    }
+  } else if(version >= 17)
   {
     switch(m_nettype)
     {
@@ -2087,7 +2108,7 @@ uint64_t Blockchain::get_num_mature_outputs(uint64_t amount) const
   {
     const tx_out_index toi = m_db->get_output_tx_and_index(amount, num_outs - 1);
     const uint64_t height = m_db->get_tx_block_height(toi.first);
-    if (height + config::tx_settings::ARQMA_TX_CONFIRMATIONS_REQUIRED <= blockchain_height)
+    if (height + config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED <= blockchain_height)
       break;
     --num_outs;
   }
@@ -3047,7 +3068,7 @@ bool Blockchain::check_tx_inputs(transaction &tx, tx_verification_context &tvc, 
     }
 
     // min/max tx version based on HF, and we accept v1 txes if having a non mixable
-    const size_t max_tx_version = config::tx_settings::ARQMA_TX_VERSION;
+    const size_t max_tx_version = config::tx_settings::MORELO_TX_VERSION;
     if (tx.version > max_tx_version)
     {
       MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);
@@ -3387,7 +3408,16 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
     return lo;
   }
 
-  const uint64_t fee_base = version >= 13 ? DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13 : version >= 5 ? DYNAMIC_FEE_PER_KB_BASE_FEE_V5 : DYNAMIC_FEE_PER_KB_BASE_FEE;
+  uint64_t fee_base;
+  if(version >= 18) {
+    fee_base = NEW_FEE_V18;
+  } else if(version >= 13) {
+    fee_base = DYNAMIC_FEE_PER_BYTE_BASE_FEE_V13;
+  } else if(version >= 5) {
+    fee_base = DYNAMIC_FEE_PER_KB_BASE_FEE_V5;
+  } else {
+    fee_base = DYNAMIC_FEE_PER_KB_BASE_FEE;
+  }
 
   uint64_t unscaled_fee_base = (fee_base * min_block_weight / median_block_weight);
   lo = mul128(unscaled_fee_base, block_reward, &hi);
@@ -3425,7 +3455,17 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   }
 
   uint64_t needed_fee;
-  if (version >= HF_VERSION_PER_BYTE_FEE)
+  if (version >= 18)
+  {
+	const bool use_long_term_median_in_fee = version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT;
+    uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
+    MDEBUG("Using " << print_money(fee_per_byte) << "/byte fee");
+    needed_fee = tx_weight * fee_per_byte;
+    // quantize fee up to 8 decimals
+    const uint64_t mask = get_fee_quantization_mask();
+    needed_fee = (needed_fee + mask - 1) / mask * mask;
+	needed_fee /= 100;
+  } else if (version >= HF_VERSION_PER_BYTE_FEE)
   {
     const bool use_long_term_median_in_fee = version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT;
     uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
@@ -5140,7 +5180,7 @@ void Blockchain::cancel()
 }
 
 #if defined(PER_BLOCK_CHECKPOINT)
-static const char expected_block_hashes_hash[] = "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119";
+static const char expected_block_hashes_hash[] = "66a6f3ee62cb1a91d36fa90459d6a3040c96c9c2012aa926832b1c797250cbbe";
 void Blockchain::load_compiled_in_block_hashes(const GetCheckpointsCallback& get_checkpoints)
 {
   if (get_checkpoints == nullptr || !m_fast_sync)

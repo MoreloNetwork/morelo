@@ -33,8 +33,8 @@
 
 #include "bootstrap_file.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "bcutil"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "bcutil"
 
 namespace po = boost::program_options;
 

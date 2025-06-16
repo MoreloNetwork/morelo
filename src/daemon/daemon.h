@@ -30,8 +30,8 @@
 #pragma once
 #include <boost/program_options.hpp>
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 

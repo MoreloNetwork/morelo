@@ -29,6 +29,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include <limits>
 #include "string_tools.h"
 #include "common/password.h"
 #include "common/scoped_message_writer.h"
@@ -42,8 +43,8 @@
 #include <ctime>
 #include <string>
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "daemon"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 
@@ -1217,8 +1218,8 @@ bool t_rpc_command_executor::stop_daemon()
 //# ifdef WIN32
 //    // Stop via service API
 //    // TODO - this is only temporary!  Get rid of hard-coded constants!
-//    bool ok = windows::stop_service("Arqma Daemon");
-//    ok = windows::uninstall_service("Arqma Daemon");
+//    bool ok = windows::stop_service("Morelo Daemon");
+//    ok = windows::uninstall_service("Morelo Daemon");
 //    //bool ok = windows::stop_service(SERVICE_NAME);
 //    //ok = windows::uninstall_service(SERVICE_NAME);
 //    if (ok)

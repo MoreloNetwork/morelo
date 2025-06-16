@@ -34,6 +34,7 @@
 #endif
 #include "easylogging++/easylogging++.h"
 
+#include <iomanip>
 #include <stdexcept>
 #ifdef USE_UNWIND
 #define UNW_LOCAL_ONLY
@@ -47,14 +48,14 @@
 #include "common/stack_trace.h"
 #include "misc_log_ex.h"
 
-#undef ARQMA_DEFAULT_LOG_CATEGORY
-#define ARQMA_DEFAULT_LOG_CATEGORY "stacktrace"
+#undef MORELO_DEFAULT_LOG_CATEGORY
+#define MORELO_DEFAULT_LOG_CATEGORY "stacktrace"
 
 #define ST_LOG(x) \
   do { \
     auto elpp = ELPP; \
     if (elpp) { \
-      CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,ARQMA_DEFAULT_LOG_CATEGORY) << x; \
+      CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,MORELO_DEFAULT_LOG_CATEGORY) << x; \
     } \
     else { \
       std::cout << x << std::endl; \

@@ -32,6 +32,7 @@
 #include "gtest/gtest.h"
 
 #include <cstdint>
+#include <limits>
 
 #include "common/base58.cpp"
 #include "cryptonote_basic/cryptonote_basic_impl.h"

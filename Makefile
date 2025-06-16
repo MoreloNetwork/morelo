@@ -1,3 +1,4 @@
+# Copyright (c) 2025, The Morelo Network
 # Copyright (c) 2018-2020, The Arqma Network
 # Copyright (c) 2014-2020, The Monero Project
 #
@@ -29,35 +30,28 @@
 
 ANDROID_STANDALONE_TOOLCHAIN_PATH ?= /usr/local/toolchain
 
-dotgit=$(shell ls -d .git/config)
-ifneq ($(dotgit), .git/config)
-  USE_SINGLE_BUILDDIR=1
-endif
+builddir := build
+topdir   := ../..
+deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
+flags    := -DBUILD_TESTS=OFF
 
-subbuilddir:=$(shell echo  `uname | sed -e 's|[:/\\ \(\)]|_|g'`/`git branch | grep '\* ' | cut -f2- -d' '| sed -e 's|[:/\\ \(\)]|_|g'`)
-ifeq ($(USE_SINGLE_BUILDDIR),)
-  builddir := build/"$(subbuilddir)"
-  topdir   := ../../../..
-  deldirs  := $(builddir)
-else
-  builddir := build
-  topdir   := ../..
-  deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
+ifdef MORELO_SLIM
+	flags += -DMORELO_SLIM=ON
 endif
 
 all: release-all
 
 depends:
-	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p build/$(target)/release
-	cd build/$(target)/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake ../../.. && $(MAKE)
+	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake $(flags) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -DBUILD_TAG="$(buildtag)" ../.. && $(MAKE)
 
 depends-compat:
-	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p build/$(target)-compat/release
-	cd build/$(target)-compat/release && cmake -D BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake ../../.. && $(MAKE)
+	cd contrib/depends && $(MAKE) HOST=$(target) && cd ../.. && mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake $(flags) -DCMAKE_BUILD_TYPE=Release -DBACKCOMPAT=ON -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/contrib/depends/$(target)/share/toolchain.cmake -DBUILD_TAG="$(buildtag)" ../.. && $(MAKE)
 
 cmake-debug:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Debug $(topdir)
+	cd $(builddir)/debug && cmake $(flags) -DCMAKE_BUILD_TYPE=Debug $(topdir)
 
 debug: cmake-debug
 	cd $(builddir)/debug && $(MAKE)
@@ -66,90 +60,106 @@ debug: cmake-debug
 #  * libwallet_api_tests fail (Issue #895)
 #debug-test:
 #	mkdir -p build/debug
-#	cd build/debug && cmake -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Debug ../.. &&  $(MAKE) && $(MAKE) ARGS="-E libwallet_api_tests" test
+#	cd build/debug && cmake -DBUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Debug ../.. &&  $(MAKE) && $(MAKE) ARGS="-E libwallet_api_tests" test
 
 debug-all:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=OFF -D BUILD_SHARED_LIBS=OFF -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
+	cd $(builddir)/debug && cmake $(flags) -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
 
 debug-static-all:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
+	cd $(builddir)/debug && cmake $(flags) -DSTATIC=ON -DCMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
 
-debug-static-win:
+debug-static-win-x86_64:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Debug -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+	cd $(builddir)/debug && cmake -G "MSYS Makefiles" $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+
+debug-win-x86_64:
+	mkdir -p $(builddir)/debug
+	cd $(builddir)/debug && cmake -G "MSYS Makefiles" $(flags) -DSTATIC=OFF -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
 
 cmake-release:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Release $(topdir)
+	cd $(builddir)/release && cmake $(flags) -DCMAKE_BUILD_TYPE=Release $(topdir)
 
 release: cmake-release
 	cd $(builddir)/release && $(MAKE)
 
 release-asan:
 	mkdir -p $(builddir)/release-asan
-	cd $(builddir)/release-asan && cmake -D SANITIZE=ON -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE)
+	cd $(builddir)/release-asan && cmake $(flags) -DSANITIZE=ON -DCMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE)
 
 debug-asan:
 	mkdir -p $(builddir)/debug-asan
-	cd $(builddir)/debug-asan && cmake -D SANITIZE=ON -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
+	cd $(builddir)/debug-asan && cmake $(flags) -DSANITIZE=ON -DCMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
 
 release-all:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DCMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE)
 
 release-static:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DSTATIC=ON -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE)
 
 coverage:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=OFF -D CMAKE_BUILD_TYPE=Debug -D COVERAGE=ON $(topdir) && $(MAKE) && $(MAKE) test
+	cd $(builddir)/debug && cmake $(flags) -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON $(topdir) && $(MAKE) && $(MAKE) test
 
 # Targets for specific prebuilt builds which will be advertised for updates by their build tag
 
 release-static-android-armv7:
 	mkdir -p $(builddir)/release/translations
 	cd $(builddir)/release/translations && cmake ../../../translations && $(MAKE)
-	cd $(builddir)/release && CC=arm-linux-androideabi-clang CXX=arm-linux-androideabi-clang++ cmake -D BUILD_TESTS=OFF -D ARCH="armv7-a" -D STATIC=ON -D BUILD_64=OFF -D CMAKE_BUILD_TYPE=Release -D ANDROID=true -D INSTALL_VENDORED_LIBUNBOUND=ON -D BUILD_TAG="android-armv7" -D CMAKE_SYSTEM_NAME="Android" -D CMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -D CMAKE_ANDROID_ARM_MODE=ON -D CMAKE_ANDROID_ARCH_ABI="armeabi-v7a" ../.. && $(MAKE)
+	cd $(builddir)/release && CC=arm-linux-androideabi-clang CXX=arm-linux-androideabi-clang++ cmake $(flags) -DARCH="armv7-a" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv7" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARM_MODE=ON -DCMAKE_ANDROID_ARCH_ABI="armeabi-v7a" ../.. && $(MAKE)
 
 release-static-android-armv8:
 	mkdir -p $(builddir)/release/translations
 	cd $(builddir)/release/translations && cmake ../../../translations && $(MAKE)
-	cd $(builddir)/release && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ cmake -D BUILD_TESTS=OFF -D ARCH="armv8-a" -D STATIC=ON -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D ANDROID=true -D INSTALL_VENDORED_LIBUNBOUND=ON -D BUILD_TAG="android-armv8" -D CMAKE_SYSTEM_NAME="Android" -D CMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" ../.. && $(MAKE)
+	cd $(builddir)/release && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv8" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARCH_ABI="arm64-v8a" ../.. && $(MAKE)
 
 release-static-linux-armv6:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D ARCH="armv6zk" -D STATIC=ON -D BUILD_64=OFF -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-armv6" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DARCH="armv6zk" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-armv6" $(topdir) && $(MAKE)
 
 release-static-linux-armv7:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D ARCH="armv7-a" -D STATIC=ON -D BUILD_64=OFF -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-armv7" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DARCH="armv7-a" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-armv7" $(topdir) && $(MAKE)
 
 release-static-linux-armv8:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D ARCH="armv8-a" -D STATIC=ON -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-armv8" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-armv8" $(topdir) && $(MAKE)
 
 release-static-linux-x86_64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmak  -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="linux-x64" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DSTATIC=ON -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-x64" $(topdir) && $(MAKE)
+
+release-ubuntu22:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-x64-ubuntu22" $(topdir) && $(MAKE)
+
+release-ubuntu24:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-x64-ubuntu24" $(topdir) && $(MAKE)
 
 release-static-freebsd-x86_64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="freebsd-x64" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DSTATIC=ON -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="freebsd-x64" $(topdir) && $(MAKE)
 
 release-static-mac-x86_64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="mac-x64" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DSTATIC=ON -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="mac-x64" $(topdir) && $(MAKE)
 
-release-static-win:
+release-static-win-x86_64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -G "MSYS Makefiles" -D BUILD_TESTS=OFF -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D_FORTIFY_SOURCE=0 -D CMAKE_BUILD_TYPE=Release -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake -G "MSYS Makefiles" $(flags) -DARCH="x86-64" -DBUILD_64=ON -D_FORTIFY_SOURCE=0 -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+
+release-win-x86_64:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -G "MSYS Makefiles" $(flags) -DSTATIC=OFF -DARCH="x86-64" -DBUILD_64=ON -D_FORTIFY_SOURCE=0 -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
 
 #fuzz:
 #	mkdir -p $(builddir)/fuzz
-#	cd $(builddir)/fuzz && cmake -D STATIC=ON -D SANITIZE=ON -D BUILD_TESTS=ON -D USE_LTO=OFF -D CMAKE_C_COMPILER=afl-gcc -D CMAKE_CXX_COMPILER=afl-g++ -D ARCH="x86-64" -D CMAKE_BUILD_TYPE=fuzz -D BUILD_TAG="linux-x64" $(topdir) && $(MAKE)
+#	cd $(builddir)/fuzz && cmake -DSTATIC=ON -DSANITIZE=ON -DBUILD_TESTS=ON -DUSE_LTO=OFF -DCMAKE_C_COMPILER=afl-gcc -DCMAKE_CXX_COMPILER=afl-g++ -DARCH="x86-64" -DCMAKE_BUILD_TYPE=fuzz -DBUILD_TAG="linux-x64" $(topdir) && $(MAKE)
 
 clean:
 	@echo "WARNING: Back-up your wallet if it exists within ./"$(deldirs)"!" ; \

@@ -53,10 +53,10 @@ set(arqma_mq_private_headers
   INotifier.h
   zmq_handler.h)
 
-arqma_private_headers(arqma_mq
+morelo_private_headers(arqma_mq
   ${arqma_mq_private_headers})
 
-arqma_add_library(arqma_mq
+morelo_add_library(arqma_mq
   ${arqma_mq_sources}
   ${arqma_mq_headers}
   ${arqma_mq_private_headers})
