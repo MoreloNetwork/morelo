@@ -108,7 +108,7 @@ namespace cryptonote {
       reward = base_reward;
       if(height == hardfork_height)
       {
-        if(version == 17 || version == 18)
+        if(version == 17)
         {
           reward += DEVS_REWARD_V17;
         }
