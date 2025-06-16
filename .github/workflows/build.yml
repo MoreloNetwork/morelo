@@ -10,7 +10,7 @@ on:
       - '**/*.md'
 
 env:
-  APT_INSTALL: 'sudo apt-get update && sudo apt-get -y install build-essential pkg-config cmake libboost-all-dev graphviz doxygen libunwind8-dev libsodium-dev libhidapi-dev libusb-1.0-0-dev gperf libreadline-dev miniupnpc libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache bsdmainutils qttools5-dev-tools'
+  APT_INSTALL: 'sudo apt-get update && sudo apt-get -y install build-essential cmake pkg-config libboost-all-dev libssl-dev libsodium-dev libunwind-dev liblzma-dev libreadline-dev libldns-dev libexpat1-dev libudev-dev libusb-1.0-0-dev libhidapi-dev xsltproc gperf autoconf automake libtool-bin miniupnpc doxygen graphviz libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
   USE_DEVICE_TREZOR_MANDATORY: ON
   CCACHE_TEMPDIR: /tmp/.ccache-temp
   CCACHE_DIR: /tmp/.ccache
