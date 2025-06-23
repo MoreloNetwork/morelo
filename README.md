@@ -129,10 +129,6 @@ Clone Morelo recursively to pull-in needed submodule(s):
 
 `$ git clone --recursive https://github.com/MoreloNetwork/morelo.git && cd morelo`
 
-Change branch to the latest stable release:
-
-`$ git checkout 0.1.1.0`
-
 ### Build instructions
 
 Morelo uses the CMake build system and a top-level [Makefile](Makefile) that
@@ -195,10 +191,6 @@ Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Jessie fr
 
 `$ git clone --recursive https://github.com/MoreloNetwork/morelo.git && cd morelo`
 
-* Change branch to the latest stable release:
-
-`$ git checkout 0.1.1.0`
-
 * Build binaries:
 
 `$ make release`
@@ -248,10 +240,6 @@ application.
 * Clone Morelo recursively to pull-in needed submodule(s):
 
 	`$ git clone --recursive https://github.com/morelo/morelo && cd morelo`
-
-* Change branch to the latest stable release:
-
-	`$ git checkout 0.1.1.0`
 
 * Install Boost:
 
