@@ -14,7 +14,8 @@ $(package)_config_opts_darwin=RANLIB="$(host_prefix)/native/bin/x86_64-apple-dar
 endef
 
 define $(package)_config_cmds
-  ./autogen.sh &&\
+  autoreconf -ivf && \
+  cp -f $(BASEDIR)/config.guess $(BASEDIR)/config.sub build-aux/ &&\
   patch -p1 < $($(package)_patch_dir)/fix-whitespace.patch &&\
   $($(package)_autoconf) $($(package)_config_opts) AR_FLAGS=$($(package)_arflags)
 endef
