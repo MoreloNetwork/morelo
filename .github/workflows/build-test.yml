@@ -94,7 +94,8 @@ jobs:
         restore-keys: ccache-${{ matrix.os }}-
     - name: build
       run: |
-        make -j$(nproc) release
+        # ARCH=x86-64 instead of the default -march=native, ccache objects are shared between runners with different CPUs
+        make -j$(nproc) release flags="-DBUILD_TESTS=OFF -DARCH=x86-64"
         ccache -s
     - name: smoke test
       run: build/release/bin/morelod --version
