@@ -66,7 +66,7 @@ Prebuilt binaries for every commit are available as artifacts of the [build work
 
 | Artifact        | Platform                                     | Notes                                                        |
 | --------------- | -------------------------------------------- | ------------------------------------------------------------ |
-| `linux-x64`     | 64-bit Linux, glibc 2.28+ (Debian 10+, Ubuntu 20.04+, RHEL 8+) | Everything except glibc is linked statically |
+| `linux-x64`     | 64-bit Linux, glibc 2.27+ (Ubuntu 18.04+, Debian 10+, RHEL 8+) | Everything except glibc is linked statically |
 | `win-x64`       | 64-bit Windows                               | Fully static, no DLLs needed                                 |
 | `android-armv8` | Android 7.0+ (API 24), arm64-v8a             | Also contains `android-armv8-libwallet.tar.xz` (static `libwallet_api` and its dependencies) |
 | `android-armv7` | Android 7.0+ (API 24), armeabi-v7a           | Also contains `android-armv7-libwallet.tar.xz`               |
@@ -173,7 +173,7 @@ The Windows cross compiler has to use the posix thread model:
 `$ sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)`
 `$ sudo update-alternatives --set x86_64-w64-mingw32-gcc $(which x86_64-w64-mingw32-gcc-posix)`
 
-A Linux binary needs at least the glibc version of the machine it was built on. CI builds it in the `quay.io/pypa/manylinux_2_28_x86_64` container, so it runs on glibc 2.28 and newer.
+A Linux binary needs at least the glibc version of the machine it was built on. CI builds it in the `quay.io/pypa/manylinux_2_28_x86_64` container, and keeps it compatible with glibc 2.27 and newer.
 
 ### On FreeBSD
 

@@ -25,6 +25,8 @@ $(package)_archiver_$(host_os)=$($(package)_ar)
 $(package)_config_libraries=chrono,filesystem,program_options,thread,date_time,regex,serialization,atomic
 $(package)_cxxflags+=-std=c++14
 $(package)_cxxflags_linux=-fPIC
+# statx needs glibc 2.28, keep the Linux binaries runnable on glibc 2.27 (Ubuntu 18.04)
+$(package)_cppflags_linux=-DBOOST_FILESYSTEM_DISABLE_STATX
 $(package)_cxxflags_android=-fPIC
 $(package)_cxxflags_darwin=-fvisibility=default
 endef

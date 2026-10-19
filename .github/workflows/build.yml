@@ -120,7 +120,10 @@ jobs:
         tar cJf out/${{ matrix.tag }}-libwallet.tar.xz --owner=0 --group=0 -C out/lib .
     - name: check glibc requirement
       if: matrix.host == 'x86_64-linux-gnu'
-      run: objdump -T out/${{ matrix.tag }}/morelod | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+      run: |
+        v=$(objdump -T out/${{ matrix.tag }}/* | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+        echo "highest required: $v"
+        [ "$(printf '%s\n' GLIBC_2.27 "$v" | sort -V | tail -1)" = GLIBC_2.27 ]
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.tag }}
@@ -137,7 +140,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [ 'debian:10', 'ubuntu:20.04', 'rockylinux:8', 'archlinux:latest' ]
+        image: [ 'ubuntu:18.04', 'debian:10', 'ubuntu:20.04', 'rockylinux:8', 'archlinux:latest' ]
     steps:
     - uses: actions/download-artifact@v8
       with:

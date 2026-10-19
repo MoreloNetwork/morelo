@@ -84,6 +84,11 @@ set(GNU_READLINE_LIBRARY "")
 
 if(HAVE_COMPLETION_FUNCTION AND HAVE_COPY_TEXT)
   set(GNU_READLINE_FOUND TRUE)
+  # a static libreadline always needs termcap/tinfo, even if the checks above passed without it
+  if(Termcap_LIBRARY)
+    list(APPEND Readline_LIBRARY ${Termcap_LIBRARY})
+    list(REMOVE_DUPLICATES Readline_LIBRARY)
+  endif()
   set(GNU_READLINE_LIBRARY ${Readline_LIBRARY})
 elseif(READLINE_FOUND AND NOT HAVE_COPY_TEXT)
   set(LIBEDIT_FOUND TRUE)
