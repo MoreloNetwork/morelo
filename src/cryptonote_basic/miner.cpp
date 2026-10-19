@@ -56,6 +56,7 @@
   #include <AvailabilityMacros.h>
   #include <TargetConditionals.h>
 #elif defined(__linux__)
+  #include <boost/filesystem.hpp>
   #include <unistd.h>
   #include <sys/resource.h>
   #include <sys/times.h>
