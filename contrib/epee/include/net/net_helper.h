@@ -33,10 +33,11 @@
 //#include <Ws2tcpip.h>
 #include <string>
 #include <boost/version.hpp>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/ssl.hpp>
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/thread/future.hpp>
 #include <boost/lambda/bind.hpp>
@@ -153,11 +154,11 @@ namespace net_utils
     inline
       try_connect_result_t try_connect(const std::string& addr, const std::string& port, std::chrono::milliseconds timeout, epee::net_utils::ssl_support_t ssl_support)
       {
-		m_deadline.expires_from_now(timeout);
+		m_deadline.expires_after(timeout);
         boost::unique_future<boost::asio::ip::tcp::socket> connection = m_connector(addr, port, m_deadline);
 		for (;;)
 		{
-	    m_io_service.reset();
+	    m_io_service.restart();
 		  m_io_service.run_one();
 
       if (connection.is_ready())
@@ -281,7 +282,7 @@ namespace net_utils
 		{
 			try
 			{
-				m_deadline.expires_from_now(timeout);
+				m_deadline.expires_after(timeout);
 
 				// Set up the variable that receives the result of the asynchronous
 				// operation. The error code is set to would_block to signal that the
@@ -299,7 +300,7 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block)
 				{
-                    m_io_service.reset();
+                    m_io_service.restart();
 					m_io_service.run_one();
 				}
 
@@ -336,7 +337,7 @@ namespace net_utils
 			try
 			{
 				/*
-				m_deadline.expires_from_now(boost::posix_time::milliseconds(m_reciev_timeout));
+				m_deadline.expires_after(std::chrono::milliseconds(m_reciev_timeout));
 
 				// Set up the variable that receives the result of the asynchronous
 				// operation. The error code is set to would_block to signal that the
@@ -407,7 +408,7 @@ namespace net_utils
 				// Set a deadline for the asynchronous operation. Since this function uses
 				// a composed operation (async_read_until), the deadline applies to the
 				// entire operation, rather than individual reads from the socket.
-				m_deadline.expires_from_now(timeout);
+				m_deadline.expires_after(timeout);
 
 				// Set up the variable that receives the result of the asynchronous
 				// operation. The error code is set to would_block to signal that the
@@ -434,7 +435,7 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block && !boost::interprocess::ipcdetail::atomic_read32(&m_shutdowned))
 				{
-				    m_io_service.reset();
+				    m_io_service.restart();
 					m_io_service.run_one();
 				}
 
@@ -494,7 +495,7 @@ namespace net_utils
 				// Set a deadline for the asynchronous operation. Since this function uses
 				// a composed operation (async_read_until), the deadline applies to the
 				// entire operation, rather than individual reads from the socket.
-				m_deadline.expires_from_now(timeout);
+				m_deadline.expires_after(timeout);
 
 				// Set up the variable that receives the result of the asynchronous
 				// operation. The error code is set to would_block to signal that the
@@ -578,7 +579,7 @@ namespace net_utils
 			return true;
 		}
 
-		boost::asio::io_service& get_io_service()
+		boost::asio::io_context& get_io_service()
 		{
 			return m_io_service;
 		}
@@ -605,7 +606,7 @@ namespace net_utils
 			// Check whether the deadline has passed. We compare the deadline against
 			// the current time since a new asynchronous operation may have moved the
 			// deadline before this actor had a chance to run.
-			if(m_deadline.expires_at() <= std::chrono::steady_clock::now())
+			if(m_deadline.expiry() <= std::chrono::steady_clock::now())
 			{
 				// The deadline has passed. The socket is closed so that any outstanding
 				// asynchronous operations are cancelled. This allows the blocked
@@ -627,11 +628,11 @@ namespace net_utils
     {
 			// ssl socket shutdown blocks if server doesn't respond. We close after 2 secs
 			boost::system::error_code ec = boost::asio::error::would_block;
-			m_deadline.expires_from_now(std::chrono::milliseconds(2000));
+			m_deadline.expires_after(std::chrono::milliseconds(2000));
 			m_ssl_socket->async_shutdown(boost::lambda::var(ec) = boost::lambda::_1);
 			while (ec == boost::asio::error::would_block)
 			{
-                m_io_service.reset();
+                m_io_service.restart();
 				m_io_service.run_one();
 			}
 			// Ignore "short read" error
@@ -674,7 +675,7 @@ namespace net_utils
 		}
 
 	protected:
-		boost::asio::io_service m_io_service;
+		boost::asio::io_context m_io_service;
         boost::asio::ssl::context m_ctx;
 		std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> m_ssl_socket;
         std::function<connect_func> m_connector;

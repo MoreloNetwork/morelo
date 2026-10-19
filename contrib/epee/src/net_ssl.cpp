@@ -477,7 +477,7 @@ bool ssl_options_t::handshake(boost::asio::ssl::stream<boost::asio::ip::tcp::soc
     {
       // preverified means it passed system or user CA check. System CA is never loaded
       // when fingerprints are whitelisted.
-      const bool verified = preverified && (verification != ssl_verification_t::system_ca || host.empty() || boost::asio::ssl::rfc2818_verification(host)(preverified, ctx));
+      const bool verified = preverified && (verification != ssl_verification_t::system_ca || host.empty() || boost::asio::ssl::host_name_verification(host)(preverified, ctx));
 
       if (!verified && !has_fingerprint(ctx))
       {

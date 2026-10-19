@@ -896,19 +896,15 @@ if(not f.is_open())
     }
 
     // resolve to IP
-    boost::asio::io_service io_service;
+    boost::asio::io_context io_service;
     boost::asio::ip::tcp::resolver resolver(io_service);
-    boost::asio::ip::tcp::resolver::query query(u_c.host, "");
-    boost::asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-    while (i != boost::asio::ip::tcp::resolver::iterator())
+    for (const auto &entry : resolver.resolve(u_c.host, "", boost::asio::ip::tcp::resolver::address_configured))
     {
-      const boost::asio::ip::tcp::endpoint &ep = *i;
-      if (ep.address().is_loopback())
+      if (entry.endpoint().address().is_loopback())
       {
         MDEBUG("Address '" << address << "' is local");
         return true;
       }
-      ++i;
     }
 
     MDEBUG("Address '" << address << "' is not local");

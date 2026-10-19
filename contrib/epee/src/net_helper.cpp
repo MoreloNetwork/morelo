@@ -10,10 +10,8 @@ namespace net_utils
 		// Get a list of endpoints corresponding to the server name.
 		//////////////////////////////////////////////////////////////////////////
 		boost::asio::ip::tcp::resolver resolver(GET_IO_SERVICE(timeout));
-		boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), addr, port, boost::asio::ip::tcp::resolver::query::canonical_name);
-		boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
-		boost::asio::ip::tcp::resolver::iterator end;
-		if(iterator == end) // Documentation states that successful call is guaranteed to be non-empty
+		const auto results = resolver.resolve(boost::asio::ip::tcp::v4(), addr, port, boost::asio::ip::tcp::resolver::canonical_name);
+		if(results.empty()) // Documentation states that successful call is guaranteed to be non-empty
 			throw boost::system::system_error{boost::asio::error::fault, "Failed to resolve " + addr};
 
 		//////////////////////////////////////////////////////////////////////////
@@ -23,7 +21,7 @@ namespace net_utils
 			boost::promise<boost::asio::ip::tcp::socket> result_;
 			boost::asio::ip::tcp::socket socket_;
 
-			explicit new_connection(boost::asio::io_service& io_service)
+			explicit new_connection(boost::asio::io_context& io_service)
 			  : result_(), socket_(io_service)
 			{}
 		};
@@ -37,7 +35,7 @@ namespace net_utils
 				shared->socket_.close();
 			}
 		});
-		shared->socket_.async_connect(*iterator, [shared] (boost::system::error_code error)
+		shared->socket_.async_connect(results.begin()->endpoint(), [shared] (boost::system::error_code error)
 		{
 			if (shared)
 			{

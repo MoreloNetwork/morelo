@@ -48,7 +48,7 @@
 #include <limits>
 
 #ifdef WIN32
-#include <boost/locale.hpp>
+#include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
 #include <boost/filesystem.hpp>
 #endif
 
@@ -350,8 +350,7 @@ uint64_t Wallet::maximumAllowedAmount()
 void Wallet::init(const char *argv0, const char *default_log_base_name, const std::string &log_path, bool console) {
 #ifdef WIN32
     // Activate UTF-8 support for Boost filesystem classes on Windows
-    std::locale::global(boost::locale::generator().generate(""));
-    boost::filesystem::path::imbue(std::locale());
+    boost::filesystem::path::imbue(std::locale(std::locale(), new boost::filesystem::detail::utf8_codecvt_facet));
 #endif
     epee::string_tools::set_module_name_and_folder(argv0);
     mlog_configure(log_path.empty() ? mlog_get_default_log_path(default_log_base_name) : log_path.c_str(), console);

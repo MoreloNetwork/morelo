@@ -9,88 +9,123 @@ on:
     paths-ignore:
       - '**/*.md'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  APT_INSTALL: 'sudo apt-get update && sudo apt-get -y install build-essential cmake pkg-config libboost-all-dev libssl-dev libsodium-dev libunwind-dev liblzma-dev libreadline-dev libldns-dev libexpat1-dev libudev-dev libusb-1.0-0-dev libhidapi-dev xsltproc gperf autoconf automake libtool-bin miniupnpc doxygen graphviz libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache'
-  USE_DEVICE_TREZOR_MANDATORY: ON
-  CCACHE_TEMPDIR: /tmp/.ccache-temp
-  CCACHE_DIR: /tmp/.ccache
-  CCACHE_SETTINGS: |
-    ccache --max-size=150M
-    ccache --set-config=compression=true
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 400M
+  CCACHE_COMPRESS: 'true'
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
+  ANDROID_NDK_VERSION: r29
 
 jobs:
-  windows:
+  build:
+    name: ${{ matrix.tag }}
     runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: ccache
-      uses: actions/cache@v4
-      with:
-        path: /tmp/.ccache
-        key: ccache-${{ runner.os }}-x86_64-w64-mingw32-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-x86_64-w64-mingw32
-    - name: depends ccache
-      uses: actions/cache@v4
-      with:
-        path: contrib/depends/built
-        key: ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
-        restore-keys: |
-          ccache-depends-${{ runner.os }}-x86_64-w64-mingw32-${{ hashFiles('contrib/depends/packages/*') }}
-          ccache-depends-${{ runner.os }}-x86_64-w64-mingw32
-    - name: install dependencies
-      run: ${{ env.APT_INSTALL }} g++-mingw-w64-x86-64 zip
-    - name: prepare toolchain
-      run: |
-        sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
-        sudo update-alternatives --set x86_64-w64-mingw32-gcc $(which x86_64-w64-mingw32-gcc-posix)
-    - name: build
-      run: |
-        ${{ env.CCACHE_SETTINGS }}
-        make -j$(nproc) depends target=x86_64-w64-mingw32 buildtag=win-x64
-    - name: package
-      run: |
-        cd ${{ github.workspace }}/build/release/bin
-        zip -9 ../win-x64.zip morelo*
-        cd ..
-        mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
-    - uses: actions/upload-artifact@v4
-      with:
-        name: win-x64
-        path: '${{ github.workspace }}/build/release/*.zip'
-        compression-level: 0
-
-  linux:
-    runs-on: ${{ matrix.os }}
+    # manylinux_2_28 (AlmaLinux 8, glibc 2.28, GCC 14) keeps the Linux binary runnable on old distros
+    container: ${{ matrix.container }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ ubuntu-24.04, ubuntu-22.04 ]
+        include:
+          - tag: linux-x64
+            host: x86_64-linux-gnu
+            container: quay.io/pypa/manylinux_2_28_x86_64
+          - tag: win-x64
+            host: x86_64-w64-mingw32
+          - tag: android-armv8
+            host: aarch64-linux-android
+          - tag: android-armv7
+            host: arm-linux-androideabi
     env:
-      BUILD_NAME: ${{ matrix.os == 'ubuntu-24.04' && 'ubuntu24' || 'ubuntu22' }}
+      HOST: ${{ matrix.host }}
     steps:
-    - uses: actions/checkout@v4
+    - name: install dependencies (manylinux)
+      if: matrix.container
+      run: dnf -y install epel-release && dnf -y install ccache autoconf automake libtool gperf perl-IPC-Cmd perl-Time-Piece patch xz bzip2 file which
+    - name: install dependencies (ubuntu)
+      if: '!matrix.container'
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install --no-install-recommends ccache autoconf automake libtool-bin gperf pkg-config zip
+        if [ "$HOST" = x86_64-w64-mingw32 ]; then
+          sudo apt-get -y install --no-install-recommends g++-mingw-w64-x86-64
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc $(which x86_64-w64-mingw32-gcc-posix)
+        fi
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
-    - uses: actions/cache@v4
+    - name: install android ndk
+      if: contains(matrix.host, 'android')
+      run: |
+        curl -sSfLO https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+        unzip -q android-ndk-${ANDROID_NDK_VERSION}-linux.zip -d $RUNNER_TEMP
+        rm android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+        echo "ANDROID_NDK=$RUNNER_TEMP/android-ndk-${ANDROID_NDK_VERSION}" >> $GITHUB_ENV
+    - name: depends cache
+      uses: actions/cache@v6
       with:
-        path: /tmp/.ccache
-        key: ccache-${{ runner.os }}-${{ matrix.os }}-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-${{ matrix.os }}
-    - name: install dependencies
-      run: ${{ env.APT_INSTALL }}
+        path: |
+          contrib/depends/built
+          contrib/depends/sources
+        key: depends-${{ matrix.host }}-${{ env.ANDROID_NDK_VERSION }}-${{ hashFiles('contrib/depends/packages/*', 'contrib/depends/hosts/*', 'contrib/depends/patches/**', 'contrib/depends/Makefile', 'contrib/depends/funcs.mk') }}
+        restore-keys: depends-${{ matrix.host }}-${{ env.ANDROID_NDK_VERSION }}-
+    - name: ccache
+      uses: actions/cache@v6
+      with:
+        path: .ccache
+        key: ccache-${{ matrix.host }}-${{ github.sha }}
+        restore-keys: ccache-${{ matrix.host }}-
     - name: build
       run: |
-        ${{ env.CCACHE_SETTINGS }}
-        make -j$(nproc) release-${{ env.BUILD_NAME }}
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        make -j$(nproc) depends target=$HOST
+        if [ "${HOST#*android}" != "$HOST" ]; then make -C build/release -j$(nproc) wallet_api; fi
+        ccache -s
     - name: package
       run: |
-        cd ${{ github.workspace }}/build/release/bin
-        tar cJf ../linux-x64-${{ env.BUILD_NAME }}.tar.xz --owner=0 --group=0 morelo*
-        cd ..
-        mv linux-x64-${{ env.BUILD_NAME }}.tar.xz $(sha256sum linux-x64-${{ env.BUILD_NAME }}.tar.xz | cut -d " " -f 1).tar.xz
-    - uses: actions/upload-artifact@v4
+        mkdir -p out/${{ matrix.tag }}
+        cp build/release/bin/* out/${{ matrix.tag }}/
+        case "$HOST" in
+          *mingw32) STRIP=x86_64-w64-mingw32-strip ;;
+          *android*) STRIP=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip ;;
+          *) STRIP=strip ;;
+        esac
+        $STRIP out/${{ matrix.tag }}/*
+        cd out
+        if [ "$HOST" = x86_64-w64-mingw32 ]; then
+          (cd ${{ matrix.tag }} && zip -9 -q ../${{ matrix.tag }}.zip *)
+          ARCHIVE=${{ matrix.tag }}.zip
+        else
+          tar cJf ${{ matrix.tag }}.tar.xz --owner=0 --group=0 -C ${{ matrix.tag }} .
+          ARCHIVE=${{ matrix.tag }}.tar.xz
+        fi
+        sha256sum $ARCHIVE | tee $ARCHIVE.sha256
+        ls -la ${{ matrix.tag }}
+        echo "### ${{ matrix.tag }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat $ARCHIVE.sha256 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+    - name: package wallet library
+      if: contains(matrix.host, 'android')
+      run: |
+        mkdir -p out/lib/lib out/lib/include
+        find build/release -name '*.a' -exec cp {} out/lib/lib/ \;
+        cp contrib/depends/$HOST/lib/*.a out/lib/lib/
+        cp src/wallet/api/wallet2_api.h out/lib/include/
+        tar cJf out/${{ matrix.tag }}-libwallet.tar.xz --owner=0 --group=0 -C out/lib .
+    - name: check glibc requirement
+      if: matrix.host == 'x86_64-linux-gnu'
+      run: objdump -T out/${{ matrix.tag }}/morelod | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+    - uses: actions/upload-artifact@v7
       with:
-        name: linux-x64-${{ env.BUILD_NAME }}
-        path: '${{ github.workspace }}/build/release/*.tar.xz'
+        name: ${{ matrix.tag }}
+        path: |
+          out/*.zip
+          out/*.tar.xz
+          out/*.sha256
         compression-level: 0

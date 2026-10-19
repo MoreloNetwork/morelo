@@ -19,7 +19,7 @@ template<class t_child_class, class t_connection_context = epee::net_utils::conn
         : m_net_server()
     {}
 
-    explicit jsonrpc_server_impl_base(boost::asio::io_service& external_io_service)
+    explicit jsonrpc_server_impl_base(boost::asio::io_context& external_io_service)
         : m_net_server(external_io_service)
     {}
 

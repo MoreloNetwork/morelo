@@ -43,6 +43,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/utility/string_ref.hpp>
+#include <boost/uuid/uuid.hpp>
 #include "misc_log_ex.h"
 #include "storages/parserse_base_utils.h"
 #include "hex.h"
@@ -300,6 +301,11 @@ POP_WARNINGS
   {
     static_assert(std::is_standard_layout<t_pod_type>(), "expected standard layout type");
     return to_hex::string(as_byte_span(s));
+  }
+  // boost::uuids::uuid is 8-byte aligned since Boost 1.86, so as_byte_span rejects it
+  inline std::string pod_to_hex(const boost::uuids::uuid& s)
+  {
+    return to_hex::string({s.begin(), s.size()});
   }
   //----------------------------------------------------------------------------
   template<class t_pod_type>

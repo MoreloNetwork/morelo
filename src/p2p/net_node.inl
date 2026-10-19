@@ -433,26 +433,24 @@ namespace nodetool
     }
     MINFO("Resolving node address: host=" << host << ", port=" << port);
 
-    io_service io_srv;
+    io_context io_srv;
     ip::tcp::resolver resolver(io_srv);
-    ip::tcp::resolver::query query(host, port, boost::asio::ip::tcp::resolver::query::canonical_name);
     boost::system::error_code ec;
-    ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
+    const auto results = resolver.resolve(host, port, ip::tcp::resolver::canonical_name, ec);
     CHECK_AND_ASSERT_MES(!ec, false, "Failed to resolve host name '" << host << "': " << ec.message() << ':' << ec.value());
 
-    ip::tcp::resolver::iterator iend;
-    for (; i != iend; ++i)
+    for (const auto &entry : results)
     {
-      ip::tcp::endpoint endpoint = *i;
+      ip::tcp::endpoint endpoint = entry.endpoint();
       if (endpoint.address().is_v4())
       {
-        epee::net_utils::network_address na{epee::net_utils::ipv4_network_address{boost::asio::detail::socket_ops::host_to_network_long(endpoint.address().to_v4().to_ulong()), endpoint.port()}};
+        epee::net_utils::network_address na{epee::net_utils::ipv4_network_address{boost::asio::detail::socket_ops::host_to_network_long(endpoint.address().to_v4().to_uint()), endpoint.port()}};
         seed_nodes.push_back(na);
         MINFO("Added node: " << na.str());
       }
       else
       {
-        MWARNING("IPv6 unsupported, skip '" << host << "' -> " << endpoint.address().to_v6().to_string(ec));
+        MWARNING("IPv6 unsupported, skip '" << host << "' -> " << endpoint.address().to_v6().to_string());
       }
     }
     return true;

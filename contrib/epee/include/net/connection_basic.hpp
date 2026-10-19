@@ -111,7 +111,7 @@ class connection_basic { // not-templated base class for rapid developmet of som
   std::list<std::string> m_send_que;
   volatile bool m_is_multithreaded;
   /// Strand to ensure the connection's handlers are not called concurrently.
-  boost::asio::io_service::strand strand_;
+  boost::asio::io_context::strand strand_;
   /// Socket for the connection.
   boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket_;
   ssl_support_t m_ssl_support;
@@ -119,13 +119,13 @@ class connection_basic { // not-templated base class for rapid developmet of som
     public:
       // first counter is the ++/-- count of current sockets, the other socket_number is only-increasing ++ number generator
       connection_basic(boost::asio::ip::tcp::socket&& socket, boost::shared_ptr<connection_basic_shared_state> state, ssl_support_t ssl_support);
-      connection_basic(boost::asio::io_service& io_service, boost::shared_ptr<connection_basic_shared_state> state, ssl_support_t ssl_support);
+      connection_basic(boost::asio::io_context& io_service, boost::shared_ptr<connection_basic_shared_state> state, ssl_support_t ssl_support);
 
       virtual ~connection_basic() noexcept(false);
 
       //! \return `shared_state` object passed in construction (ptr never changes).
       connection_basic_shared_state& get_state() noexcept { return *m_state; /* verified in constructor */ }
-      connection_basic(boost::asio::io_service& io_service, std::atomic<long> &ref_sock_count, std::atomic<long> &sock_number, ssl_support_t ssl);
+      connection_basic(boost::asio::io_context& io_service, std::atomic<long> &ref_sock_count, std::atomic<long> &sock_number, ssl_support_t ssl);
 
       boost::asio::ip::tcp::socket& socket() { return socket_.next_layer(); }
       ssl_support_t get_ssl_support() const { return m_ssl_support; }

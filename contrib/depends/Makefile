@@ -14,6 +14,7 @@ HASH_LENGTH:=11
 DOWNLOAD_CONNECT_TIMEOUT:=30
 DOWNLOAD_RETRIES:=3
 HOST_ID_SALT ?= salt
+JOBS ?= $(shell nproc 2>/dev/null || echo 1)
 BUILD_ID_SALT ?= salt
 
 host:=$(BUILD)
@@ -58,6 +59,9 @@ host_os:=$(findstring linux,$(full_host_os))
 host_os+=$(findstring darwin,$(full_host_os))
 host_os+=$(findstring mingw32,$(full_host_os))
 host_os:=$(strip $(host_os))
+ifneq ($(findstring android,$(full_host_os)),)
+host_os=android
+endif
 ifeq ($(host_os),)
 host_os=$(full_host_os)
 endif
@@ -74,6 +78,9 @@ host_cmake=Linux
 endif
 ifeq ($(host_os),darwin)
 host_cmake=Darwin
+endif
+ifeq ($(host_os),android)
+host_cmake=Android
 endif
 
 AT_$(V):=
@@ -185,6 +192,8 @@ $(host_prefix)/share/toolchain.cmake : toolchain.cmake.in $(host_prefix)/.stamp_
             -e 's|@prefix@|$($(host_arch)_$(host_os)_prefix)|'\
             -e 's|@sdk@|$(SDK_PATH)|'\
             -e 's|@arch@|$(host_arch)|'\
+            -e 's|@android_ndk@|$(ANDROID_NDK)|'\
+            -e 's|@android_api@|$(ANDROID_API)|'\
             $< > $@
 	$(AT)touch $@
 

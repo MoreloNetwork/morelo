@@ -39,30 +39,24 @@
 find_package(PkgConfig REQUIRED)
 
 if(NOT STATIC)
-   pkg_check_modules(MINIUPNPC miniupnpc>=2.1)
    pkg_check_modules(UNBOUND libunbound)
 endif()
 
-if(MINIUPNPC_FOUND)
-  message(STATUS "Found miniupnpc")
-  link_dep_libs(miniupnpc INTERFACE "${MINIUPNPC_LIBRARY_DIRS}" ${MINIUPNPC_LIBRARIES})
-  target_include_directories(miniupnpc INTERFACE ${MINIUPNPC_INCLUDE_DIRS})
-else()
-  message(STATUS "Using in-tree miniupnpc")
-  add_subdirectory(miniupnp/miniupnpc)
-  set_property(TARGET libminiupnpc-static PROPERTY FOLDER "external")
-  if(MSVC)
-    set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -wd4244 -wd4267")
-  elseif(NOT MSVC)
-    set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -Wno-undef -Wno-unused-result -Wno-unused-value")
-  endif()
-  if(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
-    set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -D_NETBSD_SOURCE")
-  endif()
-
-  set(MINIUPNPC_LIB "libminiupnpc-static" PARENT_SCOPE)
-
+# Always use the in-tree miniupnpc: the sources include <miniupnp/miniupnpc/...>
+# and its API differs between upstream releases.
+message(STATUS "Using in-tree miniupnpc")
+add_subdirectory(miniupnp/miniupnpc)
+set_property(TARGET libminiupnpc-static PROPERTY FOLDER "external")
+if(MSVC)
+  set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -wd4244 -wd4267")
+elseif(NOT MSVC)
+  set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -Wno-undef -Wno-unused-result -Wno-unused-value")
 endif()
+if(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
+  set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -D_NETBSD_SOURCE")
+endif()
+
+set(MINIUPNPC_LIB "libminiupnpc-static" PARENT_SCOPE)
 
 if(NOT UNBOUND_FOUND)
   # NOTE: If STATIC is true, CMAKE_FIND_LIBRARY_SUFFIXES has been reordered.
