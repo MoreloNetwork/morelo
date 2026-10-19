@@ -90,6 +90,10 @@ function(morelo_add_library_with_deps)
   if(morelo_ADD_LIBRARY_DEPENDS)
     add_dependencies(${objlib} ${morelo_ADD_LIBRARY_DEPENDS})
   endif()
+  # the vendored libzmq headers only exist once its ExternalProject has been built
+  if(TARGET libzmq_external)
+    add_dependencies(${objlib} libzmq_external)
+  endif()
   set_property(TARGET "${morelo_ADD_LIBRARY_NAME}" PROPERTY FOLDER "libs")
   target_compile_definitions(${objlib}
     PRIVATE $<TARGET_PROPERTY:${morelo_ADD_LIBRARY_NAME},INTERFACE_COMPILE_DEFINITIONS>)
