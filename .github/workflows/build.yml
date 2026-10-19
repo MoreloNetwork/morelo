@@ -94,3 +94,36 @@ jobs:
         name: linux-x64-${{ env.BUILD_NAME }}
         path: '${{ github.workspace }}/build/release/*.tar.xz'
         compression-level: 0
+
+  android:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: android-armv7
+            dockerfile: utils/build_scripts/android32.Dockerfile
+          - name: android-armv8
+            dockerfile: utils/build_scripts/android64.Dockerfile
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: build
+      run: |
+        docker build --build-arg NPROC=$(nproc) -f ${{ matrix.dockerfile }} -t morelo-${{ matrix.name }} .
+    - name: package
+      run: |
+        mkdir -p out/bin
+        id=$(docker create morelo-${{ matrix.name }})
+        docker cp $id:/src/build/release/bin/. out/bin/
+        docker rm $id
+        cd out/bin
+        tar cJf ../${{ matrix.name }}.tar.xz --owner=0 --group=0 morelo*
+        cd ..
+        mv ${{ matrix.name }}.tar.xz $(sha256sum ${{ matrix.name }}.tar.xz | cut -d " " -f 1).tar.xz
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.name }}
+        path: '${{ github.workspace }}/out/*.tar.xz'
+        compression-level: 0
