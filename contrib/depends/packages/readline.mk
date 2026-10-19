@@ -13,7 +13,7 @@ define $(package)_set_vars
   $(package)_config_opts+=--exec-prefix=$(host_prefix)
   $(package)_config_opts+=--host=$(HOST)
   $(package)_config_opts+=--disable-shared --with-curses
-  $(package)_config_opts_release=--disable-debug-mode
+  $(package)_config_opts_Release=--disable-debug-mode
   $(package)_config_opts_darwin+=RANLIB="$(host_prefix)/native/bin/x86_64-apple-darwin19.2.0-ranlib" AR="$(host_prefix)/native/bin/x86_64-apple-darwin19.2.0-ar" CC="$(host_prefix)/native/bin/$($(package)_cc)"
   $(package)_build_opts=CFLAGS="$($(package)_cflags) $($(package)_cppflags) -fPIC"
 endef

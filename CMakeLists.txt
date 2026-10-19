@@ -690,6 +690,19 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GNU_SOURCE ${MINGW_FLAG} ${WARNINGS} ${CXX_WARNINGS} ${COVERAGE_FLAGS} ${PIC_FLAG} ${CXX_SECURITY_FLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LD_SECURITY_FLAGS} ${LD_BACKCOMPAT_FLAGS} ${STATIC_FLAGS}")
 
+  # Let the linker drop unused code from the statically linked libraries (ELF only,
+  # on MinGW/PE it makes the binaries bigger)
+  if(NOT APPLE AND NOT WIN32)
+    add_c_flag_if_supported(-ffunction-sections C_SIZE_FLAGS)
+    add_c_flag_if_supported(-fdata-sections C_SIZE_FLAGS)
+    add_cxx_flag_if_supported(-ffunction-sections CXX_SIZE_FLAGS)
+    add_cxx_flag_if_supported(-fdata-sections CXX_SIZE_FLAGS)
+    add_linker_flag_if_supported(-Wl,--gc-sections LD_SIZE_FLAGS)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${C_SIZE_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_SIZE_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LD_SIZE_FLAGS}")
+  endif()
+
   # With GCC 6.1.1 the compiled binary malfunctions due to aliasing. Until that
   # is fixed in the code (Issue #847), force compiler to be conservative.
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")

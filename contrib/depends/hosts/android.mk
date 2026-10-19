@@ -15,12 +15,12 @@ android_RANLIB=$(android_toolchain_bin)/llvm-ranlib
 android_STRIP=$(android_toolchain_bin)/llvm-strip
 android_NM=$(android_toolchain_bin)/llvm-nm
 
-android_CFLAGS=-pipe -fPIC
+android_CFLAGS=-pipe -fPIC -ffunction-sections -fdata-sections
 android_CXXFLAGS=$(android_CFLAGS)
 android_ARFLAGS=crs
 
-android_release_CFLAGS=-O2
-android_release_CXXFLAGS=$(android_release_CFLAGS)
+android_Release_CFLAGS=-O2
+android_Release_CXXFLAGS=$(android_Release_CFLAGS)
 
-android_debug_CFLAGS=-O1
-android_debug_CXXFLAGS=$(android_debug_CFLAGS)
+android_Debug_CFLAGS=-O1
+android_Debug_CXXFLAGS=$(android_Debug_CFLAGS)

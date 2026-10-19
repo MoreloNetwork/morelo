@@ -129,3 +129,22 @@ jobs:
           out/*.tar.xz
           out/*.sha256
         compression-level: 0
+
+  linux-compat:
+    name: linux-x64 on ${{ matrix.image }}
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ 'debian:10', 'ubuntu:20.04', 'rockylinux:8', 'archlinux:latest' ]
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: linux-x64
+    - name: run
+      run: |
+        mkdir bin && tar xJf linux-x64.tar.xz -C bin
+        for b in morelod morelo-wallet-cli morelo-wallet-rpc; do
+          docker run --rm -v "$PWD/bin:/bin-morelo:ro" ${{ matrix.image }} /bin-morelo/$b --version
+        done

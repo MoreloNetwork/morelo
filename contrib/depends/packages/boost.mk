@@ -5,9 +5,9 @@ $(package)_file_name=$(package)_$(subst .,_,$($(package)_version)).tar.bz2
 $(package)_sha256_hash=5c1d40cb8e19adbf740a4ec2da35b3e58f3f5804b1dce44deb53df72193cbc6c
 
 define $(package)_set_vars
-$(package)_config_opts_release=variant=release
-$(package)_config_opts_debug=variant=debug
-$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam
+$(package)_config_opts_Release=variant=release
+$(package)_config_opts_Debug=variant=debug
+$(package)_config_opts=--layout=tagged --user-config=user-config.jam
 $(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1 -sNO_LZMA=1 -sNO_ZSTD=1
 $(package)_config_opts_linux=target-os=linux threadapi=pthread runtime-link=static
 $(package)_config_opts_android=target-os=android threadapi=pthread runtime-link=static
