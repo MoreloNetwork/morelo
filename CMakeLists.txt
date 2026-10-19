@@ -362,7 +362,7 @@ elseif(ARM AND STATIC)
   set(DEFAULT_STACK_TRACE OFF)
   set(LIBUNWIND_LIBRARIES "")
 elseif(NOT MINGW)
-  find_package(Libunwind REQUIRED)
+  find_package(Libunwind)
   if(LIBUNWIND_FOUND)
     set(DEFAULT_STACK_TRACE ON)
     set(STACK_TRACE_LIB "libunwind") # for diag output only
