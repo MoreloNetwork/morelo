@@ -67,6 +67,7 @@ int main(int argc, char* argv[])
   size_logger sl;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   mlog_configure("", true);
 

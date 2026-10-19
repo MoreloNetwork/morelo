@@ -155,6 +155,16 @@ namespace tools
 
   bool on_startup();
 
+  /*! rief On Windows, returns argv re-read from the wide command line and
+   *         converted to UTF-8 (the CRT passes it in the ANSI code page).
+   *         Elsewhere returns argv unchanged.
+   */
+  char** utf8_argv(int argc, char** argv);
+  inline const char** utf8_argv(int argc, const char** argv)
+  {
+    return const_cast<const char**>(utf8_argv(argc, const_cast<char**>(argv)));
+  }
+
   /*! \brief Defines a signal handler for win32 and *nix
    */
   class signal_handler

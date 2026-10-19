@@ -114,6 +114,7 @@ namespace wallet_args
 
     std::string lang = i18n_get_language();
     tools::on_startup();
+    argv = tools::utf8_argv(argc, argv);
 #ifdef NDEBUG
     tools::disable_core_dumps();
 #endif

@@ -57,6 +57,7 @@ int main(int argc, char* argv[])
   uint64_t block_stop = 0;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   boost::filesystem::path output_file_path;
 

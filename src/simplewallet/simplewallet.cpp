@@ -76,7 +76,6 @@
 #include "QrCode.hpp"
 
 #ifdef WIN32
-#include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
 #include <boost/filesystem.hpp>
 #include <fcntl.h>
 #endif
@@ -9061,10 +9060,6 @@ int main(int argc, char* argv[])
 {
   TRY_ENTRY();
 
-#ifdef WIN32
-  // Activate UTF-8 support for Boost filesystem classes on Windows
-  boost::filesystem::path::imbue(std::locale(std::locale(), new boost::filesystem::detail::utf8_codecvt_facet));
-#endif
 
   po::options_description desc_params(wallet_args::tr("Wallet options"));
   tools::wallet2::init_options(desc_params);

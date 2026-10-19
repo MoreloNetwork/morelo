@@ -551,6 +551,7 @@ int main(int argc, char* argv[])
   std::string db_arg_str;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   std::string import_file_path;
 

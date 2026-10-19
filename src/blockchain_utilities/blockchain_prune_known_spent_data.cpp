@@ -106,6 +106,7 @@ int main(int argc, char* argv[])
   uint32_t log_level = 0;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   po::options_description desc_cmd_only("Command line options");
   po::options_description desc_cmd_sett("Command line options and settings options");

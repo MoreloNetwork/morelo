@@ -116,6 +116,7 @@ int main(int argc, char const * argv[])
     // TODO parse the debug options like set log level right here at start
 
     tools::on_startup();
+    argv = tools::utf8_argv(argc, argv);
 
     epee::string_tools::set_module_name_and_folder(argv[0]);
 

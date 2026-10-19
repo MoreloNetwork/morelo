@@ -76,6 +76,7 @@ using namespace epee;
 #endif
   #include <windows.h>
   #include <shlobj.h>
+  #include <shellapi.h>
   #include <strsafe.h>
 #else
   #include <sys/file.h>
@@ -83,6 +84,7 @@ using namespace epee;
   #include <sys/stat.h>
 #endif
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
@@ -785,6 +787,11 @@ std::string get_nix_version_display_string()
 
     sanitize_locale();
 
+#ifdef WIN32
+    // std::string paths are UTF-8, also when the ANSI code page is not
+    boost::filesystem::path::imbue(std::locale(std::locale(), new boost::filesystem::detail::utf8_codecvt_facet));
+#endif
+
 #ifdef __GLIBC__
     const char *ver = gnu_get_libc_version();
     if (!strcmp(ver, "2.25"))
@@ -802,6 +809,40 @@ std::string get_nix_version_display_string()
 
     return true;
   }
+  char** utf8_argv(int argc, char** argv)
+  {
+#ifdef WIN32
+    int wargc = 0;
+    LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (!wargv)
+      return argv;
+    // keep the CRT argv if CommandLineToArgvW splits the command line differently
+    static std::vector<std::string> args;
+    static std::vector<char*> pointers;
+    try
+    {
+      if (wargc != argc)
+        throw std::runtime_error("argument count mismatch");
+      args.clear();
+      for (int i = 0; i < wargc; ++i)
+        args.push_back(epee::string_tools::utf16_to_utf8(wargv[i]));
+    }
+    catch (const std::exception &)
+    {
+      LocalFree(wargv);
+      return argv;
+    }
+    LocalFree(wargv);
+    pointers.clear();
+    for (std::string &arg : args)
+      pointers.push_back(&arg[0]);
+    pointers.push_back(nullptr);
+    return pointers.data();
+#else
+    return argv;
+#endif
+  }
+
   void set_strict_default_file_permissions(bool strict)
   {
 #if defined(__MINGW32__) || defined(__MINGW__)

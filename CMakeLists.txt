@@ -925,7 +925,12 @@ if (HIDAPI_FOUND OR LibUSB_COMPILE_TEST_PASSED)
   endif()
 endif()
 
-option(USE_READLINE "Build with GNU readline support." ON)
+# readline is only for POSIX terminals, the Windows console has its own line editing
+if(WIN32)
+  option(USE_READLINE "Build with GNU readline support." OFF)
+else()
+  option(USE_READLINE "Build with GNU readline support." ON)
+endif()
 if(USE_READLINE)
   find_package(Readline)
   if(READLINE_FOUND AND GNU_READLINE_FOUND)
