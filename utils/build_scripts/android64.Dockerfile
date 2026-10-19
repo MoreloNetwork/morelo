@@ -1,6 +1,8 @@
-FROM debian:stable
+FROM ubuntu:20.04
 
-RUN apt-get update && apt-get install -y unzip automake build-essential curl file pkg-config git python libtool
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y unzip automake build-essential curl file pkg-config git python3 python-is-python3 libtool libtinfo5 bison
 
 WORKDIR /opt/android
 ## INSTALL ANDROID SDK
@@ -12,8 +14,8 @@ RUN curl -s -O https://dl.google.com/android/repository/sdk-tools-linux-${ANDROI
     && rm -f sdk-tools-linux-${ANDROID_SDK_REVISION}.zip
 
 ## INSTALL ANDROID NDK
-ENV ANDROID_NDK_REVISION 17b
-ENV ANDROID_NDK_HASH 5dfbbdc2d3ba859fed90d0e978af87c71a91a5be1f6e1c40ba697503d48ccecd
+ENV ANDROID_NDK_REVISION 17c
+ENV ANDROID_NDK_HASH 3f541adbd0330a9205ba12697f6d04ec90752c53d6b622101a2a8a856e816589
 RUN curl -s -O https://dl.google.com/android/repository/android-ndk-r${ANDROID_NDK_REVISION}-linux-x86_64.zip \
     && echo "${ANDROID_NDK_HASH}  android-ndk-r${ANDROID_NDK_REVISION}-linux-x86_64.zip" | sha256sum -c \
     && unzip android-ndk-r${ANDROID_NDK_REVISION}-linux-x86_64.zip \
@@ -24,7 +26,7 @@ ENV ANDROID_SDK_ROOT ${WORKDIR}/tools
 ENV ANDROID_NDK_ROOT ${WORKDIR}/android-ndk-r${ANDROID_NDK_REVISION}
 ENV PREFIX /opt/android/prefix
 
-ENV TOOLCHAIN_DIR ${WORKDIR}/toolchain-arm
+ENV TOOLCHAIN_DIR ${WORKDIR}/toolchain
 RUN ${ANDROID_NDK_ROOT}/build/tools/make_standalone_toolchain.py \
          --arch arm64 \
          --api 21 \
@@ -32,19 +34,21 @@ RUN ${ANDROID_NDK_ROOT}/build/tools/make_standalone_toolchain.py \
          --stl=libc++
 
 #INSTALL cmake
-ENV CMAKE_VERSION 3.12.1
+ARG CMAKE_VERSION=3.14.6
+ARG CMAKE_HASH=82e08e50ba921035efa82b859c74c5fbe27d3e49a4003020e3c77618a4e912cd
 RUN cd /usr \
-    && curl -s -O https://cmake.org/files/v3.12/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz \
+    && curl -L -O https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz \
+    && echo "${CMAKE_HASH}  cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz" | sha256sum -c \
     && tar -xzf /usr/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz \
     && rm -f /usr/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
-ENV PATH /usr/cmake-${CMAKE_VERSION}-Linux-x86_64/bin:$PATH
+ENV PATH=/usr/cmake-${CMAKE_VERSION}-Linux-x86_64/bin:$PATH
 
 ## Boost
-ARG BOOST_VERSION=1_68_0
-ARG BOOST_VERSION_DOT=1.68.0
-ARG BOOST_HASH=7f6130bc3cf65f56a618888ce9d5ea704fa10b462be126ad053e80e553d6d8b7
+ARG BOOST_VERSION=1_70_0
+ARG BOOST_VERSION_DOT=1.70.0
+ARG BOOST_HASH=430ae8354789de4fd19ee52f3b1f739e1fba576f0aded0897c3c2bc00fb38778
 RUN set -ex \
-    && curl -s -L -o  boost_${BOOST_VERSION}.tar.bz2 https://dl.bintray.com/boostorg/release/${BOOST_VERSION_DOT}/source/boost_${BOOST_VERSION}.tar.bz2 \
+    && curl --retry 5 --retry-delay 2 --retry-connrefused -L -o boost_${BOOST_VERSION}.tar.bz2 https://archives.boost.io/release/${BOOST_VERSION_DOT}/source/boost_${BOOST_VERSION}.tar.bz2 \
     && echo "${BOOST_HASH}  boost_${BOOST_VERSION}.tar.bz2" | sha256sum -c \
     && tar -xvf boost_${BOOST_VERSION}.tar.bz2 \
     && rm -f boost_${BOOST_VERSION}.tar.bz2 \
@@ -54,17 +58,17 @@ RUN set -ex \
 ENV HOST_PATH $PATH
 ENV PATH $TOOLCHAIN_DIR/aarch64-linux-android/bin:$TOOLCHAIN_DIR/bin:$PATH
 
-ARG NPROC=1
+ARG NPROC=4
 
 # Build iconv for lib boost locale
-ENV ICONV_VERSION 1.15
-ENV ICONV_HASH  ccf536620a45458d26ba83887a983b96827001e92a13847b45e4925cc8913178
-RUN curl -s -O http://ftp.gnu.org/pub/gnu/libiconv/libiconv-${ICONV_VERSION}.tar.gz \
+ENV ICONV_VERSION=1.16
+ENV ICONV_HASH=e6a1b1b589654277ee790cce3734f07876ac4ccfaecbee8afa0b649cf529cc04
+RUN curl -O http://ftp.gnu.org/pub/gnu/libiconv/libiconv-${ICONV_VERSION}.tar.gz \
     && echo "${ICONV_HASH}  libiconv-${ICONV_VERSION}.tar.gz" | sha256sum -c \
     && tar -xzf libiconv-${ICONV_VERSION}.tar.gz \
     && rm -f libiconv-${ICONV_VERSION}.tar.gz \
     && cd libiconv-${ICONV_VERSION} \
-    && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --build=x86_64-linux-gnu --host=arm-eabi --prefix=${PREFIX} --disable-rpath \
+    && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --build=x86_64-linux-gnu --host=aarch64-linux-android --prefix=${PREFIX} --disable-rpath \
     && make -j${NPROC} && make install
 
 ## Build BOOST
@@ -74,42 +78,44 @@ RUN cd boost_${BOOST_VERSION} \
 #Note : we build openssl because the default lacks DSA1
 
 # download, configure and make Zlib
-ENV ZLIB_VERSION 1.2.11
-ENV ZLIB_HASH c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1
-RUN curl -s -O https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz \
+ENV ZLIB_VERSION=1.3.1
+ENV ZLIB_HASH=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23
+RUN curl -O https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz \
     && echo "${ZLIB_HASH}  zlib-${ZLIB_VERSION}.tar.gz" | sha256sum -c \
     && tar -xzf zlib-${ZLIB_VERSION}.tar.gz \
     && rm zlib-${ZLIB_VERSION}.tar.gz \
     && mv zlib-${ZLIB_VERSION} zlib \
-    && cd zlib && CC=clang CXX=clang++ ./configure --static \
+    && cd zlib && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --static \
     && make -j${NPROC}
 
 # open ssl
-ARG OPENSSL_VERSION=1.0.2p
-ARG OPENSSL_HASH=50a98e07b1a89eb8f6a99477f262df71c6fa7bef77df4dc83025a2845c827d00
-RUN curl -s -O https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz \
+ARG OPENSSL_VERSION=3.0.5
+ARG OPENSSL_HASH=aa7d8d9bef71ad6525c55ba11e5f4397889ce49c2c9349dcea6d3e4f0b024a7a
+RUN set -x \
+    && curl -LO https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz \
     && echo "${OPENSSL_HASH}  openssl-${OPENSSL_VERSION}.tar.gz" | sha256sum -c \
     && tar -xzf openssl-${OPENSSL_VERSION}.tar.gz \
     && rm openssl-${OPENSSL_VERSION}.tar.gz \
     && cd openssl-${OPENSSL_VERSION} \
-    && sed -i -e "s/mandroid/target\ aarch64\-linux\-android/" Configure \
-    && CC=clang CXX=clang++ \
-           ./Configure android \
-           no-asm \
-           no-shared --static \
+    && export PATH=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH \
+    && ./Configure android-arm64 \
+           -D__ANDROID_API__=21 \
+           -static \
+           no-shared no-tests \
            --with-zlib-include=${WORKDIR}/zlib/include --with-zlib-lib=${WORKDIR}/zlib/lib \
            --prefix=${PREFIX} --openssldir=${PREFIX} \
     && make -j${NPROC} \
-    && make install
+    && make install_sw
 
 # ZMQ
-ARG ZMQ_VERSION=master
-ARG ZMQ_HASH=501d0815bf2b0abb93be8214fc66519918ef6c40
-RUN git clone https://github.com/zeromq/libzmq.git -b ${ZMQ_VERSION} \
+ARG ZMQ_VERSION=v4.3.2
+ARG ZMQ_HASH=a84ffa12b2eb3569ced199660bac5ad128bff1f0
+RUN set -x \
+    && git clone https://github.com/zeromq/libzmq.git -b ${ZMQ_VERSION} \
     && cd libzmq \
-    && git checkout ${ZMQ_HASH} \
-    && ./autogen.sh \
-    && CC=clang CXX=clang++ ./configure --prefix=${PREFIX} --host=aarch64-linux-android --enable-static --disable-shared \
+    && test `git rev-parse HEAD` = ${ZMQ_HASH} || exit 1 \
+    && DO_NOT_UPDATE_CONFIG_SCRIPTS=1 ./autogen.sh \
+    && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --prefix=${PREFIX} --host=aarch64-linux-android --enable-static --disable-shared --disable-curve-keygen \
     && make -j${NPROC} \
     && make install
 
@@ -122,21 +128,50 @@ RUN git clone https://github.com/zeromq/cppzmq.git -b ${CPPZMQ_VERSION} \
     && cp *.hpp ${PREFIX}/include
 
 # Sodium
-ARG SODIUM_VERSION=1.0.16
-ARG SODIUM_HASH=675149b9b8b66ff44152553fb3ebf9858128363d
+ARG SODIUM_VERSION=1.0.18
+ARG SODIUM_HASH=45b09a607d596e40adbff9ab812e47d85175c053
 RUN set -ex \
     && git clone https://github.com/jedisct1/libsodium.git -b ${SODIUM_VERSION} \
     && cd libsodium \
     && test `git rev-parse HEAD` = ${SODIUM_HASH} || exit 1 \
-    && ./autogen.sh \
-    && CC=clang CXX=clang++ ./configure --prefix=${PREFIX} --host=aarch64-linux-android --enable-static --disable-shared \
+    && DO_NOT_UPDATE_CONFIG_SCRIPTS=1 ./autogen.sh \
+    && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --prefix=${PREFIX} --host=aarch64-linux-android --enable-static --disable-shared \
     && make  -j${NPROC} \
     && make install
 
-ADD . /src
-RUN cd /src \
+# libexpat (required by libunbound)
+ARG LIBEXPAT_VERSION=R_2_4_8
+ARG LIBEXPAT_HASH=3bab6c09bbe8bf42d84b81563ddbcf4cca4be838
+RUN set -x \
+    && git clone https://github.com/libexpat/libexpat.git -b ${LIBEXPAT_VERSION} \
+    && cd libexpat/expat \
+    && test `git rev-parse HEAD` = ${LIBEXPAT_HASH} || exit 1 \
+    && ./buildconf.sh \
+    && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --prefix=${PREFIX} --host=aarch64-linux-android --enable-static --disable-shared \
+    && make -j${NPROC} \
+    && make install
+
+# libunbound
+ARG LIBUNBOUND_VERSION=release-1.16.1
+ARG LIBUNBOUND_HASH=903538c76e1d8eb30d0814bb55c3ef1ea28164e8
+RUN git clone https://github.com/NLnetLabs/unbound.git -b ${LIBUNBOUND_VERSION} \
+    && set -x \
+    && cd unbound \
+    && test `git rev-parse HEAD` = ${LIBUNBOUND_HASH} || exit 1 \
+    && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ ./configure --prefix=${PREFIX} --host=aarch64-linux-android --enable-static --disable-shared --disable-flto --with-ssl=${PREFIX} --with-libexpat=${PREFIX} \
+    && make -j${NPROC} \
+    && make install
+
+COPY . /src
+RUN set -x \
+    && cd /src \
     && CMAKE_INCLUDE_PATH="${PREFIX}/include" \
        CMAKE_LIBRARY_PATH="${PREFIX}/lib" \
+       PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig" \
        ANDROID_STANDALONE_TOOLCHAIN_PATH=${TOOLCHAIN_DIR} \
        USE_SINGLE_BUILDDIR=1 \
        PATH=${HOST_PATH} make release-static-android-armv8 -j${NPROC}
+
+RUN set -x \
+    && cd /src/build/release \
+    && find . -path ./lib -prune -o -name '*.a' -exec cp '{}' lib \;
