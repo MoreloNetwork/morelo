@@ -266,7 +266,7 @@ namespace cryptonote
     "enforce-dns-checkpointing"
   , "Enforce checkpoints from DNS (obsolete, now default)"
   };
-  static const command_line::arg_descriptor<bool> arg_no_dns_checkpoints_enforce = {
+  static const command_line::arg_descriptor<bool> arg_no_dns_checkpoints = {
     "no-enforce-dns-checkpointing"
   , "Only warn about DNS checkpoints conflicting with the local chain instead of enforcing them"
   };
@@ -437,7 +437,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_regtest_on);
     command_line::add_arg(desc, arg_fixed_difficulty);
     command_line::add_arg(desc, arg_dns_checkpoints);
-    command_line::add_arg(desc, arg_no_dns_checkpoints_enforce);
+    command_line::add_arg(desc, arg_no_dns_checkpoints);
     command_line::add_arg(desc, arg_prep_blocks_threads);
     command_line::add_arg(desc, arg_fast_block_sync);
     command_line::add_arg(desc, arg_show_time_stats);
@@ -489,7 +489,7 @@ namespace cryptonote
       set_checkpoints_file_path(checkpoint_json_hashfile_fullpath.string());
     }
 
-    set_enforce_dns_checkpoints(!command_line::get_arg(vm, arg_no_dns_checkpoints_enforce));
+    set_enforce_dns_checkpoints(!command_line::get_arg(vm, arg_no_dns_checkpoints));
     if (command_line::get_arg(vm, arg_dns_checkpoints))
       MWARNING(arg_dns_checkpoints.name << " is obsolete, it is now default");
     test_drop_download_height(command_line::get_arg(vm, arg_test_drop_download_height));
