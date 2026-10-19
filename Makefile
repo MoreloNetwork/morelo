@@ -110,12 +110,12 @@ coverage:
 release-static-android-armv7:
 	mkdir -p $(builddir)/release/translations
 	cd $(builddir)/release/translations && cmake ../../../translations && $(MAKE)
-	cd $(builddir)/release && CC=arm-linux-androideabi-clang CXX=arm-linux-androideabi-clang++ cmake $(flags) -DARCH="armv7-a" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv7" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARM_MODE=ON -DCMAKE_ANDROID_ARCH_ABI="armeabi-v7a" ../.. && $(MAKE)
+	cd $(builddir)/release && CC=arm-linux-androideabi-clang CXX=arm-linux-androideabi-clang++ cmake $(flags) -DARCH="armv7-a" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv7" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARM_MODE=ON -DCMAKE_ANDROID_ARCH_ABI="armeabi-v7a" ../.. && $(MAKE) && $(MAKE) wallet_api
 
 release-static-android-armv8:
 	mkdir -p $(builddir)/release/translations
 	cd $(builddir)/release/translations && cmake ../../../translations && $(MAKE)
-	cd $(builddir)/release && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv8" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARCH_ABI="arm64-v8a" ../.. && $(MAKE)
+	cd $(builddir)/release && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv8" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARCH_ABI="arm64-v8a" ../.. && $(MAKE) && $(MAKE) wallet_api
 
 release-static-linux-armv6:
 	mkdir -p $(builddir)/release

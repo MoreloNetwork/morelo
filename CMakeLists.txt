@@ -435,7 +435,9 @@ if(POLICY CMP0079)
   cmake_policy(SET CMP0079 NEW)
 endif()
 
-cmake_policy(SET CMP0093 NEW)
+if(POLICY CMP0093)
+  cmake_policy(SET CMP0093 NEW)
+endif()
 
 # Allow -D DOWNLOAD_SODIUM=FORCE to download without even checking for a local libsodium
 option(DOWNLOAD_SODIUM "Allow libsodium to be downloaded and built locally if not found on the system" OFF)

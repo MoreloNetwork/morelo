@@ -21,13 +21,20 @@ else()
   include(ProcessorCount)
 
   set(WIN_PATCH patch -p1 src/thread.cpp < ${PROJECT_SOURCE_DIR}/external/zmq.patch)
-  set(ZeroMQ_CONFIGURE ./configure --prefix=${LIBZMQ_PREFIX})
+  set(ZeroMQ_CONFIGURE ./configure --prefix=${LIBZMQ_PREFIX} CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER})
 
   if(APPLE OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
     set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --host=x86_64-apple-darwin)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
+    if(CMAKE_ANDROID_ARCH_ABI STREQUAL "arm64-v8a")
+      set(ZMQ_HOST aarch64-linux-android)
+    elseif(CMAKE_ANDROID_ARCH_ABI STREQUAL "armeabi-v7a")
+      set(ZMQ_HOST arm-linux-androideabi)
+    endif()
+    set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --build=x86_64-linux-gnu --host=${ZMQ_HOST})
   endif()
 
-  set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --without-docs --enable-static=yes --enable-shared=no --with-libsodium=yes --with-pgm=no --with-norm=no --disable-perf --disable-Werror --disable-drafts --enable-option-checking --enable-libunwind=no)
+  set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --without-docs --enable-static=yes --enable-shared=no --with-libsodium=yes --with-pgm=no --with-norm=no --disable-perf --disable-Werror --disable-drafts --disable-curve-keygen --enable-option-checking --enable-libunwind=no)
 
   if(NOT (APPLE OR WIN32 OR MSVC OR MINGW))
     set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --with-pic)
