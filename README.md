@@ -143,7 +143,7 @@ Windows binaries are built with GCC in the [MSYS2](https://www.msys2.org) **UCRT
 
 3. Install the dependencies:
 
-	`$ pacman -S --needed git make patch autotools zip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ccache mingw-w64-ucrt-x86_64-boost mingw-w64-ucrt-x86_64-openssl mingw-w64-ucrt-x86_64-libsodium mingw-w64-ucrt-x86_64-hidapi mingw-w64-ucrt-x86_64-libusb mingw-w64-ucrt-x86_64-unbound mingw-w64-ucrt-x86_64-pkgconf`
+	`$ pacman -S --needed git make patch autotools zip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ccache mingw-w64-ucrt-x86_64-boost mingw-w64-ucrt-x86_64-openssl mingw-w64-ucrt-x86_64-libsodium mingw-w64-ucrt-x86_64-hidapi mingw-w64-ucrt-x86_64-libusb mingw-w64-ucrt-x86_64-unbound mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-readline`
 
 4. Clone the repository (see above) and build:
 

@@ -20,7 +20,7 @@ ifeq ($(build_tests),ON)
 packages += gtest
 endif
 
-mingw32_packages = sodium $(hardware_packages)
+mingw32_packages = termcap readline sodium $(hardware_packages)
 mingw32_native_packages = $(hardware_native_packages)
 
 ifneq ($(build_os),darwin)

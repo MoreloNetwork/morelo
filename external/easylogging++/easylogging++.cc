@@ -828,7 +828,7 @@ static std::wstring utf8ToWide(const std::string& str) {
   if (size <= 0) {
     return std::wstring();
   }
-  std::wstring wide(size, L' ');
+  std::wstring wide(size, L'\0');
   MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wide[0], size);
   wide.resize(size - 1);
   return wide;

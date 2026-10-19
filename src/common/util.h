@@ -155,7 +155,7 @@ namespace tools
 
   bool on_startup();
 
-  /*! rief On Windows, returns argv re-read from the wide command line and
+  /*! \brief On Windows, returns argv re-read from the wide command line and
    *         converted to UTF-8 (the CRT passes it in the ANSI code page).
    *         Elsewhere returns argv unchanged.
    */

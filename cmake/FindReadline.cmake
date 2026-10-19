@@ -24,7 +24,8 @@
 
 find_path(Readline_ROOT_DIR
     NAMES include/readline/readline.h
-    PATHS /usr/local/opt/readline/ /opt/local/ /usr/local/ /usr/
+    # MINGW_PREFIX: MSYS2 environment root; "/" is the sysroot when cross compiling
+    PATHS /usr/local/opt/readline/ /opt/local/ /usr/local/ /usr/ $ENV{MINGW_PREFIX} /
     NO_DEFAULT_PATH
 )
 

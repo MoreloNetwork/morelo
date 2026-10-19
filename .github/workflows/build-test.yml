@@ -39,7 +39,7 @@ jobs:
         update: true
         pacboy: >-
           toolchain:p cmake:p ccache:p boost:p openssl:p libsodium:p
-          hidapi:p libusb:p unbound:p pkgconf:p
+          hidapi:p libusb:p unbound:p pkgconf:p readline:p
         install: git make patch autotools zip
     - name: ccache
       uses: actions/cache@v6
