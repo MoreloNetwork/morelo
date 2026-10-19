@@ -689,6 +689,14 @@ namespace cryptonote
       */
      void graceful_exit();
 
+     //! process exit code after an update was installed, so a supervisor can restart the daemon
+     static constexpr int UPDATE_EXIT_CODE = 75;
+
+     /**
+      * @brief whether --check-updates=update installed a new version and the daemon should exit
+      */
+     static bool update_installed();
+
      /**
       * @brief stops the daemon running
       *

@@ -269,7 +269,7 @@ namespace nodetool
 
   private:
     const std::vector<std::string> m_seed_nodes_list = {
-      "seeds.morelo.cc", "seeds.morelonetwork.pl", "seeds.morelo.vip"
+      "seeds.morelonetwork.pl", "seeds.morelo.vip", "seeds.mrl.laj.lol"
     };
 
     bool islimitup=false;
