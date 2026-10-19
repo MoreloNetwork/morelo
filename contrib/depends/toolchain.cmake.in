@@ -129,6 +129,7 @@ if(ARCHITECTURE STREQUAL "x86_64")
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+  SET(USE_READLINE OFF CACHE BOOL "")
   if(ARCHITECTURE STREQUAL "aarch64")
     set(BUILD_TAG "android-armv8")
   else()
