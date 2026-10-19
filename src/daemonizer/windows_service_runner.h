@@ -35,6 +35,7 @@
 #undef _UNICODE
 
 #include "daemonizer/windows_service.h"
+#include "cryptonote_core/cryptonote_core.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -146,10 +147,14 @@ namespace windows {
 
       m_handler.run();
 
-      on_state_change_request_(SERVICE_CONTROL_STOP);
+      // a non zero exit code makes the service manager restart us (see install_service)
+      if (cryptonote::core::update_installed())
+      {
+        m_status.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+        m_status.dwServiceSpecificExitCode = cryptonote::core::UPDATE_EXIT_CODE;
+      }
 
-      // Ensure that the service is uninstalled
-      uninstall_service(m_name);
+      on_state_change_request_(SERVICE_CONTROL_STOP);
     }
 
     static void WINAPI on_state_change_request(DWORD control_code)

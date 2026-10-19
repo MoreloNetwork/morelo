@@ -139,9 +139,9 @@ bool t_daemon::run(bool interactive)
 
   std::atomic<bool> stop(false), shutdown(false);
   boost::thread stop_thread = boost::thread([&stop, &shutdown, this] {
-    while (!stop)
+    while (!stop && !cryptonote::core::update_installed())
       epee::misc_utils::sleep_no_w(100);
-    if (shutdown)
+    if (shutdown || cryptonote::core::update_installed())
       this->stop_p2p();
   });
   epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){

@@ -465,29 +465,63 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("pool.morelonetwork.pl");		// DE3, IPv4 + IPv6
-      full_addrs.insert("0.seed.morelonetwork.pl");	// DE2, IPv4 + IPv6
-      full_addrs.insert("1.seed.morelonetwork.pl");	// DE1, IPv4 + IPv6
+      full_addrs.insert("testpool.morelonetwork.pl");
+      full_addrs.insert("0.testseed.morelonetwork.pl");
+      full_addrs.insert("1.testseed.morelonetwork.pl");
+      full_addrs.insert("2.testseed.morelonetwork.pl");
+      full_addrs.insert("3.testseed.morelonetwork.pl");
+
+      full_addrs.insert("testpool.morelo.vip");
+      full_addrs.insert("0.testseed.morelo.vip");
+      full_addrs.insert("1.testseed.morelo.vip");
+      full_addrs.insert("2.testseed.morelo.vip");
+      full_addrs.insert("3.testseed.morelo.vip");
+
+      full_addrs.insert("testpool.mrl.laj.lol");
+      full_addrs.insert("0.testseed.mrl.laj.lol");
+      full_addrs.insert("1.testseed.mrl.laj.lol");
+      full_addrs.insert("2.testseed.mrl.laj.lol");
+      full_addrs.insert("3.testseed.mrl.laj.lol");
     }
     else if (nettype == cryptonote::STAGENET)
     {
-      full_addrs.insert("pool.morelonetwork.pl");		// DE3, IPv4 + IPv6
-      full_addrs.insert("0.seed.morelonetwork.pl");	// DE2, IPv4 + IPv6
-      full_addrs.insert("1.seed.morelonetwork.pl");	// DE1, IPv4 + IPv6
+      full_addrs.insert("stagepool.morelonetwork.pl");
+      full_addrs.insert("0.stageseed.morelonetwork.pl");
+      full_addrs.insert("1.stageseed.morelonetwork.pl");
+      full_addrs.insert("2.stageseed.morelonetwork.pl");
+      full_addrs.insert("3.stageseed.morelonetwork.pl");
+
+      full_addrs.insert("stagepool.morelo.vip");
+      full_addrs.insert("0.stageseed.morelo.vip");
+      full_addrs.insert("1.stageseed.morelo.vip");
+      full_addrs.insert("2.stageseed.morelo.vip");
+      full_addrs.insert("3.stageseed.morelo.vip");
+
+      full_addrs.insert("stagepool.mrl.laj.lol");
+      full_addrs.insert("0.stageseed.mrl.laj.lol");
+      full_addrs.insert("1.stageseed.mrl.laj.lol");
+      full_addrs.insert("2.stageseed.mrl.laj.lol");
+      full_addrs.insert("3.stageseed.mrl.laj.lol");
     }
     else if (nettype == cryptonote::MAINNET)
     {
-      // Primary
-      full_addrs.insert("pool.morelonetwork.pl");     // DE3, IPv4 + IPv6
-      full_addrs.insert("0.seed.morelonetwork.pl");   // DE2, IPv4 + IPv6
-      full_addrs.insert("1.seed.morelonetwork.pl");   // DE1, IPv4 + IPv6
-      // Secondary
-      full_addrs.insert("20.seed.morelonetwork.pl");  // PL1, IPv4 + IPv6
-      full_addrs.insert("21.seed.morelonetwork.pl");  // PL2, IPv4 only
-      full_addrs.insert("22.seed.morelonetwork.pl");  // PL3, IPv6 only (TODO support)
-      // Community
-      full_addrs.insert("98.seed.morelonetwork.pl");  // CryptoSyphon, HU, IPv4 only
-      full_addrs.insert("99.seed.morelonetwork.pl");  // bigcundy, UK, IPv4 only
+      full_addrs.insert("pool.morelonetwork.pl");
+      full_addrs.insert("0.seed.morelonetwork.pl");
+      full_addrs.insert("1.seed.morelonetwork.pl");
+      full_addrs.insert("2.seed.morelonetwork.pl");
+      full_addrs.insert("3.seed.morelonetwork.pl");
+
+      full_addrs.insert("pool.morelo.vip");
+      full_addrs.insert("0.seed.morelo.vip");
+      full_addrs.insert("1.seed.morelo.vip");
+      full_addrs.insert("2.seed.morelo.vip");
+      full_addrs.insert("3.seed.morelo.vip");
+
+      full_addrs.insert("pool.mrl.laj.lol");
+      full_addrs.insert("0.seed.mrl.laj.lol");
+      full_addrs.insert("1.seed.mrl.laj.lol");
+      full_addrs.insert("2.seed.mrl.laj.lol");
+      full_addrs.insert("3.seed.mrl.laj.lol");
     }
     return full_addrs;
   }

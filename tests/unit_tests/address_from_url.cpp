@@ -38,7 +38,7 @@
 
 TEST(AddressFromTXT, Success)
 {
-  std::string addr = "46BeWrHpwXmHDpDEUmZBWZfoQpdc6HaERCNmx1pEYL2rAcuwufPN9rXHHtyUA4QVy66qeFQkn6sfK8aHYjA3jk3o1Bv16em";
+  std::string addr = MORELO_DONATION_ADDR;
 
   std::string txtr = "oa1:mrl";
   txtr += " recipient_address=";
@@ -85,11 +85,11 @@ TEST(AddressFromTXT, Failure)
 
 TEST(AddressFromURL, Success)
 {
-  const std::string addr = MONERO_DONATION_ADDR;
+  const std::string addr = MORELO_DONATION_ADDR;
 
   bool dnssec_result = false;
 
-  std::vector<std::string> addresses = tools::dns_utils::addresses_from_url("donate.morelo.cc", dnssec_result);
+  std::vector<std::string> addresses = tools::dns_utils::addresses_from_url("donate.morelonetwork.pl", dnssec_result);
 
   EXPECT_EQ(1, addresses.size());
   if (addresses.size() == 1)
@@ -98,7 +98,7 @@ TEST(AddressFromURL, Success)
   }
 
   // OpenAlias address with an @ instead of first .
-  addresses = tools::dns_utils::addresses_from_url("donate@morelo.cc", dnssec_result);
+  addresses = tools::dns_utils::addresses_from_url("donate@morelonetwork.pl", dnssec_result);
   EXPECT_EQ(1, addresses.size());
   if (addresses.size() == 1)
   {

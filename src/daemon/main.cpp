@@ -339,7 +339,9 @@ int main(int argc, char const * argv[])
 
     MINFO("Moving from main() into the daemonize now.");
 
-    return daemonizer::daemonize(argc, argv, daemonize::t_executor{parse_public_rpc_port(vm)}, vm) ? 0 : 1;
+    if (!daemonizer::daemonize(argc, argv, daemonize::t_executor{parse_public_rpc_port(vm)}, vm))
+      return 1;
+    return cryptonote::core::update_installed() ? cryptonote::core::UPDATE_EXIT_CODE : 0;
   }
   catch (std::exception const & ex)
   {

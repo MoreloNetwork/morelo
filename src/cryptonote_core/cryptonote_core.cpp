@@ -56,6 +56,7 @@ using namespace epee;
 #include "blockchain_db/blockchain_db.h"
 #include "ringct/rctSigs.h"
 #include "common/notify.h"
+#include "common/spawn.h"
 #include "version.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
@@ -71,6 +72,129 @@ DISABLE_VS_WARNINGS(4355)
 #define BLOCK_SIZE_SANITY_LEEWAY 100
 
 using namespace arqmaMQ;
+
+namespace
+{
+  std::atomic<bool> update_installed_flag(false);
+
+  // spawn() joins args with spaces on Windows, so quote them there
+  std::string spawn_arg(const std::string &s)
+  {
+#ifdef _WIN32
+    return "\"" + s + "\"";
+#else
+    return s;
+#endif
+  }
+
+  std::string find_tar()
+  {
+#ifdef _WIN32
+    const char *root = getenv("SystemRoot");
+    const std::vector<std::string> candidates = { std::string(root ? root : "C:\\Windows") + "\\System32\\tar.exe" };
+#else
+    const std::vector<std::string> candidates = { "/usr/bin/tar", "/bin/tar", "/usr/local/bin/tar" };
+#endif
+    for (const auto &candidate : candidates)
+    {
+      boost::system::error_code ec;
+      if (boost::filesystem::is_regular_file(candidate, ec))
+        return candidate;
+    }
+    return {};
+  }
+
+  // Extracts the release archive next to the running binary and swaps the files in.
+  // Replaced files are kept with an .old suffix, since Windows can't overwrite a running exe.
+  bool install_update(const boost::filesystem::path &archive, const std::string &version)
+  {
+    namespace fs = boost::filesystem;
+    boost::system::error_code ec;
+
+    const std::string tar = find_tar();
+    if (tar.empty())
+    {
+      MCERROR("updates", "tar not found, can't install update");
+      return false;
+    }
+
+    const fs::path folder = archive.parent_path();
+    const fs::path extract_dir = folder / ("morelo-update-" + version);
+    fs::remove_all(extract_dir, ec);
+    if (!fs::create_directories(extract_dir, ec))
+    {
+      MCERROR("updates", "Failed to create " << extract_dir << ": " << ec.message());
+      return false;
+    }
+
+    const int ret = tools::spawn(tar.c_str(), {spawn_arg(tar), "-xf", spawn_arg(archive.string()), "-C", spawn_arg(extract_dir.string())}, true);
+    std::vector<fs::path> files;
+    if (ret == 0)
+      for (fs::directory_iterator it(extract_dir, ec), end; !ec && it != end; it.increment(ec))
+      {
+        boost::system::error_code type_ec;
+        if (fs::is_regular_file(it->path(), type_ec))
+          files.push_back(it->path());
+      }
+
+    // the archive must at least contain the binary we are running as
+    const std::string self = epee::string_tools::get_current_module_name();
+    if (ret != 0 || ec || std::none_of(files.begin(), files.end(), [&](const fs::path &p) { return p.filename().string() == self; }))
+    {
+      MCERROR("updates", "Failed to extract " << archive << " (tar exit code " << ret << ")");
+      fs::remove_all(extract_dir, ec);
+      return false;
+    }
+
+    std::vector<fs::path> replaced, installed;
+    bool ok = true;
+    for (const auto &src : files)
+    {
+      const fs::path dst = folder / src.filename();
+      const fs::path old = dst.string() + ".old";
+      fs::remove(old, ec);
+      if (fs::exists(dst, ec))
+      {
+        fs::rename(dst, old, ec);
+        if (ec)
+        {
+          MCERROR("updates", "Failed to move " << dst << " to " << old << ": " << ec.message());
+          ok = false;
+          break;
+        }
+        replaced.push_back(dst);
+      }
+      fs::rename(src, dst, ec);
+      if (ec)
+      {
+        MCERROR("updates", "Failed to move " << src << " to " << dst << ": " << ec.message());
+        ok = false;
+        break;
+      }
+      installed.push_back(dst);
+    }
+
+    if (!ok)
+    {
+      for (const auto &dst : installed)
+        fs::remove(dst, ec);
+      for (const auto &dst : replaced)
+      {
+        fs::rename(dst.string() + ".old", dst, ec);
+        if (ec)
+          MCERROR("updates", "Failed to restore " << dst << ": " << ec.message());
+      }
+    }
+    fs::remove_all(extract_dir, ec);
+    if (!ok)
+      return false;
+
+    fs::remove(archive, ec);
+    MCLOG_CYAN(el::Level::Info, "updates", "Version " << version << " installed, exiting with code " << int(cryptonote::core::UPDATE_EXIT_CODE) << " to be restarted");
+    update_installed_flag = true;
+    return true;
+  }
+}
 
 namespace cryptonote
 {
@@ -140,8 +264,11 @@ namespace cryptonote
   };
   static const command_line::arg_descriptor<bool> arg_dns_checkpoints = {
     "enforce-dns-checkpointing"
-  , "checkpoints from DNS server will be enforced"
-  , false
+  , "Enforce checkpoints from DNS (obsolete, now default)"
+  };
+  static const command_line::arg_descriptor<bool> arg_no_dns_checkpoints_enforce = {
+    "no-enforce-dns-checkpointing"
+  , "Only warn about DNS checkpoints conflicting with the local chain instead of enforcing them"
   };
   static const command_line::arg_descriptor<uint64_t> arg_fast_block_sync = {
     "fast-block-sync"
@@ -310,6 +437,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_regtest_on);
     command_line::add_arg(desc, arg_fixed_difficulty);
     command_line::add_arg(desc, arg_dns_checkpoints);
+    command_line::add_arg(desc, arg_no_dns_checkpoints_enforce);
     command_line::add_arg(desc, arg_prep_blocks_threads);
     command_line::add_arg(desc, arg_fast_block_sync);
     command_line::add_arg(desc, arg_show_time_stats);
@@ -361,7 +489,9 @@ namespace cryptonote
       set_checkpoints_file_path(checkpoint_json_hashfile_fullpath.string());
     }
 
-    set_enforce_dns_checkpoints(command_line::get_arg(vm, arg_dns_checkpoints));
+    set_enforce_dns_checkpoints(!command_line::get_arg(vm, arg_no_dns_checkpoints_enforce));
+    if (command_line::get_arg(vm, arg_dns_checkpoints))
+      MWARNING(arg_dns_checkpoints.name << " is obsolete, it is now default");
     test_drop_download_height(command_line::get_arg(vm, arg_test_drop_download_height));
     m_fluffy_blocks_enabled = !get_arg(vm, arg_no_fluffy_blocks);
     m_pad_transactions = get_arg(vm, arg_pad_transactions);
@@ -646,7 +776,7 @@ namespace cryptonote
 
     // load json & DNS checkpoints, and verify them
     // with respect to what blocks we already have
-    const bool skip_dns_checkpoints = !command_line::get_arg(vm, arg_dns_checkpoints);
+    const bool skip_dns_checkpoints = command_line::get_arg(vm, arg_no_dns_checkpoints);
     CHECK_AND_ASSERT_MES(update_checkpoints(skip_dns_checkpoints), false, "One or more checkpoints loaded from json or dns conflicted with existing checkpoints.");
 
    //DNS versions checking
@@ -1778,7 +1908,7 @@ namespace cryptonote
         MCDEBUG("updates", "We have part of the file already, resuming download");
       }
       m_last_update_length = 0;
-      m_update_download = tools::download_async(tmppath, url, [this, hash, path](const std::string &tmppath, const std::string &uri, bool success) {
+      m_update_download = tools::download_async(tmppath, url, [this, hash, path, version](const std::string &tmppath, const std::string &uri, bool success) {
         bool remove = false, good = true;
         if (success)
         {
@@ -1821,7 +1951,11 @@ namespace cryptonote
           }
         }
         if (good)
+        {
           MCLOG_CYAN(el::Level::Info, "updates", "New version downloaded to " << path.string());
+          if (check_updates_level == UPDATES_UPDATE)
+            install_update(path, version);
+        }
       }, [this](const std::string &path, const std::string &uri, size_t length, ssize_t content_length) {
         if (length >= m_last_update_length + 1024 * 1024 * 10)
         {
@@ -1834,15 +1968,16 @@ namespace cryptonote
     else
     {
       MCDEBUG("updates", "We already have " << path << " with expected hash");
+      if (check_updates_level == UPDATES_UPDATE)
+        install_update(path, version);
     }
 
-    lock.unlock();
-
-    if (check_updates_level == UPDATES_DOWNLOAD)
-      return true;
-
-    MCERROR("updates", "Download/update not implemented yet");
-    return false;
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::update_installed()
+  {
+    return update_installed_flag;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::check_disk_space()

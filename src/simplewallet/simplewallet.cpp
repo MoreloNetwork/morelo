@@ -2751,7 +2751,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::donate, this, _1),
                            tr(USAGE_DONATE),
-                           tr("Donate <amount> to the development team (donate.morelo.cc)."));
+                           tr("Donate <amount> to the development team (donate.morelonetwork.pl)."));
   m_cmd_binder.set_handler("sign_transfer",
                            boost::bind(&simple_wallet::sign_transfer, this, _1),
                            tr(USAGE_SIGN_TRANSFER),
@@ -6521,7 +6521,7 @@ bool simple_wallet::donate(const std::vector<std::string> &args_)
   local_args.push_back(amount_str);
   if (!payment_id_str.empty())
     local_args.push_back(payment_id_str);
-  message_writer() << (boost::format(tr("Donating %s %s to The Morelo Network (donate.morelo.cc or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MORELO_DONATION_ADDR).str();
+  message_writer() << (boost::format(tr("Donating %s %s to The Morelo Network (donate.morelonetwork.pl or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MORELO_DONATION_ADDR).str();
   transfer(local_args);
   return true;
 }

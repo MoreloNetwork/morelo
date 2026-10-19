@@ -44,6 +44,10 @@
 #include <thread>
 #include <windows.h>
 
+#ifndef SERVICE_CONFIG_FAILURE_ACTIONS_FLAG
+#define SERVICE_CONFIG_FAILURE_ACTIONS_FLAG 4
+#endif
+
 namespace windows {
 
 namespace {
@@ -194,10 +198,9 @@ bool install_service(
         p_manager.get()
       , service_name.c_str()
       , service_name.c_str()
-      , 0
-      //, GENERIC_EXECUTE | GENERIC_READ
+      , SERVICE_CHANGE_CONFIG | SERVICE_START // needed to set restart on failure below
       , SERVICE_WIN32_OWN_PROCESS
-      , SERVICE_DEMAND_START
+      , SERVICE_AUTO_START
       , SERVICE_ERROR_NORMAL
       , full_command.c_str()
       , nullptr
@@ -213,6 +216,20 @@ bool install_service(
   {
     tools::fail_msg_writer() << "Couldn't create service: " << get_last_error();
     return false;
+  }
+
+  // Restart the service when it stops with an error exit code, which includes
+  // the clean exit after an auto update (see t_service_runner), not only crashes
+  SC_ACTION restart_action{SC_ACTION_RESTART, 5000};
+  SERVICE_FAILURE_ACTIONS failure_actions{};
+  failure_actions.dwResetPeriod = 24 * 60 * 60;
+  failure_actions.cActions = 1;
+  failure_actions.lpsaActions = &restart_action;
+  BOOL failure_actions_on_non_crash = TRUE; // layout of SERVICE_FAILURE_ACTIONS_FLAG, missing from pre-Vista headers
+  if (!ChangeServiceConfig2(p_service.get(), SERVICE_CONFIG_FAILURE_ACTIONS, &failure_actions)
+    || !ChangeServiceConfig2(p_service.get(), SERVICE_CONFIG_FAILURE_ACTIONS_FLAG, &failure_actions_on_non_crash))
+  {
+    tools::fail_msg_writer() << "Couldn't enable service restart on failure: " << get_last_error();
   }
 
   tools::success_msg_writer() << "Service installed";

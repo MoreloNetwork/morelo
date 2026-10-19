@@ -12439,16 +12439,13 @@ uint64_t wallet2::get_segregation_fork_height() const
 
   if (m_use_dns && !m_offline)
   {
-    // All Morelo Network domains have DNSSEC on and valid
-    static const std::vector<std::string> dns_urls = {
-      "segheights.morelo.cc", "segheights.morelonetwork.pl", "segheights.morelo.vip"
-    };
+    static const std::vector<std::string> dns_urls = {};
 
-    const uint64_t current_height = get_blockchain_current_height();
-    uint64_t best_diff = std::numeric_limits<uint64_t>::max(), best_height = 0;
     std::vector<std::string> records;
     if (tools::dns_utils::load_txt_records_from_dns(records, dns_urls))
     {
+      const uint64_t current_height = get_blockchain_current_height();
+      uint64_t best_diff = std::numeric_limits<uint64_t>::max(), best_height = 0;
       for (const auto& record : records)
       {
         std::vector<std::string> fields;

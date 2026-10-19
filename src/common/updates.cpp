@@ -48,13 +48,24 @@ namespace tools
 
     // All Morelo Network domains have DNSSEC on and valid
     static const std::vector<std::string> dns_urls = {
-      "updates.morelo.cc", "updates.morelonetwork.pl", "updates.morelo.vip"
+      "updates.morelonetwork.pl", "updates.morelo.vip", "updates.mrl.laj.lol"
     };
 
     if(!tools::dns_utils::load_txt_records_from_dns(records, dns_urls))
       return false;
 
+    // a record can hold several space separated entries
+    std::vector<std::string> entries;
     for(const auto& record : records)
+    {
+      std::vector<std::string> parts;
+      boost::split(parts, record, boost::is_any_of(" "), boost::token_compress_on);
+      for(const auto& part : parts)
+        if(!part.empty())
+          entries.push_back(part);
+    }
+
+    for(const auto& record : entries)
     {
       std::vector<std::string> fields;
       boost::split(fields, record, boost::is_any_of(":"));
@@ -71,7 +82,7 @@ namespace tools
       for(auto c : fields[3])
         if(!isalnum(c))
           alnum = false;
-      if(fields[3].size() != 64 && !alnum)
+      if(fields[3].size() != 64 || !alnum)
       {
         MWARNING("Invalid hash: " << fields[3]);
         continue;
@@ -88,7 +99,7 @@ namespace tools
       }
 
       version = fields[2];
-      hash = fields[3];
+      hash = boost::algorithm::to_lower_copy(fields[3]); // compared with lowercase pod_to_hex output
 
       MINFO("Found new version " << version << " with hash " << hash);
       found = true;

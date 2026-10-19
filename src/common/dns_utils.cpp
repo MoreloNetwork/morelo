@@ -59,54 +59,15 @@ static boost::mutex instance_lock;
 namespace
 {
 
-/*
- * The following two functions were taken from unbound-anchor.c, from
- * the unbound library packaged with this source.  The license and source
- * can be found in $PROJECT_ROOT/external/unbound
- */
-
-/* Cert builtin commented out until it's used, as the compiler complains
-
-// return the built in root update certificate
-static const char*
-get_builtin_cert(void)
-{
-	return
-// The ICANN CA fetched at 24 Sep 2010.  Valid to 2028
-"-----BEGIN CERTIFICATE-----\n"
-"MIIDdzCCAl+gAwIBAgIBATANBgkqhkiG9w0BAQsFADBdMQ4wDAYDVQQKEwVJQ0FO\n"
-"TjEmMCQGA1UECxMdSUNBTk4gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxFjAUBgNV\n"
-"BAMTDUlDQU5OIFJvb3QgQ0ExCzAJBgNVBAYTAlVTMB4XDTA5MTIyMzA0MTkxMloX\n"
-"DTI5MTIxODA0MTkxMlowXTEOMAwGA1UEChMFSUNBTk4xJjAkBgNVBAsTHUlDQU5O\n"
-"IENlcnRpZmljYXRpb24gQXV0aG9yaXR5MRYwFAYDVQQDEw1JQ0FOTiBSb290IENB\n"
-"MQswCQYDVQQGEwJVUzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKDb\n"
-"cLhPNNqc1NB+u+oVvOnJESofYS9qub0/PXagmgr37pNublVThIzyLPGCJ8gPms9S\n"
-"G1TaKNIsMI7d+5IgMy3WyPEOECGIcfqEIktdR1YWfJufXcMReZwU4v/AdKzdOdfg\n"
-"ONiwc6r70duEr1IiqPbVm5T05l1e6D+HkAvHGnf1LtOPGs4CHQdpIUcy2kauAEy2\n"
-"paKcOcHASvbTHK7TbbvHGPB+7faAztABLoneErruEcumetcNfPMIjXKdv1V1E3C7\n"
-"MSJKy+jAqqQJqjZoQGB0necZgUMiUv7JK1IPQRM2CXJllcyJrm9WFxY0c1KjBO29\n"
-"iIKK69fcglKcBuFShUECAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8B\n"
-"Af8EBAMCAf4wHQYDVR0OBBYEFLpS6UmDJIZSL8eZzfyNa2kITcBQMA0GCSqGSIb3\n"
-"DQEBCwUAA4IBAQAP8emCogqHny2UYFqywEuhLys7R9UKmYY4suzGO4nkbgfPFMfH\n"
-"6M+Zj6owwxlwueZt1j/IaCayoKU3QsrYYoDRolpILh+FPwx7wseUEV8ZKpWsoDoD\n"
-"2JFbLg2cfB8u/OlE4RYmcxxFSmXBg0yQ8/IoQt/bxOcEEhhiQ168H2yE5rxJMt9h\n"
-"15nu5JBSewrCkYqYYmaxyOC3WrVGfHZxVI7MpIFcGdvSb2a1uyuua8l0BKgk3ujF\n"
-"0/wsHNeP22qNyVO+XVBzrM8fk8BSUFuiT/6tZTYXRtEt5aKQZgXbKU5dUF3jT9qg\n"
-"j/Br5BZw3X/zd325TvnswzMC1+ljLzHnQGGk\n"
-"-----END CERTIFICATE-----\n"
-		;
-}
-*/
-
-/** return the built in root DS trust anchor */
+/** return the built in DS trust anchor */
 static const char* const*
 get_builtin_ds(void)
 {
   static const char * const ds[] =
   {
-    "morelo.cc. DS 2371 13 2 BE68DD85DB1FAF3AC8E2D9BA050E84222CB85C552AAE68DCE2D768557B6E2863",
-    "morelonetwork.pl. DS 2371 13 2 1D064892752E6DBA91DA1C100B3E681AFEE6D2046DABFD71748BCDDF9E385EF1",
-    "morelo.vip. DS 25517 13 2 140CE388B1DC001A0312D3769449313312A041FB356BF8DE8FBB6D07CD589B09",
+    "morelonetwork.pl. IN DS 2371 13 2 1D064892752E6DBA91DA1C100B3E681AFEE6D2046DABFD71748BCDDF9E385EF1",
+    "morelo.vip. IN DS 25517 13 2 140CE388B1DC001A0312D3769449313312A041FB356BF8DE8FBB6D07CD589B09",
+    "laj.lol. IN DS 2371 13 2 4C1B23C38023C91A66EB600B3BD3A28F653A3AE0EDB036CC56F0A4C0257D5A2F",
     NULL
   };
   return ds;
@@ -186,7 +147,15 @@ boost::optional<std::string> txt_to_string(const char* src, size_t len)
 {
   if (len == 0)
     return boost::none;
-  return std::string(src+1, len-1);
+  // TXT rdata is a sequence of <length byte><data> strings, join them
+  std::string res;
+  for (size_t i = 0; i < len; )
+  {
+    const size_t n = std::min<size_t>((unsigned char)src[i], len - i - 1);
+    res.append(src + i + 1, n);
+    i += n + 1;
+  }
+  return res;
 }
 
 // custom smart pointer.
@@ -287,7 +256,7 @@ DNSResolver::DNSResolver() : m_data(new DNSResolverData())
     // should be a valid DNSSEC record, and switch to known good
 	// DNSSEC resolvers if verification fails
 	bool available, valid;
-	static const char *probe_hostname = "updates.morelo.cc";
+	static const char *probe_hostname = "updates.morelonetwork.pl";
 	auto records = get_txt_record(probe_hostname, available, valid);
 	if (!valid)
 	{
@@ -427,9 +396,9 @@ std::string address_from_txt_record(const std::string& s)
     {
       return s.substr(pos, 98);
     }
-    else if (pos2 - pos == 110) // length of address == 110 --> integrated address
+    else if (pos2 - pos == 109) // length of address == 109 --> integrated address
     {
-      return s.substr(pos, 110);
+      return s.substr(pos, 109);
     }
   }
   return {};
@@ -594,7 +563,7 @@ bool load_txt_records_from_dns(std::vector<std::string> &good_records, const std
   }
 
   good_records = records[good_records_index];
-  return false;
+  return true;
 }
 
 std::vector<std::string> parse_dns_public(const char *s)
