@@ -1,13 +1,15 @@
 name: ci/gh-actions/build
 
+# Pull requests run on every commit. Branches are only built through their pull request,
+# a push trigger for all branches would run every commit twice. Runs on master after a
+# merge keep the caches warm: pull requests can only restore caches from their own ref
+# and from the default branch.
 on:
   workflow_dispatch:
   push:
-    paths-ignore:
-      - '**/*.md'
+    branches: [ master ]
+    tags: [ '*' ]
   pull_request:
-    paths-ignore:
-      - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
@@ -24,8 +26,8 @@ env:
 jobs:
   build:
     name: ${{ matrix.tag }}
-    runs-on: ubuntu-24.04
-    # manylinux_2_28 (AlmaLinux 8, glibc 2.28, GCC 14) keeps the Linux binary runnable on old distros
+    runs-on: ${{ matrix.runner || 'ubuntu-24.04' }}
+    # manylinux_2_28 (AlmaLinux 8, glibc 2.28, GCC 14) keeps the Linux binaries runnable on old distros
     container: ${{ matrix.container }}
     strategy:
       fail-fast: false
@@ -34,12 +36,16 @@ jobs:
           - tag: linux-x64
             host: x86_64-linux-gnu
             container: quay.io/pypa/manylinux_2_28_x86_64
+            boost_arch: x64
+          - tag: linux-arm64
+            host: aarch64-linux-gnu
+            runner: ubuntu-24.04-arm
+            container: quay.io/pypa/manylinux_2_28_aarch64
+            boost_arch: a64
           - tag: win-x64
             host: x86_64-w64-mingw32
-          - tag: android-armv8
+          - tag: android-arm64
             host: aarch64-linux-android
-          - tag: android-armv7
-            host: arm-linux-androideabi
     env:
       HOST: ${{ matrix.host }}
     steps:
@@ -119,18 +125,19 @@ jobs:
         cp src/wallet/api/wallet2_api.h out/lib/include/
         tar cJf out/${{ matrix.tag }}-libwallet.tar.xz --owner=0 --group=0 -C out/lib .
     - name: check glibc requirement
-      if: matrix.host == 'x86_64-linux-gnu'
+      if: contains(matrix.host, 'linux-gnu')
       run: |
         v=$(objdump -T out/${{ matrix.tag }}/* | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
         echo "highest required: $v"
         [ -n "$v" ] && [ "$(printf '%s\n' GLIBC_2.27 "$v" | sort -V | tail -1)" = GLIBC_2.27 ]
     - name: build TLS check
-      if: matrix.host == 'x86_64-linux-gnu'
+      if: contains(matrix.host, 'linux-gnu')
       run: |
         P=contrib/depends/$HOST
-        g++ -std=c++14 -O1 -Icontrib/epee/include -Iexternal/easylogging++ -I$P/include .github/tlscheck/tlscheck.cpp -o out/tlscheck \
+        B=${{ matrix.boost_arch }}
+        g++ -std=c++14 -O1 -Icontrib/epee/include -Iexternal/easylogging++ -I$P/include utils/tlscheck/tlscheck.cpp -o out/tlscheck \
           build/release/contrib/epee/src/libepee.a build/release/external/easylogging++/libeasylogging.a \
-          $P/lib/libboost_thread-mt-s-x64.a $P/lib/libboost_chrono-mt-s-x64.a $P/lib/libboost_filesystem-mt-s-x64.a $P/lib/libboost_date_time-mt-s-x64.a $P/lib/libboost_regex-mt-s-x64.a $P/lib/libboost_atomic-mt-s-x64.a \
+          $P/lib/libboost_thread-mt-s-$B.a $P/lib/libboost_chrono-mt-s-$B.a $P/lib/libboost_filesystem-mt-s-$B.a $P/lib/libboost_date_time-mt-s-$B.a $P/lib/libboost_regex-mt-s-$B.a $P/lib/libboost_atomic-mt-s-$B.a \
           $P/lib/libssl.a $P/lib/libcrypto.a -static-libstdc++ -static-libgcc -pthread -ldl
         strip out/tlscheck
     - uses: actions/upload-artifact@v7
@@ -142,33 +149,43 @@ jobs:
           out/*.sha256
         compression-level: 0
     - uses: actions/upload-artifact@v7
-      if: matrix.host == 'x86_64-linux-gnu'
+      if: contains(matrix.host, 'linux-gnu')
       with:
-        name: tlscheck-linux-x64
+        name: tlscheck-${{ matrix.tag }}
         path: out/tlscheck
 
   linux-compat:
-    name: linux-x64 on ${{ matrix.image }}
+    name: ${{ matrix.tag }} on ${{ matrix.image }}
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        tag: [ linux-x64, linux-arm64 ]
         image: [ 'ubuntu:18.04', 'debian:10', 'ubuntu:20.04', 'rockylinux:8', 'archlinux:latest' ]
+        include:
+          - tag: linux-x64
+            runner: ubuntu-24.04
+          - tag: linux-arm64
+            runner: ubuntu-24.04-arm
+        exclude:
+          # the official Arch image is amd64 only
+          - tag: linux-arm64
+            image: 'archlinux:latest'
     steps:
     - uses: actions/download-artifact@v8
       with:
-        name: linux-x64
+        name: ${{ matrix.tag }}
     - name: run
       run: |
-        mkdir bin && tar xJf linux-x64.tar.xz -C bin
+        mkdir bin && tar xJf ${{ matrix.tag }}.tar.xz -C bin
         for b in morelod morelo-wallet-cli morelo-wallet-rpc; do
           docker run --rm -v "$PWD/bin:/bin-morelo:ro" ${{ matrix.image }} /bin-morelo/$b --version
         done
     - uses: actions/download-artifact@v8
       if: matrix.image == 'rockylinux:8' || matrix.image == 'archlinux:latest'
       with:
-        name: tlscheck-linux-x64
+        name: tlscheck-${{ matrix.tag }}
     - name: TLS with the system CA certificates (updater downloads)
       if: matrix.image == 'rockylinux:8' || matrix.image == 'archlinux:latest'
       run: |
