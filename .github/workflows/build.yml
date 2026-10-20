@@ -132,7 +132,7 @@ jobs:
       run: |
         P=contrib/depends/$HOST
         B=${{ matrix.boost_arch }}
-        g++ -std=c++14 -O1 -Icontrib/epee/include -Iexternal/easylogging++ -I$P/include .github/tlscheck/tlscheck.cpp -o out/tlscheck \
+        g++ -std=c++14 -O1 -Icontrib/epee/include -Iexternal/easylogging++ -I$P/include utils/tlscheck/tlscheck.cpp -o out/tlscheck \
           build/release/contrib/epee/src/libepee.a build/release/external/easylogging++/libeasylogging.a \
           $P/lib/libboost_thread-mt-s-$B.a $P/lib/libboost_chrono-mt-s-$B.a $P/lib/libboost_filesystem-mt-s-$B.a $P/lib/libboost_date_time-mt-s-$B.a $P/lib/libboost_regex-mt-s-$B.a $P/lib/libboost_atomic-mt-s-$B.a \
           $P/lib/libssl.a $P/lib/libcrypto.a -static-libstdc++ -static-libgcc -pthread -ldl
