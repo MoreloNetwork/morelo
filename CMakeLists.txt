@@ -556,7 +556,11 @@ else()
     message(STATUS "AES support not available on ARMv7")
   elseif(ARM8)
     CHECK_CXX_ACCEPTS_FLAG("-march=${ARCH}+crypto" ARCH_PLUS_CRYPTO)
-    if(ARCH_PLUS_CRYPTO)
+    if(DEPENDS)
+      # portable builds: slow-hash would use the AES instructions without a runtime check,
+      # and not every ARMv8 CPU has them (e.g. Raspberry Pi 3/4). RandomX detects AES at runtime.
+      message(STATUS "Crypto extensions not used for a portable ARMv8 build")
+    elseif(ARCH_PLUS_CRYPTO)
       message(STATUS "Crypto extensions enabled for ARMv8")
       set(ARCH_FLAG "-march=${ARCH}+crypto")
     else()

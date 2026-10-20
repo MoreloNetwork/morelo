@@ -113,9 +113,9 @@ release-static-linux-armv7:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake $(flags) -DARCH="armv7-a" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-armv7" $(topdir) && $(MAKE)
 
-release-static-linux-armv8:
+release-static-linux-arm64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-armv8" $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-arm64" $(topdir) && $(MAKE)
 
 release-static-linux-x86_64:
 	mkdir -p $(builddir)/release

@@ -30,3 +30,13 @@ i686_linux_CXX=$(default_host_CXX) -m32
 x86_64_linux_CC=$(default_host_CC) -m64
 x86_64_linux_CXX=$(default_host_CXX) -m64
 endif
+
+# native build on an arm64 machine (no aarch64-linux-gnu- prefixed cross compiler there)
+ifeq ($(build_arch),aarch64)
+aarch64_linux_CC=gcc
+aarch64_linux_CXX=g++
+aarch64_linux_AR=ar
+aarch64_linux_RANLIB=ranlib
+aarch64_linux_NM=nm
+aarch64_linux_STRIP=strip
+endif

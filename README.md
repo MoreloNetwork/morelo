@@ -68,8 +68,8 @@ Prebuilt binaries for every commit are available as artifacts of the [build work
 | --------------- | -------------------------------------------- | ------------------------------------------------------------ |
 | `linux-x64`     | 64-bit Linux, glibc 2.27+ (Ubuntu 18.04+, Debian 10+, RHEL 8+) | Everything except glibc is linked statically |
 | `win-x64`       | 64-bit Windows                               | Fully static, no DLLs needed                                 |
-| `android-armv8` | Android 7.0+ (API 24), arm64-v8a             | Also contains `android-armv8-libwallet.tar.xz` (static `libwallet_api` and its dependencies) |
-| `android-armv7` | Android 7.0+ (API 24), armeabi-v7a           | Also contains `android-armv7-libwallet.tar.xz`               |
+| `linux-arm64`   | 64-bit ARM Linux, glibc 2.27+ (Raspberry Pi 3/4/5 with a 64-bit OS, ARM servers) | Everything except glibc is linked statically |
+| `android-arm64` | Android 7.0+ (API 24), arm64-v8a             | Also contains `android-arm64-libwallet.tar.xz` (static `libwallet_api` and its dependencies) |
 
 ### Cloning the repository
 
@@ -164,7 +164,7 @@ The `depends` system builds every library from pinned sources and links it stati
 | Linux x86-64        | `make depends target=x86_64-linux-gnu`                                        | `gperf` |
 | Windows x86-64      | `make depends target=x86_64-w64-mingw32`                                      | `g++-mingw-w64-x86-64`, switched to the posix thread model (see below) |
 | Android arm64-v8a   | `make depends target=aarch64-linux-android ANDROID_NDK=/path/to/android-ndk`  | [Android NDK](https://developer.android.com/ndk/downloads) r23 or newer |
-| Android armeabi-v7a | `make depends target=arm-linux-androideabi ANDROID_NDK=/path/to/android-ndk`  | Android NDK r23 or newer |
+| Linux arm64         | `make depends target=aarch64-linux-gnu`                                       | `gperf`; `g++-aarch64-linux-gnu` when cross compiling from x86-64 |
 
 All targets also need `build-essential cmake pkg-config autoconf automake libtool-bin curl`. Add `-j$(nproc)` to build in parallel. The executables are in `build/release/bin`. For Android, `make -C build/release wallet_api` additionally builds the static wallet library.
 
