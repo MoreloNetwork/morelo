@@ -23,8 +23,9 @@ define $(package)_set_vars
   $(package)_config_opts_darwin+=RANLIB="$(host_prefix)/native/bin/x86_64-apple-darwin19.2.0-ranlib" AR="$(host_prefix)/native/bin/x86_64-apple-darwin19.2.0-ar" CC="$(host_prefix)/native/bin/$($(package)_cc)"
   # same as the MSYS2 build: the PC variable comes from libtermcap, mingw-w64 provides a dummy alarm()
   $(package)_cppflags_mingw32=-DNEED_EXTERN_PC=1 -D__USE_MINGW_ALARM -D_POSIX
-  $(package)_config_env_mingw32=CPPFLAGS="$($(package)_cppflags_mingw32)"
-  $(package)_build_opts=CFLAGS="$($(package)_cflags) $($(package)_cppflags) -fPIC"
+  $(package)_config_env_mingw32=CPPFLAGS="-DNEED_EXTERN_PC=1 -D__USE_MINGW_ALARM -D_POSIX"
+  # $$: expand when building, after funcs.mk has added the per-OS flags
+  $(package)_build_opts=CFLAGS="$$($(package)_cflags) $$($(package)_cppflags) -fPIC"
 endef
 
 define $(package)_preprocess_cmds
