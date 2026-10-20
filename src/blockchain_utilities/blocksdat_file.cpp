@@ -28,6 +28,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "blocksdat_file.h"
+#include "file_io_utils.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bcutil"
@@ -71,7 +72,7 @@ bool BlocksdatFile::open_writer(const boost::filesystem::path& file_path, uint64
 
   MINFO("creating file");
 
-  m_raw_data_file->open(file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::trunc);
+  epee::file_io_utils::open_stream(*m_raw_data_file, file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::trunc);
   if (m_raw_data_file->fail())
     return false;
 

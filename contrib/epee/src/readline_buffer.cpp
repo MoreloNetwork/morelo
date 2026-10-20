@@ -93,6 +93,14 @@ void rdln::readline_buffer::set_prompt(const std::string& prompt)
   m_prompt_length = prompt.size();
 }
 
+void rdln::readline_buffer::resize()
+{
+  if(m_cout_buf == NULL)
+    return;
+  boost::lock_guard<boost::mutex> lock(sync_mutex);
+  rl_resize_terminal();
+}
+
 void rdln::readline_buffer::add_completion(const std::string& command)
 {
   if(std::find(completion_commands().begin(), completion_commands().end(), command) != completion_commands().end())

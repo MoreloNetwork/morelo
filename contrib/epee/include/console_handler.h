@@ -56,7 +56,10 @@ namespace epee
       , m_read_status(state_init)
     {
 #ifdef HAVE_READLINE
-      m_readline_buffer.start();
+      // on Windows readline reads the console, not stdin, so it can't work with pipes or mintty
+      m_use_readline = stdin_is_console();
+      if (m_use_readline)
+        m_readline_buffer.start();
 #endif
       m_reader_thread = boost::thread(std::bind(&async_stdin_reader::reader_thread_func, this));
     }
@@ -71,6 +74,11 @@ namespace epee
     rdln::readline_buffer& get_readline_buffer()
     {
       return m_readline_buffer;
+    }
+
+    bool uses_readline() const
+    {
+      return m_use_readline;
     }
 #endif
 
@@ -112,6 +120,8 @@ namespace epee
 
 #if defined(WIN32)
         ::CloseHandle(::GetStdHandle(STD_INPUT_HANDLE));
+        // closing the handle doesn't interrupt a read that is already waiting for console input
+        ::CancelSynchronousIo(m_reader_thread.native_handle());
 #endif
 
         m_request_cv.notify_one();
@@ -177,15 +187,22 @@ namespace epee
           return true;
       }
 #else
+      const HANDLE stdin_handle = ::GetStdHandle(STD_INPUT_HANDLE);
+      DWORD mode;
+      const bool console = ::GetConsoleMode(stdin_handle, &mode);
       while (m_run.load(std::memory_order_relaxed))
       {
-        DWORD retval = ::WaitForSingleObject(::GetStdHandle(STD_INPUT_HANDLE), 100);
+        DWORD retval = ::WaitForSingleObject(stdin_handle, 100);
         switch (retval)
         {
           case WAIT_FAILED:
             return false;
           case WAIT_OBJECT_0:
-            return true;
+            // a console handle is also signaled by key releases, focus and mouse events,
+            // reading then would block until the next key press
+            if (!console || has_key_press(stdin_handle))
+              return true;
+            break;
           default:
             break;
         }
@@ -194,6 +211,72 @@ namespace epee
 
       return true;
     }
+
+    static bool stdin_is_console()
+    {
+#if defined(WIN32)
+      DWORD mode;
+      return ::GetConsoleMode(::GetStdHandle(STD_INPUT_HANDLE), &mode);
+#else
+      return true;
+#endif
+    }
+
+#if defined(WIN32)
+    // Whether the next console read has something to consume. Records it would skip are
+    // dropped, otherwise the read would block (with readline: while holding the output lock).
+    bool has_key_press(HANDLE console)
+    {
+      INPUT_RECORD record;
+      DWORD count;
+      while (::PeekConsoleInputW(console, &record, 1, &count) && count)
+      {
+        if (record.EventType == KEY_EVENT && is_input_key(record.Event.KeyEvent))
+          return true;
+#ifdef HAVE_READLINE
+        if (m_use_readline && record.EventType == WINDOW_BUFFER_SIZE_EVENT)
+          m_readline_buffer.resize();
+#endif
+        ::ReadConsoleInputW(console, &record, 1, &count);
+      }
+      return false;
+    }
+
+    bool is_input_key(const KEY_EVENT_RECORD &key) const
+    {
+      const WORD vk = key.wVirtualKeyCode;
+      // Alt+numpad codes arrive with the release of Alt
+      if (!key.bKeyDown)
+        return vk == VK_MENU && key.uChar.UnicodeChar;
+#ifdef HAVE_READLINE
+      if (m_use_readline)
+      {
+        // what readline's Windows console reader (MSYS2 patch) turns into input
+        if (vk >= VK_SHIFT && vk <= VK_MENU)
+          return false;
+        if (key.uChar.UnicodeChar)
+          return true;
+        switch (vk)
+        {
+          case VK_UP: case VK_DOWN: case VK_LEFT: case VK_RIGHT: case VK_HOME: case VK_END: case VK_DELETE:
+            return true;
+          default:
+            return false;
+        }
+      }
+#endif
+      // line input: the console handles editing and history keys (F3, F7, ...) itself
+      switch (vk)
+      {
+        case VK_SHIFT: case VK_CONTROL: case VK_MENU: case VK_CAPITAL: case VK_NUMLOCK:
+        case VK_SCROLL: case VK_LWIN: case VK_RWIN: case VK_LSHIFT: case VK_RSHIFT:
+        case VK_LCONTROL: case VK_RCONTROL: case VK_LMENU: case VK_RMENU:
+          return false;
+        default:
+          return true;
+      }
+    }
+#endif
 
     void reader_thread_func()
     {
@@ -212,15 +295,18 @@ reread:
           if (m_run.load(std::memory_order_relaxed))
           {
 #ifdef HAVE_READLINE
-            switch (m_readline_buffer.get_line(line))
+            if (m_use_readline)
             {
-            case rdln::empty:   goto eof;
-            case rdln::partial: goto reread;
-            case rdln::full:    break;
+              switch (m_readline_buffer.get_line(line))
+              {
+              case rdln::empty:   goto eof;
+              case rdln::partial: goto reread;
+              case rdln::full:    break;
+              }
             }
-#else
-            std::getline(std::cin, line);
+            else
 #endif
+            std::getline(std::cin, line);
             read_ok = !std::cin.eof() && !std::cin.fail();
           }
         }
@@ -267,6 +353,7 @@ eof:
     std::atomic<bool> m_run;
 #ifdef HAVE_READLINE
     rdln::readline_buffer m_readline_buffer;
+    bool m_use_readline;
 #endif
 
     std::string m_line;
@@ -312,25 +399,44 @@ eof:
       m_stdin_reader.stop();
     }
 
+    static bool ansi_colors_enabled()
+    {
+#if defined(WIN32)
+      // the Windows console understands ANSI escapes only after enabling it (Windows 10+)
+      static const bool enabled = []{
+        const HANDLE out = ::GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD mode;
+        return ::GetConsoleMode(out, &mode) && ::SetConsoleMode(out, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+      }();
+      return enabled;
+#else
+      return true;
+#endif
+    }
+
     void print_prompt()
     {
       std::string prompt = m_prompt();
       if (!prompt.empty())
       {
 #ifdef HAVE_READLINE
-        std::string color_prompt = "\001\033[1;33m\002" + prompt;
-        if (' ' != prompt.back())
-          color_prompt += " ";
-        color_prompt += "\001\033[0m\002";
-        m_stdin_reader.get_readline_buffer().set_prompt(color_prompt);
-#else
+        if (m_stdin_reader.uses_readline())
+        {
+          std::string color_prompt = prompt;
+          if (' ' != prompt.back())
+            color_prompt += " ";
+          if (ansi_colors_enabled())
+            color_prompt = "\001\033[1;33m\002" + color_prompt + "\001\033[0m\002";
+          m_stdin_reader.get_readline_buffer().set_prompt(color_prompt);
+          return;
+        }
+#endif
         epee::set_console_color(epee::console_color_yellow, true);
         std::cout << prompt;
         if (' ' != prompt.back())
           std::cout << ' ';
         epee::reset_console_color();
         std::cout.flush();
-#endif
       }
     }
 

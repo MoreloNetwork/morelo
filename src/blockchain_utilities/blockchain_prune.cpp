@@ -444,6 +444,7 @@ int main(int argc, char* argv[])
   uint32_t log_level = 0;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   boost::filesystem::path output_file_path;
 

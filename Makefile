@@ -28,8 +28,6 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ANDROID_STANDALONE_TOOLCHAIN_PATH ?= /usr/local/toolchain
-
 builddir := build
 topdir   := ../..
 deldirs  := $(builddir)/debug $(builddir)/release $(builddir)/fuzz
@@ -72,11 +70,11 @@ debug-static-all:
 
 debug-static-win-x86_64:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -G "MSYS Makefiles" $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+	cd $(builddir)/debug && cmake -G "MSYS Makefiles" $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMINGW_ROOT=$(shell cd ${MINGW_PREFIX} && pwd -W) $(topdir) && $(MAKE)
 
 debug-win-x86_64:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -G "MSYS Makefiles" $(flags) -DSTATIC=OFF -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+	cd $(builddir)/debug && cmake -G "MSYS Makefiles" $(flags) -DSTATIC=OFF -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMINGW_ROOT=$(shell cd ${MINGW_PREFIX} && pwd -W) $(topdir) && $(MAKE)
 
 cmake-release:
 	mkdir -p $(builddir)/release
@@ -107,16 +105,6 @@ coverage:
 
 # Targets for specific prebuilt builds which will be advertised for updates by their build tag
 
-release-static-android-armv7:
-	mkdir -p $(builddir)/release/translations
-	cd $(builddir)/release/translations && cmake ../../../translations && $(MAKE)
-	cd $(builddir)/release && CC=arm-linux-androideabi-clang CXX=arm-linux-androideabi-clang++ cmake $(flags) -DARCH="armv7-a" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv7" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARM_MODE=ON -DCMAKE_ANDROID_ARCH_ABI="armeabi-v7a" ../.. && $(MAKE)
-
-release-static-android-armv8:
-	mkdir -p $(builddir)/release/translations
-	cd $(builddir)/release/translations && cmake ../../../translations && $(MAKE)
-	cd $(builddir)/release && CC=aarch64-linux-android-clang CXX=aarch64-linux-android-clang++ cmake $(flags) -DARCH="armv8-a" -DSTATIC=ON -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DANDROID=true -DINSTALL_VENDORED_LIBUNBOUND=ON -DBUILD_TAG="android-armv8" -DCMAKE_SYSTEM_NAME="Android" -DCMAKE_ANDROID_STANDALONE_TOOLCHAIN="${ANDROID_STANDALONE_TOOLCHAIN_PATH}" -DCMAKE_ANDROID_ARCH_ABI="arm64-v8a" ../.. && $(MAKE)
-
 release-static-linux-armv6:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake $(flags) -DARCH="armv6zk" -DSTATIC=ON -DBUILD_64=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-armv6" $(topdir) && $(MAKE)
@@ -133,14 +121,6 @@ release-static-linux-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake $(flags) -DSTATIC=ON -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-x64" $(topdir) && $(MAKE)
 
-release-ubuntu22:
-	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-x64-ubuntu22" $(topdir) && $(MAKE)
-
-release-ubuntu24:
-	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake $(flags) -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="linux-x64-ubuntu24" $(topdir) && $(MAKE)
-
 release-static-freebsd-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake $(flags) -DSTATIC=ON -DARCH="x86-64" -DBUILD_64=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="freebsd-x64" $(topdir) && $(MAKE)
@@ -151,11 +131,11 @@ release-static-mac-x86_64:
 
 release-static-win-x86_64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -G "MSYS Makefiles" $(flags) -DARCH="x86-64" -DBUILD_64=ON -D_FORTIFY_SOURCE=0 -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake -G "MSYS Makefiles" $(flags) -DARCH="x86-64" -DBUILD_64=ON -D_FORTIFY_SOURCE=0 -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMINGW_ROOT=$(shell cd ${MINGW_PREFIX} && pwd -W) $(topdir) && $(MAKE)
 
 release-win-x86_64:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -G "MSYS Makefiles" $(flags) -DSTATIC=OFF -DARCH="x86-64" -DBUILD_64=ON -D_FORTIFY_SOURCE=0 -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMSYS2_FOLDER=$(shell cd ${MINGW_PREFIX}/.. && pwd -W) $(topdir) && $(MAKE)
+	cd $(builddir)/release && cmake -G "MSYS Makefiles" $(flags) -DSTATIC=OFF -DARCH="x86-64" -DBUILD_64=ON -D_FORTIFY_SOURCE=0 -DCMAKE_BUILD_TYPE=Release -DBUILD_TAG="win-x64" -DCMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -DMINGW_ROOT=$(shell cd ${MINGW_PREFIX} && pwd -W) $(topdir) && $(MAKE)
 
 #fuzz:
 #	mkdir -p $(builddir)/fuzz

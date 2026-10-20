@@ -31,6 +31,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <boost/version.hpp>
 #include <boost/uuid/nil_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include "string_tools.h"
@@ -41,6 +42,7 @@
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "cn.block_queue"
 
+#if BOOST_VERSION < 108600 // Boost 1.86+ provides std::hash<boost::uuids::uuid>
 namespace std {
   static_assert(sizeof(size_t) <= sizeof(boost::uuids::uuid), "boost::uuids::uuid too small");
   template<> struct hash<boost::uuids::uuid> {
@@ -49,6 +51,7 @@ namespace std {
     }
   };
 }
+#endif
 
 namespace cryptonote
 {

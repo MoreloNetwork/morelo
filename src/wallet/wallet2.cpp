@@ -142,6 +142,33 @@ static const std::string MULTISIG_EXTRA_INFO_MAGIC = "MultisigxV1";
 
 namespace
 {
+#ifdef WIN32
+  // Non-ASCII passwords given on the command line used to reach the wallet in the ANSI code
+  // page, before argv was converted to UTF-8. Returns that encoding of a UTF-8 password, or
+  // false if there is no different one.
+  bool password_in_ansi_code_page(const epee::wipeable_string &utf8, epee::wipeable_string &ansi)
+  {
+    const char *data = utf8.data();
+    if (std::all_of(data, data + utf8.size(), [](char c) { return static_cast<unsigned char>(c) < 0x80; }))
+      return false;
+    const int wide_len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data, utf8.size(), NULL, 0);
+    if (wide_len <= 0)
+      return false;
+    std::vector<wchar_t> wide(wide_len);
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data, utf8.size(), wide.data(), wide_len);
+    const int len = WideCharToMultiByte(CP_ACP, 0, wide.data(), wide_len, NULL, 0, NULL, NULL);
+    std::vector<char> narrow(len > 0 ? len : 0);
+    if (len > 0)
+    {
+      WideCharToMultiByte(CP_ACP, 0, wide.data(), wide_len, narrow.data(), len, NULL, NULL);
+      ansi = epee::wipeable_string(narrow.data(), narrow.size());
+      memwipe(narrow.data(), narrow.size());
+    }
+    memwipe(wide.data(), wide.size() * sizeof(wchar_t));
+    return len > 0;
+  }
+#endif
+
   std::string get_default_ringdb_path()
   {
     boost::filesystem::path dir = tools::get_default_data_dir();
@@ -434,7 +461,7 @@ std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variabl
     );
 
     boost::system::error_code error{};
-    proxy = ip::tcp::endpoint{ip::address::from_string(std::string{proxy_host}, error), port_value};
+    proxy = ip::tcp::endpoint{ip::make_address(std::string{proxy_host}, error), port_value};
     THROW_WALLET_EXCEPTION_IF(bool(error), tools::error::wallet_internal_error, std::string{"Invalid IP address specified for --"} + opts.proxy.name);
   }
 
@@ -4960,14 +4987,36 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
 
   // this temporary unlocking is necessary for Windows (otherwise the file couldn't be loaded).
   unlock_keys_file();
-  if (!load_keys(m_keys_file, password))
+  epee::wipeable_string keys_password = password;
+  bool keys_loaded;
+#ifdef WIN32
+  try
+  {
+    keys_loaded = load_keys(m_keys_file, password);
+  }
+  catch (const error::invalid_password &)
+  {
+    epee::wipeable_string ansi_password;
+    if (!password_in_ansi_code_page(password, ansi_password))
+      throw;
+    // the failed attempt mistook the undecryptable keys file for the pre-JSON format
+    is_old_file_format = false;
+    keys_loaded = load_keys(m_keys_file, ansi_password);
+    keys_password = ansi_password;
+    MWARNING("The wallet password matched in the ANSI code page, it was probably set on the command line by an older version");
+  }
+#else
+  keys_loaded = load_keys(m_keys_file, password);
+#endif
+  if (!keys_loaded)
   {
     THROW_WALLET_EXCEPTION_IF(true, error::file_read_error, m_keys_file);
   }
   LOG_PRINT_L0("Loaded wallet keys file, with public address: " << m_account.get_public_address_str(m_nettype));
   lock_keys_file();
 
-  wallet_keys_unlocker unlocker(*this, m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only, password);
+  {
+  wallet_keys_unlocker unlocker(*this, m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only, keys_password);
 
   //keys loaded ok!
   //try to load wallet file. but even if we failed, it is not big problem
@@ -5025,7 +5074,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
           catch (...)
           {
             LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-            boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+            boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_options::overwrite_existing);
             std::stringstream iss;
             iss.str("");
             iss << cache_data;
@@ -5047,7 +5096,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
       catch (...)
       {
         LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-        boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+        boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_options::overwrite_existing);
         std::stringstream iss;
         iss.str("");
         iss << buf;
@@ -5091,6 +5140,16 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   {
     MERROR("Failed to save rings, will try again next time");
   }
+  } // keys locked again
+
+#ifdef WIN32
+  if (keys_password != password)
+  {
+    // from now on the password is the UTF-8 one that every other code path uses
+    change_password(m_wallet_file, keys_password, password);
+    MWARNING("Re-encrypted the wallet with the password in UTF-8");
+  }
+#endif
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::trim_hashchain()

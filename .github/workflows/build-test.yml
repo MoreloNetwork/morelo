@@ -1,4 +1,7 @@
-name: ci/gh-actions/windows-build-test
+name: ci/gh-actions/build-test
+
+# Native developer builds, the same way as described in README.md.
+# Release binaries are produced by build.yml (depends).
 
 on:
   workflow_dispatch:
@@ -9,50 +12,90 @@ on:
     paths-ignore:
       - '**/*.md'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  USE_DEVICE_TREZOR_MANDATORY: ON
-  CCACHE_TEMPDIR: /tmp/.ccache-temp
-  CCACHE_DIR: /tmp/.ccache
-  CCACHE_SETTINGS: |
-    ccache --max-size=150M
-    ccache --set-config=compression=true
+  CCACHE_MAXSIZE: 400M
+  CCACHE_COMPRESS: 'true'
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
 jobs:
   windows:
+    name: windows (msys2 ucrt64)
     runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
     - uses: msys2/setup-msys2@v2
       with:
-        msystem: MINGW64
+        msystem: UCRT64
         update: true
-        install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-autotools mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme mingw-w64-x86_64-dlfcn patch zip
+        pacboy: >-
+          toolchain:p cmake:p ccache:p boost:p openssl:p libsodium:p
+          hidapi:p libusb:p unbound:p pkgconf:p readline:p
+        install: git make patch autotools zip
     - name: ccache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
-        path: ${{ steps.msys2.outputs.msys2-location }}\tmp\.ccache
-        key: ccache-${{ runner.os }}-msys2-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-msys2
-    - name: install boost
-      run: |
-        pacman --noconfirm -U contrib/mingw-w64-x86_64-boost-1.83.0-2-any.pkg.tar.zst
+        path: .ccache
+        key: ccache-msys2-ucrt64-${{ github.sha }}
+        restore-keys: ccache-msys2-ucrt64-
     - name: build
       run: |
-        ${{ env.CCACHE_SETTINGS }}
+        export CCACHE_DIR="$(pwd)/.ccache"
         make -j$(nproc) release-static-win-x86_64
+        ccache -s
+    - name: check for non-system DLL imports
+      run: |
+        cd build/release/bin
+        objdump -p morelod.exe | grep 'DLL Name'
+        ! objdump -p *.exe | grep 'DLL Name' | grep -viE 'api-ms-win|advapi32|crypt32|iphlpapi|kernel32|mswsock|shell32|user32|ws2_32|bcrypt|setupapi|ole32|hid'
     - name: package
       run: |
-        cd "${{ github.workspace }}\build\release\bin"
-        zip -9 ../win-x64.zip morelo*
-        cd ..
-        mv win-x64.zip $(sha256sum win-x64.zip | cut -d " " -f 1).zip
-    - uses: actions/upload-artifact@v4
+        cd build/release/bin
+        strip *.exe
+        zip -9 -q ../win-x64-ucrt64.zip *.exe
+    - uses: actions/upload-artifact@v7
       with:
-        name: win-x64
-        path: '${{ github.workspace }}\build\release\*.zip'
+        name: win-x64-ucrt64
+        path: build/release/win-x64-ucrt64.zip
         compression-level: 0
+
+  linux:
+    name: ${{ matrix.os }} (system packages)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-22.04 ships Boost 1.74 (the minimum supported), ubuntu-24.04 ships Boost 1.83
+        os: [ ubuntu-22.04, ubuntu-24.04 ]
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install build-essential cmake pkg-config ccache libboost-all-dev libssl-dev libsodium-dev libunbound-dev libreadline-dev libhidapi-dev libusb-1.0-0-dev libudev-dev autoconf automake libtool-bin
+    - name: ccache
+      uses: actions/cache@v6
+      with:
+        path: .ccache
+        key: ccache-${{ matrix.os }}-${{ github.sha }}
+        restore-keys: ccache-${{ matrix.os }}-
+    - name: build
+      run: |
+        # ARCH=x86-64 instead of the default -march=native, ccache objects are shared between runners with different CPUs
+        make -j$(nproc) release flags="-DBUILD_TESTS=OFF -DARCH=x86-64"
+        ccache -s
+    - name: smoke test
+      run: build/release/bin/morelod --version

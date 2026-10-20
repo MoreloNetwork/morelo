@@ -4328,6 +4328,7 @@ public:
 std::string const t_executor::NAME = "Morelo Wallet RPC Daemon";
 
 int main(int argc, char** argv) {
+  argv = tools::utf8_argv(argc, argv);
 
   namespace po = boost::program_options;
 

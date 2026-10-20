@@ -86,14 +86,17 @@ namespace {
     , std::string const & arguments
     )
   {
-    SHELLEXECUTEINFO info{};
+    // the path and arguments are UTF-8
+    const std::wstring wide_command = epee::string_tools::utf8_to_utf16(command);
+    const std::wstring wide_arguments = epee::string_tools::utf8_to_utf16(arguments);
+    SHELLEXECUTEINFOW info{};
     info.cbSize = sizeof(info);
-    info.lpVerb = "runas";
-    info.lpFile = command.c_str();
-    info.lpParameters = arguments.c_str();
+    info.lpVerb = L"runas";
+    info.lpFile = wide_command.c_str();
+    info.lpParameters = wide_arguments.c_str();
     info.hwnd = nullptr;
     info.nShow = SW_SHOWNORMAL;
-    if (!ShellExecuteEx(&info))
+    if (!ShellExecuteExW(&info))
     {
       tools::fail_msg_writer() << "Admin relaunch failed: " << get_last_error();
       return false;
@@ -193,19 +196,21 @@ bool install_service(
     return false;
   }
 
+  const std::wstring wide_service_name = epee::string_tools::utf8_to_utf16(service_name);
+  const std::wstring wide_full_command = epee::string_tools::utf8_to_utf16(full_command); // UTF-8 path and arguments
   service_handle p_service{
-    CreateService(
+    CreateServiceW(
         p_manager.get()
-      , service_name.c_str()
-      , service_name.c_str()
+      , wide_service_name.c_str()
+      , wide_service_name.c_str()
       , SERVICE_CHANGE_CONFIG | SERVICE_START // needed to set restart on failure below
       , SERVICE_WIN32_OWN_PROCESS
       , SERVICE_AUTO_START
       , SERVICE_ERROR_NORMAL
-      , full_command.c_str()
+      , wide_full_command.c_str()
       , nullptr
       , nullptr
-      , ""
+      , L""
       //, "NT AUTHORITY\\LocalService"
       , nullptr // Implies LocalSystem account
       , nullptr

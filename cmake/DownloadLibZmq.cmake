@@ -1,7 +1,7 @@
 set(LIBZMQ_PREFIX ${CMAKE_BINARY_DIR}/libzmq)
-set(ZeroMQ_VERSION 4.3.2)
+set(ZeroMQ_VERSION 4.3.5)
 set(LIBZMQ_URL https://github.com/zeromq/libzmq/releases/download/v${ZeroMQ_VERSION}/zeromq-${ZeroMQ_VERSION}.tar.gz)
-set(LIBZMQ_HASH SHA512=b6251641e884181db9e6b0b705cced7ea4038d404bdae812ff47bdd0eed12510b6af6846b85cb96898e253ccbac71eca7fe588673300ddb9c3109c973250c8e4)
+set(LIBZMQ_HASH SHA512=a71d48aa977ad8941c1609947d8db2679fc7a951e4cd0c3a1127ae026d883c11bd4203cf315de87f95f5031aec459a731aec34e5ce5b667b8d0559b157952541)
 
 if(LIBZMQ_TARBALL_URL)
     # make a build time override of the tarball url so we can fetch it if the original link goes away
@@ -20,14 +20,13 @@ else()
   include(ExternalProject)
   include(ProcessorCount)
 
-  set(WIN_PATCH patch -p1 src/thread.cpp < ${PROJECT_SOURCE_DIR}/external/zmq.patch)
   set(ZeroMQ_CONFIGURE ./configure --prefix=${LIBZMQ_PREFIX})
 
   if(APPLE OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
     set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --host=x86_64-apple-darwin)
   endif()
 
-  set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --without-docs --enable-static=yes --enable-shared=no --with-libsodium=yes --with-pgm=no --with-norm=no --disable-perf --disable-Werror --disable-drafts --enable-option-checking --enable-libunwind=no)
+  set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --without-docs --enable-static=yes --enable-shared=no --with-libsodium=yes --with-pgm=no --with-norm=no --disable-perf --disable-Werror --disable-drafts --disable-libunwind --disable-libbsd --disable-curve-keygen)
 
   if(NOT (APPLE OR WIN32 OR MSVC OR MINGW))
     set(ZeroMQ_CONFIGURE ${ZeroMQ_CONFIGURE} --with-pic)
@@ -38,7 +37,6 @@ else()
       PREFIX ${LIBZMQ_PREFIX}
       URL ${LIBZMQ_URL}
       URL_HASH ${LIBZMQ_HASH}
-      PATCH_COMMAND ${WIN_PATCH}
       CONFIGURE_COMMAND ${ZeroMQ_CONFIGURE}
       BUILD_COMMAND make -j${PROCESSOR_COUNT}
       INSTALL_COMMAND ${MAKE}

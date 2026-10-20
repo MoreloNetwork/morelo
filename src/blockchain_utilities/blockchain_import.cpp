@@ -45,6 +45,7 @@
 #include "serialization/json_utils.h" // dump_json()
 #include "include_base_utils.h"
 #include "cryptonote_core/cryptonote_core.h"
+#include "file_io_utils.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bcutil"
@@ -250,7 +251,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
   std::cout << ENDL;
 
   std::ifstream import_file;
-  import_file.open(import_file_path, std::ios_base::binary | std::ifstream::in);
+  epee::file_io_utils::open_stream(import_file, import_file_path, std::ios_base::binary | std::ifstream::in);
 
   uint64_t h = 0;
   uint64_t num_imported = 0;
@@ -551,6 +552,7 @@ int main(int argc, char* argv[])
   std::string db_arg_str;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   std::string import_file_path;
 

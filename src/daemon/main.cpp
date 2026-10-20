@@ -116,6 +116,7 @@ int main(int argc, char const * argv[])
     // TODO parse the debug options like set log level right here at start
 
     tools::on_startup();
+    argv = tools::utf8_argv(argc, argv);
 
     epee::string_tools::set_module_name_and_folder(argv[0]);
 
@@ -202,7 +203,11 @@ int main(int argc, char const * argv[])
     {
       try
       {
-        po::store(po::parse_config_file<char>(config_path.string<std::string>().c_str(), core_settings), vm);
+        std::ifstream config_file;
+        epee::file_io_utils::open_stream(config_file, config_path.string(), std::ios_base::in);
+        if (!config_file)
+          throw std::runtime_error("can not read options configuration file " + config_path.string());
+        po::store(po::parse_config_file(config_file, core_settings), vm);
       }
       catch (const std::exception& e)
       {

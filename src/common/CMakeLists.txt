@@ -50,6 +50,10 @@ set(common_sources
 
 if (STACK_TRACE)
   list(APPEND common_sources stack_trace.cpp)
+  if (STATIC)
+    # static builds hook __cxa_throw with -Wl,--wrap instead of dlsym
+    set_source_files_properties(stack_trace.cpp PROPERTIES COMPILE_DEFINITIONS STATICLIB)
+  endif()
 endif()
 
 if (BACKCOMPAT)

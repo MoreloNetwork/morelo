@@ -43,6 +43,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/utility/string_ref.hpp>
+#include <boost/uuid/uuid.hpp>
 #include "misc_log_ex.h"
 #include "storages/parserse_base_utils.h"
 #include "hex.h"
@@ -219,12 +220,16 @@ POP_WARNINGS
   }
   //----------------------------------------------------------------------------
 #ifdef _WIN32
+  // UTF-8, like every other path in the code (GetModuleFileNameA would return the ANSI code page)
   inline std::string get_current_module_path()
   {
-    char pname [5000] = {0};
-    GetModuleFileNameA( NULL, pname, sizeof(pname));
-    pname[sizeof(pname)-1] = 0; //be happy ;)
-    return pname;
+    wchar_t wname[MAX_PATH * 4] = {0};
+    const DWORD wlen = GetModuleFileNameW(NULL, wname, sizeof(wname) / sizeof(wname[0]) - 1);
+    const int len = WideCharToMultiByte(CP_UTF8, 0, wname, wlen, NULL, 0, NULL, NULL);
+    std::string name(len > 0 ? len : 0, '\0');
+    if (len > 0)
+      WideCharToMultiByte(CP_UTF8, 0, wname, wlen, &name[0], len, NULL, NULL);
+    return name;
   }
 #endif
 	//----------------------------------------------------------------------------
@@ -300,6 +305,11 @@ POP_WARNINGS
   {
     static_assert(std::is_standard_layout<t_pod_type>(), "expected standard layout type");
     return to_hex::string(as_byte_span(s));
+  }
+  // boost::uuids::uuid is 8-byte aligned since Boost 1.86, so as_byte_span rejects it
+  inline std::string pod_to_hex(const boost::uuids::uuid& s)
+  {
+    return to_hex::string({s.begin(), s.size()});
   }
   //----------------------------------------------------------------------------
   template<class t_pod_type>

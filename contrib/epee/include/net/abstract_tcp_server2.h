@@ -100,7 +100,7 @@ namespace net_utils
     };
 
     // Construct a connection with the given io_service.
-    explicit connection( boost::asio::io_service& io_service,
+    explicit connection( boost::asio::io_context& io_service,
                          boost::shared_ptr<shared_state> state,
                          t_connection_type connection_type,
                          epee::net_utils::ssl_support_t ssl_support);
@@ -137,7 +137,7 @@ namespace net_utils
     virtual bool close();
     virtual bool call_run_once_service_io();
     virtual bool request_callback();
-    virtual boost::asio::io_service& get_io_service();
+    virtual boost::asio::io_context& get_io_service();
     virtual bool add_ref();
     virtual bool release();
     //------------------------------------------------------
@@ -217,7 +217,7 @@ namespace net_utils
     // serve up files from the given directory.
 
     boosted_tcp_server(t_connection_type connection_type);
-    explicit boosted_tcp_server(boost::asio::io_service& external_io_service, t_connection_type connection_type);
+    explicit boosted_tcp_server(boost::asio::io_context& external_io_service, t_connection_type connection_type);
     ~boosted_tcp_server();
 
     std::map<std::string, t_connection_type> server_type_map;
@@ -273,7 +273,7 @@ namespace net_utils
       return connections_count;
     }
 
-    boost::asio::io_service& get_io_service(){return io_service_;}
+    boost::asio::io_context& get_io_service(){return io_service_;}
 
     struct idle_callback_context_base
     {
@@ -281,7 +281,7 @@ namespace net_utils
 
       virtual bool call_handler(){return true;}
 
-      idle_callback_context_base(boost::asio::io_service& io_service)
+      idle_callback_context_base(boost::asio::io_context& io_service)
         : m_timer(io_service)
       {}
       boost::asio::deadline_timer m_timer;
@@ -290,7 +290,7 @@ namespace net_utils
     template <class t_handler>
     struct idle_callback_context: public idle_callback_context_base
     {
-      idle_callback_context(boost::asio::io_service& io_service, t_handler& h, uint64_t period)
+      idle_callback_context(boost::asio::io_context& io_service, t_handler& h, uint64_t period)
         : idle_callback_context_base(io_service), m_handler(h){this->m_period = period;}
 
       t_handler m_handler;
@@ -325,7 +325,7 @@ namespace net_utils
     template<class t_handler>
     bool async_call(t_handler t_callback)
     {
-      io_service_.post(t_callback);
+      boost::asio::post(io_service_, t_callback);
       return true;
     }
 
@@ -343,14 +343,14 @@ namespace net_utils
     struct worker
     {
       worker()
-        : io_service(), work(io_service)
+        : io_service(), work(io_service.get_executor())
       {}
 
-      boost::asio::io_service io_service;
-      boost::asio::io_service::work work;
+      boost::asio::io_context io_service;
+      boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work;
     };
     std::unique_ptr<worker> m_io_service_local_instance;
-    boost::asio::io_service& io_service_;
+    boost::asio::io_context& io_service_;
 
     // Acceptor used to listen for incoming connections.
     boost::asio::ip::tcp::acceptor acceptor_;

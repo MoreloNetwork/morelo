@@ -60,320 +60,132 @@ The use of SSL connections means that there will not be any possibility to use t
 
 ## IMPORTANT
 
-That build is from the master branch, which is used for active development and can be either unstable or incompatible with release software. Please compile release branches.
+The master branch is used for active development and can be unstable or incompatible with release software. Please compile release tags.
 
-### Dependencies
+Prebuilt binaries for every commit are available as artifacts of the [build workflow](https://github.com/MoreloNetwork/morelo/actions/workflows/build.yml):
 
-#### In order to sucessfully compile Morelo You need Boost version 1.73.0 - 1.83.0
-
-##### [Download Boost 1.83.0 here](https://archives.boost.io/release/1.83.0/source/)
-
-### Example installation of Boost from source:
-```
-wget https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2
-tar xvjf boost_1_83_0.tar.gz
-cd boost_1_83_0
-./bootstrap.sh
-sudo ./b2 install
-```
-
-##### Morelo build has been tested on Ubuntu Server 22.04.5 LTS Jammy Jellyfish and 24.04.2 LTS Noble Numbat.
-
-The following table summarizes the tools and libraries required to build. A
-few of the libraries are also included in this repository (marked as
-"Vendored"). By default, the build uses the library installed on the system,
-and ignores the vendored sources. However, if no library is found installed on
-the system, then the vendored source will be built and used. The vendored
-sources are also used for statically-linked builds because distribution
-packages often include only shared library binaries (`.so`) but not static
-library archives (`.a`).
-
-| Dep          | Min. version  | Vendored | Debian/Ubuntu pkg  | Arch pkg     | Fedora            | Optional | Purpose        |
-| ------------ | ------------- | -------- | ------------------ | ------------ | ----------------- | -------- | -------------- |
-| GCC          | 7.3.0         | NO       | `build-essential`  | `base-devel` | `gcc`             | NO       |                |
-| CMake        | 3.17.3        | NO       | `cmake`            | `cmake`      | `cmake`           | NO       |                |
-| pkg-config   | any           | NO       | `pkg-config`       | `base-devel` | `pkgconf`         | NO       |                |
-| Boost        | 1.73.0        | NO       | `libboost-all-dev` | `boost`      | `boost-devel`     | NO       | C++ libraries  |
-| OpenSSL      | 1.1.1         | NO       | `libssl-dev`       | `openssl`    | `openssl-devel`   | NO       | sha256 sum     |
-| libsodium    | 1.0.16        | NO       | `libsodium-dev`    | ?            | `libsodium-devel` | NO       | Cryptography   |
-| libunwind    | any           | NO       | `libunwind8-dev`   | `libunwind`  | `libunwind-devel` | YES      | Stack traces   |
-| liblzma      | any           | NO       | `liblzma-dev`      | `xz`         | `xz-devel`        | YES      | For libunwind  |
-| libreadline  | 6.3.0         | NO       | `libreadline6-dev` | `readline`   | `readline-devel`  | YES      | Input editing  |
-| ldns         | 1.6.17        | NO       | `libldns-dev`      | `ldns`       | `ldns-devel`      | YES      | SSL toolkit    |
-| expat        | 1.1           | NO       | `libexpat1-dev`    | `expat`      | `expat-devel`     | YES      | XML parsing    |
-| GTest        | 1.5           | YES      | `libgtest-dev`[1]  | `gtest`      | `gtest-devel`     | YES      | Test suite     |
-| Doxygen      | any           | NO       | `doxygen`          | `doxygen`    | `doxygen`         | YES      | Documentation  |
-| Graphviz     | any           | NO       | `graphviz`         | `graphviz`   | `graphviz`        | YES      | Documentation  |
-| HIDAPI       | any           | NO       | `libhidapi-dev`    | ``           | ``                | NO       | for Device     |
-| libusb-1.0   | any           | NO       | `libusb-1.0-0-dev` | ``           | ``                | NO       |                |
-| libudev      | any           | NO       | `libudev-dev`      | ``           | ``                | NO       |                |
--------------------------------------------------------------------------------------------------------------------------------
-
-
-[1] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
-build the library binary manually. This can be done with the following command:
-
-`$ sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/`
-
-Debian / Ubuntu one-liner for all dependencies (excluding `libboost-all-dev`)
-
-`$ sudo apt update && sudo apt install -y git build-essential cmake pkg-config libssl-dev libsodium-dev libunwind-dev liblzma-dev libreadline-dev libldns-dev libexpat1-dev libudev-dev libusb-1.0-0-dev libhidapi-dev xsltproc gperf autoconf automake libtool-bin miniupnpc doxygen graphviz libunbound-dev libzmq3-dev libnorm-dev libpgm-dev libprotobuf-dev protobuf-compiler ccache`
-
-Install all dependencies at once on OS X:
-
-`$ brew update && brew bundle --file=contrib/apple/brew`
+| Artifact        | Platform                                     | Notes                                                        |
+| --------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| `linux-x64`     | 64-bit Linux, glibc 2.27+ (Ubuntu 18.04+, Debian 10+, RHEL 8+) | Everything except glibc is linked statically |
+| `win-x64`       | 64-bit Windows                               | Fully static, no DLLs needed                                 |
+| `android-armv8` | Android 7.0+ (API 24), arm64-v8a             | Also contains `android-armv8-libwallet.tar.xz` (static `libwallet_api` and its dependencies) |
+| `android-armv7` | Android 7.0+ (API 24), armeabi-v7a           | Also contains `android-armv7-libwallet.tar.xz`               |
 
 ### Cloning the repository
 
-Clone Morelo recursively to pull-in needed submodule(s):
+Clone Morelo recursively to pull in the needed submodules:
 
 `$ git clone --recursive https://github.com/MoreloNetwork/morelo.git && cd morelo`
 
-### Build instructions
+If you already cloned without `--recursive`, run `git submodule update --init --recursive`.
 
-Morelo uses the CMake build system and a top-level [Makefile](Makefile) that
-invokes cmake commands as needed.
+### Dependencies
 
-#### On Linux and OS X
+Morelo needs a C++14 compiler, CMake and Boost 1.74 or newer (tested up to 1.92).
+libzmq, miniupnpc and lmdb are always built from the vendored sources, libunbound is built from the vendored sources when it is not installed.
 
-* Install the dependencies using the one-liner or the table above.
+| Dep          | Min. version | Debian/Ubuntu pkg               | Arch pkg     | Fedora                      | Optional | Purpose                  |
+| ------------ | ------------ | ------------------------------- | ------------ | --------------------------- | -------- | ------------------------ |
+| GCC          | 7            | `build-essential`               | `base-devel` | `gcc-c++`                   | NO       |                          |
+| CMake        | 3.10         | `cmake`                         | `cmake`      | `cmake`                     | NO       |                          |
+| pkg-config   | any          | `pkg-config`                    | `base-devel` | `pkgconf`                   | NO       |                          |
+| Boost        | 1.74         | `libboost-all-dev`              | `boost`      | `boost-devel`               | NO       | C++ libraries            |
+| OpenSSL      | 1.1.1        | `libssl-dev`                    | `openssl`    | `openssl-devel`             | NO       | TLS, hashing             |
+| libsodium    | 1.0.9        | `libsodium-dev`                 | `libsodium`  | `libsodium-devel`           | NO       | Cryptography             |
+| autotools    | any          | `autoconf automake libtool-bin` | `base-devel` | `autoconf automake libtool` | NO       | Building vendored libzmq |
+| libunbound   | 1.4.16       | `libunbound-dev`                | `unbound`    | `unbound-devel`             | YES      | DNS (vendored if missing)|
+| libreadline  | 6.3          | `libreadline-dev`               | `readline`   | `readline-devel`            | YES      | Input editing            |
+| HIDAPI       | any          | `libhidapi-dev`                 | `hidapi`     | `hidapi-devel`              | YES      | Hardware wallets         |
+| libusb-1.0   | any          | `libusb-1.0-0-dev`              | `libusb`     | `libusbx-devel`             | YES      | Hardware wallets         |
+| libudev      | any          | `libudev-dev`                   | `systemd`    | `systemd-devel`             | YES      | Hardware wallets         |
+| Doxygen      | any          | `doxygen`                       | `doxygen`    | `doxygen`                   | YES      | Documentation            |
+| Graphviz     | any          | `graphviz`                      | `graphviz`   | `graphviz`                  | YES      | Documentation            |
 
-* Build Boost from source using instructions above.
+Debian / Ubuntu (22.04 or newer) one-liner:
 
-* Build binaries:
+`$ sudo apt update && sudo apt install -y git build-essential cmake pkg-config libboost-all-dev libssl-dev libsodium-dev libunbound-dev libreadline-dev libhidapi-dev libusb-1.0-0-dev libudev-dev autoconf automake libtool-bin ccache`
 
-	`$ make release`
+macOS:
 
-	*Optional*: If your machine has several cores and enough memory, enable parallel build by running `make -j<number of threads>` instead of `make`. For this to be worthwhile, the machine should have one core and about 2GB of RAM available per thread.
+`$ brew update && brew bundle --file=contrib/apple/brew`
 
-* The resulting executables can be found in `build/release/bin`
+### Building on Linux and macOS
 
-* Add `PATH="$PATH:$HOME/morelo/build/release/bin"` to `.profile`
+* Install the dependencies (see above).
 
-* Run Morelo with `morelod --detach`
+* Build:
 
-* **Optional**: build and run the test suite to verify the binaries:
+	`$ make -j$(nproc) release`
 
-	`$ make release-test`
+	Each compile job needs about 2GB of RAM, use a lower `-j` value if the machine runs out of memory.
 
-    *NOTE*: `core_tests` test may take a few hours to complete.
+* The executables are in `build/release/bin`.
 
-* **Optional**: to build binaries suitable for debugging:
+* Run the daemon with `build/release/bin/morelod --detach`.
 
-	`$ make debug`
+* **Optional**: `make debug` builds binaries suitable for debugging.
 
-* **Optional**: to build statically-linked binaries:
-
-	`$ make release-static`
-
-Dependencies need to be built with -fPIC. Static libraries usually aren't, so you may have to build them yourself with `-fPIC`. Refer to their documentation for how to build them.
-
-* **Optional**: build documentation in `doc/html` (omit `HAVE_DOT=YES` if `graphviz` is not installed):
-
-	HAVE_DOT=YES doxygen Doxyfile
+`make release` optimizes for the CPU of the build machine (`-march=native`), so the binaries may not run on older CPUs. For a portable binary see [depends](#building-portable-release-binaries-with-depends).
 
 #### On the Raspberry Pi
 
-Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Jessie from https://www.raspberrypi.org/downloads/raspbian/.
+Follow the Linux instructions above. Increase the swap size to at least 2GB (`CONF_SWAPSIZE` in `/etc/dphys-swapfile`) and build with `make -j1 release`; this takes several hours.
 
-* Install the dependencies using the 'Debian / Ubuntu' one-liner above.
+### Building on Windows
 
-* Build Boost from source using instructions above.
+Windows binaries are built with GCC in the [MSYS2](https://www.msys2.org) **UCRT64** environment. The result is fully static and needs no DLLs.
 
-* Increase the system swap size:
+1. Install [MSYS2](https://www.msys2.org) and open the **MSYS2 UCRT64** shell from the Start Menu.
 
-`$ sudo /etc/init.d/dphys-swapfile stop`
-`$ sudo nano /etc/dphys-swapfile`
-`$ CONF_SWAPSIZE=1024`
-`$sudo /etc/init.d/dphys-swapfile start`
+2. Update the system. Repeat until there is nothing left to update, and restart the shell if pacman asks for it:
 
-* Clone Morelo recursively to pull-in needed submodule(s):
+	`$ pacman -Syu`
 
-`$ git clone --recursive https://github.com/MoreloNetwork/morelo.git && cd morelo`
+3. Install the dependencies:
 
-* Build binaries:
+	`$ pacman -S --needed git make patch autotools zip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ccache mingw-w64-ucrt-x86_64-boost mingw-w64-ucrt-x86_64-openssl mingw-w64-ucrt-x86_64-libsodium mingw-w64-ucrt-x86_64-hidapi mingw-w64-ucrt-x86_64-libusb mingw-w64-ucrt-x86_64-unbound mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-readline`
 
-`$ make release`
+4. Clone the repository (see above) and build:
 
-* Wait 4-6 hours
+	`$ make -j$(nproc) release-static-win-x86_64`
 
-* The resulting executables can be found in `build/release/bin`
+5. The executables are in `build/release/bin`.
 
-* Add `PATH="$PATH:$HOME/morelo/build/release/bin"` to `.profile`
+To build binaries suitable for debugging, run `make debug-static-win-x86_64` (output in `build/debug/bin`).
 
-* Run Morelo with `morelod --detach`
+The old `MINGW64` environment no longer provides all the required packages (e.g. hidapi and libusb), use `UCRT64`. 32-bit Windows is not supported.
 
-* You may wish to reduce the size of the swap file after the build has finished, and delete the boost directory from your home directory
+### Building portable release binaries with depends
 
-#### On Windows:
+The `depends` system builds every library from pinned sources and links it statically. The CI release binaries are built this way, and you can do the same on any x86-64 Linux machine (or WSL):
 
-Binaries for Windows are built on Windows using the MinGW toolchain within
-[MSYS2 environment](http://msys2.github.io). The MSYS2 environment emulates a
-POSIX system. The toolchain runs within the environment and *cross-compiles*
-binaries that can run outside of the environment as a regular Windows
-application.
+| Target              | Command                                                                       | Extra requirements |
+| ------------------- | ----------------------------------------------------------------------------- | ------------------ |
+| Linux x86-64        | `make depends target=x86_64-linux-gnu`                                        | `gperf` |
+| Windows x86-64      | `make depends target=x86_64-w64-mingw32`                                      | `g++-mingw-w64-x86-64`, switched to the posix thread model (see below) |
+| Android arm64-v8a   | `make depends target=aarch64-linux-android ANDROID_NDK=/path/to/android-ndk`  | [Android NDK](https://developer.android.com/ndk/downloads) r23 or newer |
+| Android armeabi-v7a | `make depends target=arm-linux-androideabi ANDROID_NDK=/path/to/android-ndk`  | Android NDK r23 or newer |
 
-**Preparing the build environment**
+All targets also need `build-essential cmake pkg-config autoconf automake libtool-bin curl`. Add `-j$(nproc)` to build in parallel. The executables are in `build/release/bin`. For Android, `make -C build/release wallet_api` additionally builds the static wallet library.
 
-1. Download and install the [MSYS2 installer](http://msys2.github.io).
+The Windows cross compiler has to use the posix thread model:
 
-2. Open the MSYS2 shell via the `MSYS2 MSYS` shortcut from the Start Menu
+`$ sudo update-alternatives --set x86_64-w64-mingw32-g++ $(which x86_64-w64-mingw32-g++-posix)`
+`$ sudo update-alternatives --set x86_64-w64-mingw32-gcc $(which x86_64-w64-mingw32-gcc-posix)`
 
-3. Update packages using pacman:
+A Linux binary needs at least the glibc version of the machine it was built on. CI builds it in the `quay.io/pypa/manylinux_2_28_x86_64` container, and keeps it compatible with glibc 2.27 and newer.
 
-`$ pacman -Syu`
+### On FreeBSD
 
-4. After updating close the MSYS2 shell using Alt+F4 or by clicking X at top-right corner. It is Very Important to not exit to the shell!!.
+Follow the Linux instructions with the dependencies installed from packages (`pkg install git gmake cmake pkgconf boost-libs libsodium unbound readline autoconf automake libtool`) and use `gmake` instead of `make`. If you are running morelo in a jail, add `allow.sysvipc=1` to the jail configuration, otherwise lmdb fails with `Failed to open lmdb environment: Function not implemented`.
 
-5. Open `MSYS2 MinGW 64-bit` from the Start Menu
-
-6. Update packages again using pacman:
-
-`$ pacman -Syu`
-
-7. Install dependencies (excluding `mingw-w64-x86_64-boost`):
-
-`$ pacman -S git mingw-w64-x86_64-toolchain mingw-w64-x86_64-autotools mingw-w64-x86_64-doxygen mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi mingw-w64-x86_64-protobuf mingw-w64-x86_64-libusb mingw-w64-x86_64-unbound mingw-w64-x86_64-graphviz git mingw-w64-x86_64-pkgconf mingw-w64-x86_64-ccache mingw-w64-x86_64-libunwind mingw-w64-x86_64-gperf mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zeromq mingw-w64-x86_64-cppzmq mingw-w64-x86_64-gpgme mingw-w64-x86_64-dlfcn patch`
-
-**Building**
-
-* Clone Morelo recursively to pull-in needed submodule(s):
-
-	`$ git clone --recursive https://github.com/morelo/morelo && cd morelo`
-
-* Install Boost:
-
-  `$ pacman -U contrib/mingw-w64-x86_64-boost-1.83.0-2-any.pkg.tar.zst`
-
-* Build binaries:
-
-  `$ USE_SINGLE_BUILDDIR=1 make release-static-win-x86_64`
-
-* The resulting executables can be found in `build/release/bin`
-
-* **Optional**: to build binaries suitable for debugging, run:
-
-  `$ make debug-static-win-x86_64`
-
-* The resulting executables can be found in `build/debug/bin`
-
-*** Morelo does Not support 32-bit Windows anymore ***
-
-### On FreeBSD:
-
-The project can be built from scratch by following instructions for Linux above. If you are running morelo in a jail you need to add the flag: `allow.sysvipc=1` to your jail configuration, otherwise lmdb will throw the error message: `Failed to open lmdb environment: Function not implemented`.
-
-We expect to add Morelo into the ports tree in the near future, which will aid in managing installations using ports or packages.
-
-### On OpenBSD:
-
-#### OpenBSD < 6.2
-
-This has been tested on OpenBSD 5.8.
-
-You will need to add a few packages to your system. `pkg_add db cmake gcc gcc-libs g++ miniupnpc gtest`.
-
-The doxygen and graphviz packages are optional and require the xbase set.
-
-The Boost package has a bug that will prevent librpc.a from building correctly. In order to fix this, you will have to Build boost yourself from scratch. Follow the directions here (under "Building Boost"):
-https://github.com/bitcoin/bitcoin/blob/master/doc/build-openbsd.md
-
-You will have to add the serialization, date_time, and regex modules to Boost when building as they are needed by Morelo.
-
-To build: `$ env CC=egcc CXX=eg++ CPP=ecpp DEVELOPER_LOCAL_TOOLS=1 BOOST_ROOT=/path/to/the/boost/you/built make release-static-64`
-
-#### OpenBSD >= 6.2
-
-You will need to add a few packages to your system. `$ pkg_add cmake miniupnpc zeromq libiconv`.
-
-The doxygen and graphviz packages are optional and require the xbase set.
-s
-Build the Boost library using clang. This guide is derived from: https://github.com/bitcoin/bitcoin/blob/master/doc/build-openbsd.md
-
-We assume you are compiling with a non-root user and you have `doas` enabled.
-
-Note: do not use the boost package provided by OpenBSD, as we are installing boost to `/usr/local`.
-
-### Create boost building directory
-`$ mkdir ~/boost`
-`$ cd ~/boost`
-
-### Fetch boost source
-`$ ftp -o boost_1_64_0.tar.bz2 https://netcologne.dl.sourceforge.net/project/boost/boost/1.64.0/boost_1_64_0.tar.bz2`
-
-### MUST output: (SHA256) boost_1_64_0.tar.bz2: OK
-`$ echo "7bcc5caace97baa948931d712ea5f37038dbb1c5d89b43ad4def4ed7cb683332 boost_1_64_0.tar.bz2" | sha256 -c`
-`$ tar xfj boost_1_64_0.tar.bz2`
-
-### Fetch and apply boost patches, required for OpenBSD
-`$ ftp -o boost_test_impl_execution_monitor_ipp.patch https://raw.githubusercontent.com/openbsd/ports/bee9e6df517077a7269ff0dfd57995f5c6a10379/devel/boost/patches/patch-boost_test_impl_execution_monitor_ipp`
-`$ ftp -o boost_config_platform_bsd_hpp.patch https://raw.githubusercontent.com/openbsd/ports/90658284fb786f5a60dd9d6e8d14500c167bdaa0/devel/boost/patches/patch-boost_config_platform_bsd_hpp`
-
-### MUST output: (SHA256) boost_config_platform_bsd_hpp.patch: OK
-`$ echo "1f5e59d1154f16ee1e0cc169395f30d5e7d22a5bd9f86358f738b0ccaea5e51d boost_config_platform_bsd_hpp.patch" | sha256 -c`
-### MUST output: (SHA256) boost_test_impl_execution_monitor_ipp.patch: OK
-`$ echo "30cec182a1437d40c3e0bd9a866ab5ddc1400a56185b7e671bb3782634ed0206 boost_test_impl_execution_monitor_ipp.patch" | sha256 -c`
-
-`$ cd boost_1_64_0`
-`$ patch -p0 < ../boost_test_impl_execution_monitor_ipp.patch`
-`$ patch -p0 < ../boost_config_platform_bsd_hpp.patch`
-
-### Start building boost
-`$ echo 'using clang : : c++ : <cxxflags>"-fvisibility=hidden -fPIC" <linkflags>"" <archiver>"ar" <striper>"strip"  <ranlib>"ranlib" <rc>"" : ;' > user-config.jam`
-`$ ./bootstrap.sh --without-icu --with-libraries=chrono,filesystem,program_options,system,thread,test,date_time,regex,serialization,locale --with-toolset=clang`
-`$ ./b2 toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" -sICONV_PATH=/usr/local
-$ doas ./b2 -d0 runtime-link=shared threadapi=pthread threading=multi link=static variant=release --layout=tagged --build-type=complete --user-config=user-config.jam -sNO_BZIP2=1 -sICONV_PATH=/usr/local --prefix=/usr/local install
-`
-
-### On Solaris:
+### On Solaris
 
 The default Solaris linker can't be used, you have to install GNU ld, then run cmake manually with the path to your copy of GNU ld:
 
-`$ mkdir -p build/release`
-`$ cd build/release`
-`$ cmake -DCMAKE_LINKER=/path/to/ld -D CMAKE_BUILD_TYPE=Release ../..`
-`$ cd ../..`
+`$ mkdir -p build/release && cd build/release`
+`$ cmake -DCMAKE_LINKER=/path/to/ld -DCMAKE_BUILD_TYPE=Release ../..`
 `$ make`
-
-### On Linux for Android (using docker):
-
-### Build image
-`docker build -f utils/build_scripts/android32.Dockerfile -t morelo-android .`
-### Create container
-`docker create -it --name morelo-android morelo-android bash`
-### Get binaries
-`docker cp morelo-android:/opt/android/morelo/build/release/bin .`
-
-### Building portable statically linked binaries
-
-By default, in either dynamically or statically linked builds, binaries target the specific host processor on which the build happens and are not portable to other processors. Portable binaries can be built using the following targets:
-
-* `make release-static-linux-x86_64` builds binaries on Linux on x86_64 portable across POSIX systems on x86_64 processors
-* `make release-static-linux-armv8` builds binaries on Linux portable across POSIX systems on armv8 processors
-* `make release-static-linux-armv7` builds binaries on Linux portable across POSIX systems on armv7 processors
-* `make release-static-linux-armv6` builds binaries on Linux portable across POSIX systems on armv6 processors
-* `make release-static-win` builds binaries on 64-bit Windows portable across 64-bit Windows systems
-
-### Cross Compiling
-
-You can also cross-compile Morelo static binaries on Linux for Windows and macOS with the `depends` system.
-
-* `make depends target=x86_64-linux-gnu` for 64-bit linux binaries.
-* `make depends target=x86_64-w64-mingw32` for 64-bit windows binaries. Requires `g++-mingw-w64-x86-64`
-* `make depends target=x86_64-apple-darwin19.2.0` for macOS binaries. Requires `cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools curl bsdmainutils python3-setuptools`
-* `make depends target=arm-linux-gnueabihf` for armv7 binaries. Requires `g++-arm-linux-gnueabihf`
-* `make depends target=aarch64-linux-gnu` for armv8 binaries. Requires `g++-aarch64-linux-gnu`
-
-*** For `x86_64-apple-darwin19.2.0` you need to download SDK first ***        
-
-The required packages are the names for each toolchain on apt. Depending on your OS Distribution, they may have different names.
-
-Using `depends` might also be easier to compile Morelo on Windows than using MSYS. Activate Windows Subsystem for Linux (WSL) with a distribution (for example Ubuntu), install the apt build-essentials and follow the `depends` steps as stated above.
-
-### Compability with older Linux Versions < GLIBC_2.25
-
-* `make depends-compat target=x86_64-linux-gnu` for 64-bit linux binaries.
-
 
 ## Running morelod
 

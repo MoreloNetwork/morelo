@@ -76,6 +76,7 @@ using namespace epee;
 #endif
   #include <windows.h>
   #include <shlobj.h>
+  #include <shellapi.h>
   #include <strsafe.h>
 #else
   #include <sys/file.h>
@@ -83,6 +84,7 @@ using namespace epee;
   #include <sys/stat.h>
 #endif
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
@@ -785,6 +787,11 @@ std::string get_nix_version_display_string()
 
     sanitize_locale();
 
+#ifdef WIN32
+    // std::string paths are UTF-8, also when the ANSI code page is not
+    boost::filesystem::path::imbue(std::locale(std::locale(), new boost::filesystem::detail::utf8_codecvt_facet));
+#endif
+
 #ifdef __GLIBC__
     const char *ver = gnu_get_libc_version();
     if (!strcmp(ver, "2.25"))
@@ -802,6 +809,42 @@ std::string get_nix_version_display_string()
 
     return true;
   }
+  char** utf8_argv(int argc, char** argv)
+  {
+#ifdef WIN32
+    static std::vector<std::string> args;
+    static std::vector<char*> pointers;
+    if (!pointers.empty())
+      return pointers.data(); // already converted, the caller may hold the previous result
+    int wargc = 0;
+    LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (!wargv)
+      return argv;
+    // keep the CRT argv if CommandLineToArgvW splits the command line differently
+    try
+    {
+      if (wargc != argc)
+        throw std::runtime_error("argument count mismatch");
+      args.clear();
+      for (int i = 0; i < wargc; ++i)
+        args.push_back(epee::string_tools::utf16_to_utf8(wargv[i]));
+    }
+    catch (const std::exception &)
+    {
+      LocalFree(wargv);
+      return argv;
+    }
+    LocalFree(wargv);
+    pointers.clear();
+    for (std::string &arg : args)
+      pointers.push_back(&arg[0]);
+    pointers.push_back(nullptr);
+    return pointers.data();
+#else
+    return argv;
+#endif
+  }
+
   void set_strict_default_file_permissions(bool strict)
   {
 #if defined(__MINGW32__) || defined(__MINGW__)
@@ -896,19 +939,15 @@ if(not f.is_open())
     }
 
     // resolve to IP
-    boost::asio::io_service io_service;
+    boost::asio::io_context io_service;
     boost::asio::ip::tcp::resolver resolver(io_service);
-    boost::asio::ip::tcp::resolver::query query(u_c.host, "");
-    boost::asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-    while (i != boost::asio::ip::tcp::resolver::iterator())
+    for (const auto &entry : resolver.resolve(u_c.host, "", boost::asio::ip::tcp::resolver::address_configured))
     {
-      const boost::asio::ip::tcp::endpoint &ep = *i;
-      if (ep.address().is_loopback())
+      if (entry.endpoint().address().is_loopback())
       {
         MDEBUG("Address '" << address << "' is local");
         return true;
       }
-      ++i;
     }
 
     MDEBUG("Address '" << address << "' is not local");
@@ -950,7 +989,7 @@ if(not f.is_open())
       return false;
     std::ifstream f;
     f.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    f.open(filename, std::ios_base::binary | std::ios_base::in | std::ios::ate);
+    epee::file_io_utils::open_stream(f, filename, std::ios_base::binary | std::ios_base::in | std::ios::ate);
     if (!f)
       return false;
     std::ifstream::pos_type file_size = f.tellg();

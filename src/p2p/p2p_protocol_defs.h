@@ -45,6 +45,7 @@
 namespace nodetool
 {
   typedef boost::uuids::uuid uuid;
+  static_assert(sizeof(uuid) == 16, "network_id is serialized as a 16 byte blob");
   typedef uint64_t peerid_type;
 
   static inline std::string peerid_to_string(peerid_type peer_id)
@@ -172,7 +173,7 @@ namespace nodetool
     peerid_type peer_id;
 
     BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE_VAL_POD_AS_BLOB(network_id)
+      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(network_id)
       KV_SERIALIZE(peer_id)
       KV_SERIALIZE(my_port)
       KV_SERIALIZE_OPT(rpc_port, (uint16_t)(0))

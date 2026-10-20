@@ -73,6 +73,7 @@ int main(int argc, char* argv[])
   std::string input;
 
   tools::on_startup();
+  argv = tools::utf8_argv(argc, argv);
 
   boost::filesystem::path output_file_path;
 

@@ -290,7 +290,7 @@ namespace cryptonote
     std::string state_file_path = directory + "/" + RPC_PAYMENTS_DATA_FILENAME;
     MINFO("loading rpc payments data from " << state_file_path);
     std::ifstream data;
-    data.open(state_file_path, std::ios_base::binary | std::ios_base::in);
+    epee::file_io_utils::open_stream(data, state_file_path, std::ios_base::binary | std::ios_base::in);
     if (!data.fail())
     {
       try
@@ -334,7 +334,7 @@ namespace cryptonote
         MWARNING("Failed to rename " << state_file_path << " to " << state_file_path_old << ": " << e);
     }
     std::ofstream data;
-    data.open(state_file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::trunc);
+    epee::file_io_utils::open_stream(data, state_file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::trunc);
     if (data.fail())
     {
       MWARNING("Failed to save RPC payments to file " << state_file_path);

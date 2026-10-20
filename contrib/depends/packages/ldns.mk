@@ -8,7 +8,7 @@ $(package)_dependencies=openssl
 define $(package)_set_vars
   $(package)_config_opts=--disable-shared --enable-static --with-drill
   $(package)_config_opts+=--with-ssl=$(host_prefix)
-  $(package)_config_opts_release=--disable-debug-mode
+  $(package)_config_opts_Release=--disable-debug-mode
   $(package)_config_opts_linux=--with-pic
 endef
 

@@ -821,8 +821,32 @@ namespace utils {
 
 // File
 
+#if ELPP_OS_WINDOWS
+// File names are UTF-8, the narrow Windows APIs would read them in the ANSI code page
+static std::wstring utf8ToWide(const std::string& str) {
+  // not valid UTF-8: the name came from an ANSI source
+  UINT codePage = CP_UTF8;
+  int size = MultiByteToWideChar(codePage, MB_ERR_INVALID_CHARS, str.c_str(), -1, nullptr, 0);
+  if (size <= 0) {
+    codePage = CP_ACP;
+    size = MultiByteToWideChar(codePage, 0, str.c_str(), -1, nullptr, 0);
+  }
+  if (size <= 0) {
+    return std::wstring();
+  }
+  std::wstring wide(size, L'\0');
+  MultiByteToWideChar(codePage, 0, str.c_str(), -1, &wide[0], size);
+  wide.resize(size - 1);
+  return wide;
+}
+#endif  // ELPP_OS_WINDOWS
+
 base::type::fstream_t* File::newFileStream(const std::string& filename) {
+#if ELPP_OS_WINDOWS
+  base::type::fstream_t *fs = new base::type::fstream_t(utf8ToWide(filename).c_str(),
+#else
   base::type::fstream_t *fs = new base::type::fstream_t(filename.c_str(),
+#endif  // ELPP_OS_WINDOWS
       base::type::fstream_t::out
 #if !defined(ELPP_FRESH_LOG_FILE)
       | base::type::fstream_t::app
@@ -864,7 +888,7 @@ bool File::pathExists(const char* path, bool considerFile) {
   struct stat st;
   return (stat(path, &st) == 0);
 #elif ELPP_OS_WINDOWS
-  DWORD fileType = GetFileAttributesA(path);
+  DWORD fileType = GetFileAttributesW(utf8ToWide(path).c_str());
   if (fileType == INVALID_FILE_ATTRIBUTES) {
     return false;
   }
@@ -901,7 +925,7 @@ bool File::createPath(const std::string& path) {
     status = mkdir(builtPath.c_str(), ELPP_LOG_PERMS);
     currPath = STRTOK(nullptr, base::consts::kFilePathSeperator, 0);
 #elif ELPP_OS_WINDOWS
-    status = _mkdir(builtPath.c_str());
+    status = _wmkdir(utf8ToWide(builtPath).c_str());
     currPath = STRTOK(nullptr, base::consts::kFilePathSeperator, &nextTok_);
 #endif  // ELPP_OS_UNIX
   }

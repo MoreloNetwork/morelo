@@ -1,6 +1,6 @@
 .DS_Store
 /doc
-/build
+/build*
 /tags
 log/
 /contrib/depends/SDKs
