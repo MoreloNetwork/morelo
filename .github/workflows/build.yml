@@ -86,6 +86,11 @@ jobs:
         make -j$(nproc) depends target=$HOST
         if [ "${HOST#*android}" != "$HOST" ]; then make -C build/release -j$(nproc) wallet_api; fi
         ccache -s
+    - name: debug readline detection
+      if: matrix.host == 'x86_64-w64-mingw32'
+      run: |
+        grep -n "Termcap_LIBRARY\|Readline_LIBRARY\|Readline_INCLUDE" build/release/CMakeCache.txt || true
+        grep -n -A60 "HAVE_COPY_TEXT_TC" build/release/CMakeFiles/CMakeConfigureLog.yaml | grep -iE "error|undefined|cannot|readline|termcap" | head -40 || true
     - name: package
       run: |
         mkdir -p out/${{ matrix.tag }}
