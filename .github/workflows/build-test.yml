@@ -3,14 +3,13 @@ name: ci/gh-actions/build-test
 # Native developer builds, the same way as described in README.md.
 # Release binaries are produced by build.yml (depends).
 
+# runs for new tags, newly opened pull requests and on demand (Actions tab / gh workflow run)
 on:
   workflow_dispatch:
   push:
-    paths-ignore:
-      - '**/*.md'
+    tags: [ '*' ]
   pull_request:
-    paths-ignore:
-      - '**/*.md'
+    types: [ opened, reopened ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
