@@ -1,12 +1,15 @@
 name: ci/gh-actions/build
 
-# runs for new tags, newly opened pull requests and on demand (Actions tab / gh workflow run)
+# Pull requests run on every commit. Branches are only built through their pull request,
+# a push trigger for all branches would run every commit twice. Runs on master after a
+# merge keep the caches warm: pull requests can only restore caches from their own ref
+# and from the default branch.
 on:
   workflow_dispatch:
   push:
+    branches: [ master ]
     tags: [ '*' ]
   pull_request:
-    types: [ opened, reopened ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
