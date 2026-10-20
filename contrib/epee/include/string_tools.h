@@ -220,12 +220,16 @@ POP_WARNINGS
   }
   //----------------------------------------------------------------------------
 #ifdef _WIN32
+  // UTF-8, like every other path in the code (GetModuleFileNameA would return the ANSI code page)
   inline std::string get_current_module_path()
   {
-    char pname [5000] = {0};
-    GetModuleFileNameA( NULL, pname, sizeof(pname));
-    pname[sizeof(pname)-1] = 0; //be happy ;)
-    return pname;
+    wchar_t wname[MAX_PATH * 4] = {0};
+    const DWORD wlen = GetModuleFileNameW(NULL, wname, sizeof(wname) / sizeof(wname[0]) - 1);
+    const int len = WideCharToMultiByte(CP_UTF8, 0, wname, wlen, NULL, 0, NULL, NULL);
+    std::string name(len > 0 ? len : 0, '\0');
+    if (len > 0)
+      WideCharToMultiByte(CP_UTF8, 0, wname, wlen, &name[0], len, NULL, NULL);
+    return name;
   }
 #endif
 	//----------------------------------------------------------------------------

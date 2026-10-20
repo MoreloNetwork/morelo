@@ -36,6 +36,7 @@
 #include "blockchain_db/blockchain_db.h"
 #include "version.h"
 #include <limits>
+#include "file_io_utils.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bcutil"
@@ -50,7 +51,7 @@ static std::map<uint64_t, uint64_t> load_outputs(const std::string &filename)
   uint64_t amount = std::numeric_limits<uint64_t>::max();
   FILE *f;
 
-  f = fopen(filename.c_str(), "r");
+  f = epee::file_io_utils::open_file(filename, "r");
   if (!f)
   {
     MERROR("Failed to load outputs from " << filename << ": " << strerror(errno));

@@ -62,6 +62,32 @@ namespace epee
 {
 namespace file_io_utils
 {
+	//! Opens a file stream. `path` is UTF-8; on Windows it is opened through the wide API,
+	//! the narrow one would read it in the ANSI code page.
+	template<typename t_stream>
+	void open_stream(t_stream& stream, const std::string& path, std::ios_base::openmode mode)
+	{
+#ifdef WIN32
+		std::wstring wide_path;
+		try { wide_path = string_tools::utf8_to_utf16(path); }
+		catch (...) { stream.setstate(std::ios_base::failbit); return; }
+		stream.open(wide_path.c_str(), mode);
+#else
+		stream.open(path, mode);
+#endif
+	}
+
+	//! fopen() for a UTF-8 path
+	inline FILE* open_file(const std::string& path, const char* mode)
+	{
+#ifdef WIN32
+		try { return _wfopen(string_tools::utf8_to_utf16(path).c_str(), string_tools::utf8_to_utf16(mode).c_str()); }
+		catch (...) { return nullptr; }
+#else
+		return fopen(path.c_str(), mode);
+#endif
+	}
+
 	inline
 		bool is_file_exist(const std::string& path)
 	{

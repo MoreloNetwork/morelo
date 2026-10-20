@@ -35,6 +35,7 @@
 #include "common/util.h"
 #include "misc_log_ex.h"
 #include "string_tools.h"
+#include "file_io_utils.h"
 #include "version.h"
 
 #if defined(WIN32)
@@ -169,7 +170,11 @@ namespace wallet_args
         boost::system::error_code ec;
         if (bf::exists(config_path, ec))
         {
-          po::store(po::parse_config_file<char>(config_path.string<std::string>().c_str(), desc_params), vm);
+          std::ifstream config_file;
+          epee::file_io_utils::open_stream(config_file, config_path.string(), std::ios_base::in);
+          if (!config_file)
+            throw std::runtime_error("can not read options configuration file " + config_path.string());
+          po::store(po::parse_config_file(config_file, desc_params), vm);
         }
         else
         {

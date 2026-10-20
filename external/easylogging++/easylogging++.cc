@@ -824,12 +824,18 @@ namespace utils {
 #if ELPP_OS_WINDOWS
 // File names are UTF-8, the narrow Windows APIs would read them in the ANSI code page
 static std::wstring utf8ToWide(const std::string& str) {
-  int size = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+  // not valid UTF-8: the name came from an ANSI source
+  UINT codePage = CP_UTF8;
+  int size = MultiByteToWideChar(codePage, MB_ERR_INVALID_CHARS, str.c_str(), -1, nullptr, 0);
+  if (size <= 0) {
+    codePage = CP_ACP;
+    size = MultiByteToWideChar(codePage, 0, str.c_str(), -1, nullptr, 0);
+  }
   if (size <= 0) {
     return std::wstring();
   }
   std::wstring wide(size, L'\0');
-  MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wide[0], size);
+  MultiByteToWideChar(codePage, 0, str.c_str(), -1, &wide[0], size);
   wide.resize(size - 1);
   return wide;
 }

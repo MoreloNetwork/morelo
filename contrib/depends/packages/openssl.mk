@@ -8,6 +8,8 @@ define $(package)_set_vars
 $(package)_config_env=AR="$($(package)_ar)" ARFLAGS=$($(package)_arflags) RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
 $(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl --libdir=lib
 $(package)_config_opts+=no-apps
+# don't read openssl.cnf from the (build machine) OPENSSLDIR at runtime
+$(package)_config_opts+=no-autoload-config
 $(package)_config_opts+=no-capieng
 $(package)_config_opts+=no-docs
 $(package)_config_opts+=no-dso
@@ -44,8 +46,9 @@ define $(package)_config_cmds
   ./Configure $($(package)_config_opts)
 endef
 
+# fixed build date for reproducible builds
 define $(package)_build_cmds
-  $(MAKE) -j$(JOBS) build_libs
+  SOURCE_DATE_EPOCH=1700000000 $(MAKE) -j$(JOBS) build_libs
 endef
 
 define $(package)_stage_cmds

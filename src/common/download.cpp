@@ -86,7 +86,7 @@ namespace tools
         mode |= std::ios_base::trunc;
       }
       std::ofstream f;
-      f.open(control->path, mode);
+      epee::file_io_utils::open_stream(f, control->path, mode);
       if (!f.good()) {
         MERROR("Failed to open file " << control->path);
         control->result_cb(control->path, control->uri, control->success);
@@ -133,7 +133,7 @@ namespace tools
             {
               MWARNING("We did not get the requested range, downloading from start");
               f.close();
-              f.open(control->path, std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
+              epee::file_io_utils::open_stream(f, control->path, std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
             }
           }
           return true;

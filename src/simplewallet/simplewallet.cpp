@@ -1585,7 +1585,7 @@ bool simple_wallet::set_ring(const std::vector<std::string> &args)
     }
 
     char str[4096];
-    std::unique_ptr<FILE, tools::close_file> f(fopen(args[0].c_str(), "r"));
+    std::unique_ptr<FILE, tools::close_file> f(epee::file_io_utils::open_file(args[0], "r"));
     if (f)
     {
       while (!feof(f.get()))
@@ -1844,7 +1844,7 @@ bool simple_wallet::blackball(const std::vector<std::string> &args)
       std::vector<std::pair<uint64_t, uint64_t>> outputs;
       char str[256];
 
-      std::unique_ptr<FILE, tools::close_file> f(fopen(args[0].c_str(), "r"));
+      std::unique_ptr<FILE, tools::close_file> f(epee::file_io_utils::open_file(args[0], "r"));
       if (f)
       {
         while (!feof(f.get()))
@@ -7639,7 +7639,8 @@ bool simple_wallet::export_transfers(const std::vector<std::string>& args_)
     local_args.erase(local_args.begin());
   }
 
-  std::ofstream file(filename);
+  std::ofstream file;
+  epee::file_io_utils::open_stream(file, filename, std::ios_base::out);
 
   // header
   file <<

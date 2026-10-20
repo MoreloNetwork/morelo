@@ -27,9 +27,17 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <string.h>
+// before OpenSSL, which undefines the wincrypt.h macros that clash with its names (X509_NAME, ...)
+#ifdef _WIN32
+#include <windows.h>
+#include <wincrypt.h>
+#endif
 #include <boost/asio/ssl.hpp>
 #include <openssl/ssl.h>
 #include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
+#include <boost/filesystem/operations.hpp>
 #include "misc_log_ex.h"
 #include "net/net_ssl.h"
 
@@ -42,6 +50,54 @@
 
 namespace
 {
+  // Release builds link OpenSSL statically, its compiled-in certificate locations
+  // don't exist on the user's machine, so also load the CAs the system provides.
+  void load_system_ca(boost::asio::ssl::context &ssl_context)
+  {
+    ssl_context.set_default_verify_paths();
+    SSL_CTX *ctx = ssl_context.native_handle();
+#if defined(_WIN32)
+    HCERTSTORE store = CertOpenSystemStoreW(0, L"ROOT");
+    if (!store)
+      return;
+    X509_STORE *x509_store = SSL_CTX_get_cert_store(ctx);
+    PCCERT_CONTEXT cert = nullptr;
+    while ((cert = CertEnumCertificatesInStore(store, cert)))
+    {
+      const unsigned char *data = cert->pbCertEncoded;
+      X509 *x509 = d2i_X509(nullptr, &data, cert->cbCertEncoded);
+      if (x509)
+      {
+        X509_STORE_add_cert(x509_store, x509); // fails for duplicates, that's fine
+        X509_free(x509);
+      }
+    }
+    CertCloseStore(store, 0);
+#elif defined(__ANDROID__)
+    SSL_CTX_load_verify_locations(ctx, nullptr, "/system/etc/security/cacerts");
+#elif !defined(__APPLE__)
+    // SSL_CERT_FILE / SSL_CERT_DIR were already honoured by set_default_verify_paths
+    if (getenv("SSL_CERT_FILE") || getenv("SSL_CERT_DIR"))
+      return;
+    static const char *const bundles[] = {
+      "/etc/ssl/certs/ca-certificates.crt", // Debian, Ubuntu, Arch, Gentoo
+      "/etc/pki/tls/certs/ca-bundle.crt", // Fedora, RHEL
+      "/etc/ssl/ca-bundle.pem", // openSUSE
+      "/etc/ssl/cert.pem", // Alpine, BSDs
+    };
+    boost::system::error_code ec;
+    for (const char *bundle : bundles)
+    {
+      if (boost::filesystem::exists(bundle, ec))
+      {
+        SSL_CTX_load_verify_locations(ctx, bundle, nullptr);
+        break;
+      }
+    }
+#endif
+    ERR_clear_error();
+  }
+
   struct openssl_bio_free
   {
     void operator()(BIO* ptr) const noexcept
@@ -321,7 +377,7 @@ boost::asio::ssl::context ssl_options_t::create_context() const
   switch (verification)
   {
     case ssl_verification_t::system_ca:
-      ssl_context.set_default_verify_paths();
+      load_system_ca(ssl_context);
       break;
     case ssl_verification_t::user_certificates:
       ssl_context.set_verify_depth(0);

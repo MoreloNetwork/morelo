@@ -35,6 +35,7 @@
 #include <boost/archive/portable_binary_oarchive.hpp>
 #include <boost/archive/portable_binary_iarchive.hpp>
 #include <boost/filesystem/operations.hpp>
+#include "file_io_utils.h"
 
 
 namespace tools
@@ -73,7 +74,7 @@ namespace tools
     }
 #else
     std::ofstream data_file;
-    data_file.open(file_path , std::ios_base::binary | std::ios_base::out | std::ios::trunc);
+    epee::file_io_utils::open_stream(data_file, file_path, std::ios_base::binary | std::ios_base::out | std::ios::trunc);
     if (data_file.fail())
       return false;
 #endif
@@ -99,7 +100,7 @@ namespace tools
     TRY_ENTRY();
 
     std::ifstream data_file;
-    data_file.open( file_path, std::ios_base::binary | std::ios_base::in);
+    epee::file_io_utils::open_stream(data_file, file_path, std::ios_base::binary | std::ios_base::in);
     if(data_file.fail())
       return false;
     try
@@ -113,7 +114,7 @@ namespace tools
       // if failed, try reading in unportable mode
       boost::filesystem::copy_file(file_path, file_path + ".unportable", boost::filesystem::copy_options::overwrite_existing);
       data_file.close();
-      data_file.open( file_path, std::ios_base::binary | std::ios_base::in);
+      epee::file_io_utils::open_stream(data_file, file_path, std::ios_base::binary | std::ios_base::in);
       if(data_file.fail())
         return false;
       boost::archive::binary_iarchive a(data_file);

@@ -34,9 +34,6 @@
 #include <mutex>
 #include <thread>
 #include <iostream>
-#ifndef WIN32
-#include <unistd.h>
-#endif
 #ifdef __OpenBSD__
 #include <stdio.h>
 #endif
@@ -59,8 +56,8 @@ namespace epee
       , m_read_status(state_init)
     {
 #ifdef HAVE_READLINE
-      // readline needs a terminal (on Windows it reads the console, not stdin)
-      m_use_readline = stdin_is_terminal();
+      // on Windows readline reads the console, not stdin, so it can't work with pipes or mintty
+      m_use_readline = stdin_is_console();
       if (m_use_readline)
         m_readline_buffer.start();
 #endif
@@ -215,38 +212,69 @@ namespace epee
       return true;
     }
 
-    static bool stdin_is_terminal()
+    static bool stdin_is_console()
     {
 #if defined(WIN32)
       DWORD mode;
       return ::GetConsoleMode(::GetStdHandle(STD_INPUT_HANDLE), &mode);
 #else
-      return isatty(fileno(stdin));
+      return true;
 #endif
     }
 
 #if defined(WIN32)
-    static bool has_key_press(HANDLE console)
+    // Whether the next console read has something to consume. Records it would skip are
+    // dropped, otherwise the read would block (with readline: while holding the output lock).
+    bool has_key_press(HANDLE console)
     {
       INPUT_RECORD record;
       DWORD count;
       while (::PeekConsoleInputW(console, &record, 1, &count) && count)
       {
-        if (record.EventType == KEY_EVENT && record.Event.KeyEvent.bKeyDown)
-        {
-          switch (record.Event.KeyEvent.wVirtualKeyCode)
-          {
-            case VK_SHIFT: case VK_CONTROL: case VK_MENU: case VK_CAPITAL: case VK_NUMLOCK:
-            case VK_SCROLL: case VK_LWIN: case VK_RWIN: case VK_LSHIFT: case VK_RSHIFT:
-            case VK_LCONTROL: case VK_RCONTROL: case VK_LMENU: case VK_RMENU:
-              break;
-            default:
-              return true;
-          }
-        }
-        ::ReadConsoleInputW(console, &record, 1, &count); // drop events that produce no input
+        if (record.EventType == KEY_EVENT && is_input_key(record.Event.KeyEvent))
+          return true;
+#ifdef HAVE_READLINE
+        if (m_use_readline && record.EventType == WINDOW_BUFFER_SIZE_EVENT)
+          m_readline_buffer.resize();
+#endif
+        ::ReadConsoleInputW(console, &record, 1, &count);
       }
       return false;
+    }
+
+    bool is_input_key(const KEY_EVENT_RECORD &key) const
+    {
+      const WORD vk = key.wVirtualKeyCode;
+      // Alt+numpad codes arrive with the release of Alt
+      if (!key.bKeyDown)
+        return vk == VK_MENU && key.uChar.UnicodeChar;
+#ifdef HAVE_READLINE
+      if (m_use_readline)
+      {
+        // what readline's Windows console reader (MSYS2 patch) turns into input
+        if (vk >= VK_SHIFT && vk <= VK_MENU)
+          return false;
+        if (key.uChar.UnicodeChar)
+          return true;
+        switch (vk)
+        {
+          case VK_UP: case VK_DOWN: case VK_LEFT: case VK_RIGHT: case VK_HOME: case VK_END: case VK_DELETE:
+            return true;
+          default:
+            return false;
+        }
+      }
+#endif
+      // line input: the console handles editing and history keys (F3, F7, ...) itself
+      switch (vk)
+      {
+        case VK_SHIFT: case VK_CONTROL: case VK_MENU: case VK_CAPITAL: case VK_NUMLOCK:
+        case VK_SCROLL: case VK_LWIN: case VK_RWIN: case VK_LSHIFT: case VK_RSHIFT:
+        case VK_LCONTROL: case VK_RCONTROL: case VK_LMENU: case VK_RMENU:
+          return false;
+        default:
+          return true;
+      }
     }
 #endif
 

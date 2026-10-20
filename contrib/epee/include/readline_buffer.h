@@ -19,6 +19,7 @@ namespace rdln
     }
     linestatus get_line(std::string& line) const;
     void set_prompt(const std::string& prompt);
+    void resize();
     static void add_completion(const std::string& command);
     static const std::vector<std::string>& get_completions();
 

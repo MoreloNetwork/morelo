@@ -812,13 +812,15 @@ std::string get_nix_version_display_string()
   char** utf8_argv(int argc, char** argv)
   {
 #ifdef WIN32
+    static std::vector<std::string> args;
+    static std::vector<char*> pointers;
+    if (!pointers.empty())
+      return pointers.data(); // already converted, the caller may hold the previous result
     int wargc = 0;
     LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
     if (!wargv)
       return argv;
     // keep the CRT argv if CommandLineToArgvW splits the command line differently
-    static std::vector<std::string> args;
-    static std::vector<char*> pointers;
     try
     {
       if (wargc != argc)
@@ -987,7 +989,7 @@ if(not f.is_open())
       return false;
     std::ifstream f;
     f.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    f.open(filename, std::ios_base::binary | std::ios_base::in | std::ios::ate);
+    epee::file_io_utils::open_stream(f, filename, std::ios_base::binary | std::ios_base::in | std::ios::ate);
     if (!f)
       return false;
     std::ifstream::pos_type file_size = f.tellg();

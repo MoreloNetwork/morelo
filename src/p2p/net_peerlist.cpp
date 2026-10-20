@@ -28,6 +28,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "net_peerlist.h"
+#include "file_io_utils.h"
 
 #include <algorithm>
 #include <functional>
@@ -192,7 +193,7 @@ namespace nodetool
   boost::optional<peerlist_storage> peerlist_storage::open(const std::string& path)
   {
     std::ifstream src_file{};
-    src_file.open(path, std::ios_base::binary | std::ios_base::in);
+    epee::file_io_utils::open_stream(src_file, path, std::ios_base::binary | std::ios_base::in);
     if(src_file.fail())
       return boost::none;
 
@@ -202,7 +203,7 @@ namespace nodetool
       // if failed, try reading in unportable mode
       boost::filesystem::copy_file(path, path + ".unportable", boost::filesystem::copy_options::overwrite_existing);
       src_file.close();
-      src_file.open( path , std::ios_base::binary | std::ios_base::in);
+      epee::file_io_utils::open_stream(src_file, path, std::ios_base::binary | std::ios_base::in);
       if(src_file.fail())
         return boost::none;
 
@@ -238,7 +239,7 @@ namespace nodetool
   bool peerlist_storage::store(const std::string& path, const peerlist_types& other) const
   {
     std::ofstream dest_file{};
-    dest_file.open(path, std::ios_base::binary | std::ios_base::out | std::ios::trunc);
+    epee::file_io_utils::open_stream(dest_file, path, std::ios_base::binary | std::ios_base::out | std::ios::trunc);
     if(dest_file.fail())
       return false;
 

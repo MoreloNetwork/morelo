@@ -123,7 +123,16 @@ jobs:
       run: |
         v=$(objdump -T out/${{ matrix.tag }}/* | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
         echo "highest required: $v"
-        [ "$(printf '%s\n' GLIBC_2.27 "$v" | sort -V | tail -1)" = GLIBC_2.27 ]
+        [ -n "$v" ] && [ "$(printf '%s\n' GLIBC_2.27 "$v" | sort -V | tail -1)" = GLIBC_2.27 ]
+    - name: build TLS check
+      if: matrix.host == 'x86_64-linux-gnu'
+      run: |
+        P=contrib/depends/$HOST
+        g++ -std=c++14 -O1 -Icontrib/epee/include -Iexternal/easylogging++ -I$P/include .github/tlscheck/tlscheck.cpp -o out/tlscheck \
+          build/release/contrib/epee/src/libepee.a build/release/external/easylogging++/libeasylogging.a \
+          $P/lib/libboost_thread-mt-s-x64.a $P/lib/libboost_chrono-mt-s-x64.a $P/lib/libboost_filesystem-mt-s-x64.a $P/lib/libboost_date_time-mt-s-x64.a $P/lib/libboost_regex-mt-s-x64.a $P/lib/libboost_atomic-mt-s-x64.a \
+          $P/lib/libssl.a $P/lib/libcrypto.a -static-libstdc++ -static-libgcc -pthread -ldl
+        strip out/tlscheck
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.tag }}
@@ -132,6 +141,11 @@ jobs:
           out/*.tar.xz
           out/*.sha256
         compression-level: 0
+    - uses: actions/upload-artifact@v7
+      if: matrix.host == 'x86_64-linux-gnu'
+      with:
+        name: tlscheck-linux-x64
+        path: out/tlscheck
 
   linux-compat:
     name: linux-x64 on ${{ matrix.image }}
@@ -151,3 +165,13 @@ jobs:
         for b in morelod morelo-wallet-cli morelo-wallet-rpc; do
           docker run --rm -v "$PWD/bin:/bin-morelo:ro" ${{ matrix.image }} /bin-morelo/$b --version
         done
+    - uses: actions/download-artifact@v8
+      if: matrix.image == 'rockylinux:8' || matrix.image == 'archlinux:latest'
+      with:
+        name: tlscheck-linux-x64
+    - name: TLS with the system CA certificates (updater downloads)
+      if: matrix.image == 'rockylinux:8' || matrix.image == 'archlinux:latest'
+      run: |
+        chmod +x tlscheck
+        docker run --rm -v "$PWD/tlscheck:/tlscheck:ro" ${{ matrix.image }} /tlscheck github.com
+        ! docker run --rm -v "$PWD/tlscheck:/tlscheck:ro" ${{ matrix.image }} /tlscheck self-signed.badssl.com

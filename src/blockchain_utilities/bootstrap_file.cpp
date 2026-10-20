@@ -32,6 +32,7 @@
 #include "serialization/json_utils.h" // dump_json()
 
 #include "bootstrap_file.h"
+#include "file_io_utils.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bcutil"
@@ -95,9 +96,9 @@ bool BootstrapFile::open_writer(const boost::filesystem::path& file_path)
   m_height = num_blocks;
 
   if (do_initialize_file)
-    m_raw_data_file->open(file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::trunc);
+    epee::file_io_utils::open_stream(*m_raw_data_file, file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::trunc);
   else
-    m_raw_data_file->open(file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::app | std::ios::ate);
+    epee::file_io_utils::open_stream(*m_raw_data_file, file_path.string(), std::ios_base::binary | std::ios_base::out | std::ios::app | std::ios::ate);
 
   if (m_raw_data_file->fail())
     return false;
@@ -451,7 +452,7 @@ uint64_t BootstrapFile::count_blocks(const std::string& import_file_path, std::s
     throw std::runtime_error("Aborting");
   }
   std::ifstream import_file;
-  import_file.open(import_file_path, std::ios_base::binary | std::ifstream::in);
+  epee::file_io_utils::open_stream(import_file, import_file_path, std::ios_base::binary | std::ifstream::in);
 
   uint64_t start_height = seek_height;
   uint64_t h = 0;
