@@ -124,6 +124,11 @@ jobs:
         cp contrib/depends/$HOST/lib/*.a out/lib/lib/
         cp src/wallet/api/wallet2_api.h out/lib/include/
         tar cJf out/${{ matrix.tag }}-libwallet.tar.xz --owner=0 --group=0 -C out/lib .
+        cd out
+        sha256sum ${{ matrix.tag }}-libwallet.tar.xz | tee ${{ matrix.tag }}-libwallet.tar.xz.sha256
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat ${{ matrix.tag }}-libwallet.tar.xz.sha256 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
     - name: check glibc requirement
       if: contains(matrix.host, 'linux-gnu')
       run: |
