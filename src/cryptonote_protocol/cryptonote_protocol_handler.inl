@@ -2684,7 +2684,7 @@ skip:
     {
       std::string fullBlob;
       epee::serialization::store_t_to_binary(arg, fullBlob);
-      m_p2p->relay_notify_to_list(NOTIFY_NEW_BLOCK::ID, epee::strspan<uint8_t>(fullBlob), std::move(fluffyConnections));
+      m_p2p->relay_notify_to_list(NOTIFY_NEW_BLOCK::ID, epee::strspan<uint8_t>(fullBlob), std::move(fullConnections));
     }
 
     return true;
@@ -2911,6 +2911,8 @@ skip:
     {
       MINFO("Target height decreasing from " << previous_target << " to " << target);
       m_core.set_target_blockchain_height(target);
+      if (target < m_core.get_current_blockchain_height() + 5)
+        m_core.safesyncmode(true);
     }
 
     m_block_queue.flush_spans(context.m_connection_id, false);
