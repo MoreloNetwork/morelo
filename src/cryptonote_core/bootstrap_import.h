@@ -43,7 +43,8 @@ namespace cryptonote
   // hash area every group of HASH_OF_HASHES_STEP blocks must match the compiled hashes,
   // beyond it every block is fully verified. A file is never trusted.
 
-  //! parses one chunk of a bootstrap file, false if it is malformed
+  //! parses one chunk of a bootstrap file, false if it is malformed or carries
+  //! transactions other than exactly the block's own
   bool bootstrap_chunk_to_entry(const std::string &chunk, block_complete_entry &entry);
 
   //! verifies and adds blocks once batch_size of them are queued and they end on a

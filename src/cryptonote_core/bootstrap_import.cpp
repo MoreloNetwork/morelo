@@ -46,11 +46,25 @@ namespace cryptonote
       MERROR("Failed to parse a block from the bootstrap file");
       return false;
     }
+    // the transactions are added to the pool ahead of their block, so only accept
+    // the block's own: anything else would be left behind in the pool
+    if (bp.txs.size() != bp.block.tx_hashes.size())
+    {
+      MERROR("Block " << get_block_hash(bp.block) << " comes with " << bp.txs.size() << " transactions, it has " << bp.block.tx_hashes.size());
+      return false;
+    }
     entry.pruned = false;
     entry.block = block_to_blob(bp.block);
     entry.txs.clear();
-    for (const auto &tx: bp.txs)
-      entry.txs.push_back({tx_to_blob(tx), crypto::null_hash});
+    for (size_t i = 0; i < bp.txs.size(); ++i)
+    {
+      if (get_transaction_hash(bp.txs[i]) != bp.block.tx_hashes[i])
+      {
+        MERROR("Block " << get_block_hash(bp.block) << " comes with a transaction which is not its own");
+        return false;
+      }
+      entry.txs.push_back({tx_to_blob(bp.txs[i]), crypto::null_hash});
+    }
     return true;
   }
 
