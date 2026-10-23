@@ -138,9 +138,28 @@ int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &block
     return 0;
 
   // wait till we can verify a full HOH without extra, for speed
-  uint64_t new_height = core.get_blockchain_storage().get_db().height() + blocks.size();
+  const uint64_t start_height = core.get_blockchain_storage().get_db().height();
+  uint64_t new_height = start_height + blocks.size();
   if (!force && new_height % HASH_OF_HASHES_STEP)
     return 0;
+
+  // inside the compiled block hash area we only ever flush on a hash of hashes
+  // boundary, so that every block we add can be checked against the compiled
+  // hashes below: a trailing partial group could not be, and would be added on
+  // the strength of the file alone
+  if (new_height % HASH_OF_HASHES_STEP && core.is_within_compiled_block_hash_area(new_height))
+  {
+    const uint64_t aligned_height = new_height - new_height % HASH_OF_HASHES_STEP;
+    if (aligned_height <= start_height)
+    {
+      MWARNING("Not importing blocks " << start_height << " - " << (new_height - 1) << ": the file ends inside the compiled block hash area at a height which cannot be checked against it, these blocks will be synced from the network");
+      blocks.clear();
+      return 0;
+    }
+    MWARNING("Not importing blocks " << aligned_height << " - " << (new_height - 1) << ": the file ends inside the compiled block hash area at a height which cannot be checked against it, these blocks will be synced from the network");
+    blocks.resize(aligned_height - start_height);
+    new_height = aligned_height;
+  }
 
   std::vector<crypto::hash> hashes;
   for (const auto &b: blocks)
@@ -155,7 +174,15 @@ int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &block
     }
     hashes.push_back(cryptonote::get_block_hash(block));
   }
-  core.prevalidate_block_hashes(core.get_blockchain_storage().get_db().height(), hashes, {});
+  // outside the compiled block hash area this accepts everything, inside it a
+  // mismatch means the file does not carry the chain these hashes were built
+  // from, so do not let any of these blocks near the database
+  const uint64_t usable = core.prevalidate_block_hashes(start_height, hashes, {});
+  if (usable != hashes.size())
+  {
+    MERROR("Blocks " << start_height << " - " << (new_height - 1) << " do not match the compiled block hashes (" << usable << "/" << hashes.size() << " usable)");
+    return 1;
+  }
 
   std::vector<block> pblocks;
   if(!core.prepare_handle_incoming_blocks(blocks, pblocks))
