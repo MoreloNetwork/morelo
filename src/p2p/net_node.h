@@ -358,6 +358,7 @@ namespace nodetool
     bool is_addr_recently_failed(const epee::net_utils::network_address& addr, time_t forget_seconds = P2P_FAILED_ADDR_FORGET_SECONDS);
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(cryptonote::network_type nettype) const;
+    std::set<std::string> get_ip_seed_nodes() const;
     std::set<std::string> get_seed_nodes();
     bool connect_to_seed();
 
@@ -456,7 +457,7 @@ namespace nodetool
     std::vector<epee::net_utils::network_address> m_seed_nodes;
     bool m_seed_nodes_initialized = false;
     boost::shared_mutex m_seed_nodes_lock;
-    std::atomic_flag m_fallback_seed_nodes_added;
+    std::atomic_flag m_fallback_seed_nodes_added = ATOMIC_FLAG_INIT;
     std::vector<nodetool::peerlist_entry> m_command_line_peers;
     uint64_t m_peer_livetime;
     //keep connections to initiate some interactions
