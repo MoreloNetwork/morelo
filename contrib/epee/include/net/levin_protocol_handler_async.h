@@ -161,6 +161,7 @@ public:
     virtual void cancel()=0;
     virtual bool cancel_timer()=0;
     virtual void reset_timer()=0;
+    virtual int command() const=0;
   };
   template <class callback_t>
   struct anvoke_handler: invoke_response_handler_base
@@ -207,6 +208,10 @@ public:
     virtual bool is_timer_started() const
     {
       return m_timer_started;
+    }
+    virtual int command() const
+    {
+      return m_command;
     }
     virtual void cancel()
     {
@@ -270,6 +275,33 @@ public:
     return handler->is_timer_started();
   }
   template<class callback_t> friend struct anvoke_handler;
+
+  // reject a response nobody asked for, or for another command, before buffering its body
+  bool validate_response_command()
+  {
+    if (m_oponent_protocol_ver != LEVIN_PROTOCOL_VER_1 || !(m_current_head.m_flags & LEVIN_PACKET_RESPONSE))
+      return true;
+
+    CRITICAL_REGION_LOCAL(m_invoke_response_handlers_lock);
+    if (m_invoke_response_handlers.empty())
+    {
+      // a blocking invoke() has no handler; same check as when the body arrives
+      if (!boost::interprocess::ipcdetail::atomic_read32(&m_wait_count) && !boost::interprocess::ipcdetail::atomic_read32(&m_close_called))
+      {
+        MERROR(m_connection_context << "Received levin response but have no invoke handlers");
+        return false;
+      }
+      return true;
+    }
+
+    const int expected = m_invoke_response_handlers.front()->command();
+    if (m_current_head.m_command != static_cast<uint32_t>(expected))
+    {
+      MERROR(m_connection_context << "Received levin response command " << m_current_head.m_command << " while waiting for " << expected);
+      return false;
+    }
+    return true;
+  }
 public:
   async_protocol_handler(net_utils::i_service_endpoint* psnd_hndlr, 
     config_type& config, 
@@ -557,9 +589,12 @@ public:
             return false;
           }
 
+          m_oponent_protocol_ver = m_current_head.m_protocol_version;
+          if (!validate_response_command())
+            return false;
+
           m_cache_in_buffer.erase(sizeof(bucket_head2));
           m_state = stream_state_body;
-          m_oponent_protocol_ver = m_current_head.m_protocol_version;
           const size_t max_bytes = m_connection_context.get_max_bytes(m_current_head.m_command);
           if(m_current_head.m_cb > std::min<size_t>(max_packet_size, max_bytes))
           {
