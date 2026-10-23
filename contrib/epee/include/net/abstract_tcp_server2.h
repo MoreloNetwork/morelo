@@ -73,6 +73,13 @@ namespace net_utils
     virtual ~i_connection_filter(){}
   };
 
+  struct i_connection_limit
+  {
+    virtual bool is_host_limit(const epee::net_utils::network_address &address) = 0;
+  protected:
+    virtual ~i_connection_limit(){}
+  };
+
 
   /************************************************************************/
   /*                                                                      */
@@ -91,10 +98,11 @@ namespace net_utils
     struct shared_state : connection_basic_shared_state
     {
       shared_state()
-        : connection_basic_shared_state(), pfilter(nullptr), config(), stop_signal_sent(false)
+        : connection_basic_shared_state(), pfilter(nullptr), plimit(nullptr), config(), stop_signal_sent(false)
       {}
 
       i_connection_filter* pfilter;
+      i_connection_limit* plimit;
       typename t_protocol_handler::config_type config;
       bool stop_signal_sent;
     };
@@ -248,6 +256,7 @@ namespace net_utils
     size_t get_threads_count(){return m_threads_count;}
 
     void set_connection_filter(i_connection_filter* pfilter);
+    void set_connection_limit(i_connection_limit* plimit);
 
     void set_default_remote(epee::net_utils::network_address remote)
     {

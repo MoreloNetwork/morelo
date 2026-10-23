@@ -144,6 +144,8 @@ namespace nodetool
 
     const command_line::arg_descriptor<bool> arg_save_graph = {"save-graph", "Save data for dr Morelo", false};
 
+    const command_line::arg_descriptor<uint32_t> arg_max_connections_per_ip = {"max-connections-per-ip", "Maximum number of connections allowed from the same IP address", 1};
+
     boost::optional<std::vector<proxy>> get_proxies(boost::program_options::variables_map const& vm)
     {
         namespace ip = boost::asio::ip;

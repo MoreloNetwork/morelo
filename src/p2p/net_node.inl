@@ -119,6 +119,7 @@ namespace nodetool
     command_line::add_arg(desc, arg_limit_rate_down);
     command_line::add_arg(desc, arg_limit_rate);
     command_line::add_arg(desc, arg_save_graph);
+    command_line::add_arg(desc, arg_max_connections_per_ip);
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -211,6 +212,25 @@ namespace nodetool
 
     // not found in hosts or subnets, allowed
     return true;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::is_host_limit(const epee::net_utils::network_address &address)
+  {
+    const network_zone& zone = m_network_zones.at(address.get_zone());
+    if (zone.m_current_number_of_in_peers >= zone.m_config.m_net_config.max_in_connection_count) // in peers limit
+    {
+      MWARNING("Exceeded max incoming connections, so dropping this one.");
+      return true;
+    }
+
+    if(has_too_many_connections(address))
+    {
+      MWARNING("CONNECTION FROM " << address.host_str() << " REFUSED, too many connections from the same address");
+      return true;
+    }
+
+    return false;
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -624,6 +644,8 @@ namespace nodetool
         return false;
     }
 
+    max_connections = command_line::get_arg(vm, arg_max_connections_per_ip);
+
     return true;
   }
   //-----------------------------------------------------------------------------------
@@ -962,6 +984,7 @@ namespace nodetool
       if (!zone.second.m_bind_ip.empty())
       {
         zone.second.m_net_server.set_connection_filter(this);
+        zone.second.m_net_server.set_connection_limit(this);
         MINFO("Binding on " << zone.second.m_bind_ip << ":" << zone.second.m_port);
         res = zone.second.m_net_server.init_server(zone.second.m_port, zone.second.m_bind_ip, epee::net_utils::ssl_support_t::e_ssl_support_disabled);
         CHECK_AND_ASSERT_MES(res, false, "Failed to bind server");
@@ -2278,23 +2301,9 @@ namespace nodetool
 
     network_zone& zone = m_network_zones.at(context.m_remote_address.get_zone());
 
-    if (zone.m_current_number_of_in_peers >= zone.m_config.m_net_config.max_in_connection_count) // in peers limit
-    {
-      LOG_WARNING_CC(context, "COMMAND_HANDSHAKE came, but already have max incoming connections, so dropping this one.");
-      drop_connection(context);
-      return 1;
-    }
-
     if(!m_payload_handler.process_payload_sync_data(arg.payload_data, context, true))
     {
       LOG_WARNING_CC(context, "COMMAND_HANDSHAKE came, but process_payload_sync_data returned false, dropping connection.");
-      drop_connection(context);
-      return 1;
-    }
-
-    if(has_too_many_connections(context.m_remote_address))
-    {
-      LOG_PRINT_CCONTEXT_L1("CONNECTION FROM " << context.m_remote_address.host_str() << " REFUSED, too many connections from the same address");
       drop_connection(context);
       return 1;
     }
@@ -2601,7 +2610,6 @@ namespace nodetool
   {
     if (address.get_zone() != epee::net_utils::zone::public_)
       return false; // Unable to determine connections quantity from host
-    const size_t max_connections = 1;
     size_t count = 0;
 
     m_network_zones.at(epee::net_utils::zone::public_).m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
@@ -2609,15 +2617,16 @@ namespace nodetool
       if (cntxt.m_is_income && cntxt.m_remote_address.is_same_host(address)) {
         count++;
 
-        if (count > max_connections) {
+        // the only call location happens BEFORE foreach_connection list is updated
+        if (count >= max_connections) {
           return false;
         }
       }
 
       return true;
     });
-
-    return count > max_connections;
+    // the only call location happens BEFORE foreach_connection list is updated
+    return count >= max_connections;
   }
 
   template<class t_payload_net_handler>

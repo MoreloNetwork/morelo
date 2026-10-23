@@ -187,6 +187,13 @@ PRAGMA_WARNING_DISABLE_VS(4355)
       return false;
     }
 
+    if(is_income && static_cast<shared_state&>(get_state()).plimit && static_cast<shared_state&>(get_state()).plimit->is_host_limit(context.m_remote_address))
+    {
+      _dbg2("[sock " << socket().native_handle() << "] host limit reached for " << context.m_remote_address.host_str() << ", shutdowning connection");
+      close();
+      return false;
+    }
+
     m_host = context.m_remote_address.host_str();
     try { host_count(m_host, 1); } catch(...) { /* ignore */ }
 
@@ -1062,6 +1069,13 @@ POP_WARNINGS
   {
     assert(m_state != nullptr); // always set in constructor
     m_state->pfilter = pfilter;
+  }
+  //---------------------------------------------------------------------------------
+  template<class t_protocol_handler>
+  void boosted_tcp_server<t_protocol_handler>::set_connection_limit(i_connection_limit* plimit)
+  {
+    assert(m_state != nullptr); // always set in constructor
+    m_state->plimit = plimit;
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
