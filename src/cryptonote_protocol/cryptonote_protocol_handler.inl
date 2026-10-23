@@ -793,16 +793,40 @@ namespace cryptonote
       return LEVIN_ERROR_CONNECTION;
     }
 
+    if (arg.missing_tx_indices.size() > b.tx_hashes.size())
+    {
+      LOG_ERROR_CCONTEXT("Failed to handle request NOTIFY_REQUEST_FLUFFY_MISSING_TX, request is asking for "
+        << arg.missing_tx_indices.size() << " txes but the block only has " << b.tx_hashes.size() << ", dropping connection");
+      drop_connection(context, true, false);
+      return LEVIN_ERROR_CONNECTION;
+    }
+
     std::vector<crypto::hash> txids;
+    txids.reserve(arg.missing_tx_indices.size());
     NOTIFY_NEW_FLUFFY_BLOCK::request fluffy_response;
     fluffy_response.b.block = t_serializable_object_to_blob(b);
     fluffy_response.current_blockchain_height = arg.current_blockchain_height;
+    std::vector<bool> seen(b.tx_hashes.size(), false);
     for(auto& tx_idx: arg.missing_tx_indices)
     {
       if(tx_idx < b.tx_hashes.size())
       {
         MDEBUG("  tx " << b.tx_hashes[tx_idx]);
+        if (seen[tx_idx])
+        {
+          LOG_ERROR_CCONTEXT
+          (
+            "Failed to handle request NOTIFY_REQUEST_FLUFFY_MISSING_TX"
+            << ", request is asking for duplicate tx "
+            << ", tx index = " << tx_idx << ", block tx count " << b.tx_hashes.size()
+            << ", block_height = " << arg.current_blockchain_height
+            << ", dropping connection"
+          );
+          drop_connection(context, true, false);
+          return LEVIN_ERROR_CONNECTION;
+        }
         txids.push_back(b.tx_hashes[tx_idx]);
+        seen[tx_idx] = true;
       }
       else
       {
@@ -906,6 +930,12 @@ namespace cryptonote
       return LEVIN_ERROR_CONNECTION;
     }
     MLOG_P2P_MESSAGE("Received NOTIFY_REQUEST_GET_OBJECTS (" << arg.blocks.size() << " blocks)");
+    if (arg.blocks.size() > CURRENCY_PROTOCOL_MAX_OBJECT_REQUEST_COUNT)
+    {
+      LOG_ERROR_CCONTEXT("Requested objects count is too big (" << arg.blocks.size() << ") expected not more then " << CURRENCY_PROTOCOL_MAX_OBJECT_REQUEST_COUNT);
+      drop_connection(context, false, false);
+      return LEVIN_ERROR_CONNECTION;
+    }
     NOTIFY_RESPONSE_GET_OBJECTS::request rsp;
     if(!m_core.handle_get_objects(arg, rsp, context))
     {
@@ -1624,6 +1654,12 @@ skip:
     if(context.m_state == cryptonote_connection_context::state_before_handshake)
     {
       LOG_ERROR_CCONTEXT("Requested chain before handshake, dropping connection");
+      drop_connection(context, false, false);
+      return LEVIN_ERROR_CONNECTION;
+    }
+    if (arg.block_ids.size() > CURRENCY_PROTOCOL_MAX_CHAIN_REQUEST_COUNT)
+    {
+      LOG_ERROR_CCONTEXT("Requested chain with too many block ids (" << arg.block_ids.size() << ") expected not more then " << CURRENCY_PROTOCOL_MAX_CHAIN_REQUEST_COUNT << ", dropping connection");
       drop_connection(context, false, false);
       return LEVIN_ERROR_CONNECTION;
     }
