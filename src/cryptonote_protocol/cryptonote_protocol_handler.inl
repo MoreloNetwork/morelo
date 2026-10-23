@@ -128,7 +128,8 @@ namespace cryptonote
   template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::pruned_peer_can_serve_chain(const cryptonote_connection_context& context) const
   {
-    if (context.m_pruning_seed == 0)
+    // servers only clip the reply when the request does not ask for pruned blocks (!arg.prune)
+    if (context.m_pruning_seed == 0 || m_sync_pruned_blocks)
       return true;
     const uint64_t bc_height = m_core.get_current_blockchain_height();
     if (bc_height == 0 || context.m_remote_blockchain_height <= bc_height)
