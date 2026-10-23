@@ -2742,19 +2742,24 @@ skip:
             drop_score = 5;
             break;
           }
-          block blk;
-          bool orphan = false;
-          if (!m_core.get_block_by_hash(arg.m_block_ids[i], blk, &orphan))
+          // cheap check first: main chain at the expected height; only otherwise parse the block
+          // to tell an alt block (fine) from a misplaced main chain block or an invalid one
+          if (m_core.get_block_id_by_height(arg.start_height + i) != arg.m_block_ids[i])
           {
-            drop_reason = "Block is invalid or known without known type, dropping connection";
-            drop_score = 1;
-            break;
-          }
-          if (!orphan && m_core.get_block_id_by_height(arg.start_height + i) != arg.m_block_ids[i])
-          {
-            drop_reason = "Block is on the main chain, but not at the expected height, dropping connection";
-            drop_score = 5;
-            break;
+            block blk;
+            bool orphan = false;
+            if (!m_core.get_block_by_hash(arg.m_block_ids[i], blk, &orphan))
+            {
+              drop_reason = "Block is invalid or known without known type, dropping connection";
+              drop_score = 1;
+              break;
+            }
+            if (!orphan)
+            {
+              drop_reason = "Block is on the main chain, but not at the expected height, dropping connection";
+              drop_score = 5;
+              break;
+            }
           }
         }
         else
