@@ -185,6 +185,7 @@ namespace cryptonote
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
+      tvc.m_no_drop_offense = true;
       return false;
     }
 
@@ -208,6 +209,7 @@ namespace cryptonote
         LOG_PRINT_L1("Transaction with id= "<< id << " used already spent key images");
         tvc.m_verifivation_failed = true;
         tvc.m_double_spend = true;
+        tvc.m_no_drop_offense = true;
         return false;
       }
     }
