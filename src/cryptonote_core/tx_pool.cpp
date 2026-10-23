@@ -633,6 +633,7 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
     const time_t now = time(NULL);
+    bool changed = false;
     LockedTXN lock(m_blockchain);
     for (auto it = txs.begin(); it != txs.end(); ++it)
     {
@@ -641,6 +642,7 @@ namespace cryptonote
         txpool_tx_meta_t meta;
         if (m_blockchain.get_txpool_tx_meta(it->first, meta))
         {
+          changed |= !meta.relayed;
           meta.relayed = true;
           meta.last_relayed_time = now;
           m_blockchain.update_txpool_tx(it->first, meta);
@@ -653,6 +655,9 @@ namespace cryptonote
       }
     }
     lock.commit();
+    // restricted block templates only include relayed txes, so this changes them
+    if (changed)
+      ++m_cookie;
   }
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_transactions_count(bool include_unrelayed_txes) const
