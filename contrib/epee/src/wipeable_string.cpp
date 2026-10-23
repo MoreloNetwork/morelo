@@ -26,6 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <cctype>
 #include <limits>
 #include <boost/optional/optional.hpp>
 #include <string.h>
@@ -189,13 +190,14 @@ void wipeable_string::split(std::vector<wipeable_string> &fields) const
   while (len--)
   {
     const char c = *ptr++;
-    if (c != ' ')
+    const bool space_prev = space;
+    space = std::isspace(static_cast<unsigned char>(c));
+    if (!space)
     {
-      if (space)
+      if (space_prev)
         fields.push_back({});
       fields.back().push_back(c);
     }
-    space = c == ' ';
   }
 }
 
