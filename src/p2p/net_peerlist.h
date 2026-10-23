@@ -111,6 +111,7 @@ namespace nodetool
     bool get_white_peer_by_index(peerlist_entry& p, size_t i);
     bool get_gray_peer_by_index(peerlist_entry& p, size_t i);
     template<typename F> bool foreach(bool white, const F &f);
+    void evict_host_from_peerlist(bool white, const peerlist_entry& pr);
     bool append_with_peer_white(const peerlist_entry& pr);
     bool append_with_peer_gray(const peerlist_entry& pr);
     bool append_with_peer_anchor(const anchor_peerlist_entry& ple);
@@ -122,6 +123,7 @@ namespace nodetool
     bool get_and_empty_anchor_peerlist(std::vector<anchor_peerlist_entry>& apl);
     bool remove_from_peer_anchor(const epee::net_utils::network_address& addr);
     bool remove_from_peer_white(const peerlist_entry& pe);
+    template<typename F> size_t filter(bool white, const F &f); // f returns true: drop, false: keep
 
   private:
     struct by_time{};
@@ -485,6 +487,43 @@ namespace nodetool
     return true;
 
     CATCH_ENTRY_L0("peerlist_manager::get_and_empty_anchor_peerlist()", false);
+  }
+  //--------------------------------------------------------------------------------------------------
+  inline
+  void peerlist_manager::evict_host_from_peerlist(bool white, const peerlist_entry& pr)
+  {
+    peers_indexed& peers = white ? m_peers_white : m_peers_gray;
+    peers_indexed::index<by_addr>::type& addr_index = peers.get<by_addr>();
+    auto it = addr_index.begin();
+    while (it != addr_index.end())
+    {
+      if (it->adr.is_same_host(pr.adr))
+        it = addr_index.erase(it);
+      else
+        ++it;
+    }
+  }
+  //--------------------------------------------------------------------------------------------------
+  template<typename F> inline
+  size_t peerlist_manager::filter(bool white, const F &f)
+  {
+    size_t filtered = 0;
+    TRY_ENTRY();
+    CRITICAL_REGION_LOCAL(m_peerlist_lock);
+    peers_indexed::index<by_addr>::type& sorted_index = white ? m_peers_white.get<by_addr>() : m_peers_gray.get<by_addr>();
+    auto i = sorted_index.begin();
+    while (i != sorted_index.end())
+    {
+      if (f(*i))
+      {
+        i = sorted_index.erase(i);
+        ++filtered;
+      }
+      else
+        ++i;
+    }
+    CATCH_ENTRY_L0("peerlist_manager::filter()", filtered);
+    return filtered;
   }
   //--------------------------------------------------------------------------------------------------
   inline
