@@ -480,6 +480,8 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     {
       const std::string &identity = zmq_notifier_identity();
       producer.setsockopt(ZMQ_IDENTITY, identity.data(), identity.size());
+      // undelivered notifications must not keep the daemon from exiting
+      producer.setsockopt<int>(ZMQ_LINGER, 0);
       std::string bind_address = "tcp://";
       bind_address.append(zmq_ip).append(":").append(zmq_port);
       LOG_PRINT_L1("Blockchain::" << bind_address);
@@ -583,8 +585,8 @@ bool Blockchain::deinit()
     try
     {
       LOG_PRINT_L1("closing zmq.... ");
-      zmq_close(&producer);
-      zmq_term(&context);
+      producer.close();
+      context.close();
     }
     catch (const std::exception& e)
     {
@@ -4158,8 +4160,10 @@ leave:
     {
       std::string hex = epee::string_tools::pod_to_hex(id);
       LOG_PRINT_L1("blockchain sending hash: " <<  hex);
-      producer.send(create_message(std::move("")), ZMQ_SNDMORE);
-  	  producer.send(create_message(std::move(hex)), 0);
+      // never block block processing: the notification is dropped while the
+      // ZMQ server isn't listening yet (e.g. genesis) or its queue is full
+      if (producer.send(create_message(std::move("")), ZMQ_SNDMORE | ZMQ_DONTWAIT))
+        producer.send(create_message(std::move(hex)), ZMQ_DONTWAIT);
     }
     catch( const std::exception& e)
     {

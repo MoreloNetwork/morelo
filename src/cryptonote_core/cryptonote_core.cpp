@@ -740,6 +740,12 @@ namespace cryptonote
       MERROR("Failed to parse block notify spec");
     }
 
+    // the ZMQ options are only registered by the daemon, other tools also init the core
+    if (vm.count(daemon_args::arg_zmq_enabled.name) && command_line::get_arg(vm, daemon_args::arg_zmq_enabled))
+      m_blockchain_storage.set_zmq_options(command_line::get_arg(vm, daemon_args::arg_zmq_bind_ip),
+          command_line::get_arg(vm, daemon_args::arg_zmq_bind_port),
+          command_line::get_arg(vm, daemon_args::arg_zmq_max_clients), true);
+
     try
     {
       if (!command_line::is_arg_defaulted(vm, arg_reorg_notify))
