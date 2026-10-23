@@ -416,7 +416,8 @@ namespace nodetool
     host_fails &entry = m_host_fails_score[address.host_str()];
     // forgive one point per P2P_IP_FAILS_DECAY_SECONDS without a new fail, so that unrelated
     // transient problems spread over days don't add up to a ban on a small network; bad PoW
-    // and invalid blocks score P2P_IP_FAILS_BEFORE_BLOCK at once and still ban immediately
+    // and invalid blocks score P2P_IP_FAILS_BEFORE_BLOCK at once, so the next fail of any kind
+    // blocks the host (the comparison below stays strict, as upstream)
     if (entry.last && now > entry.last)
     {
       const uint64_t forgiven = (now - entry.last) / P2P_IP_FAILS_DECAY_SECONDS;
@@ -1771,9 +1772,8 @@ namespace nodetool
         size_t new_conn_count = get_outgoing_connections_count(zone.second);
         if (new_conn_count <= conn_count)
         {
-          // we did not make any connection, sleep a bit to avoid a busy loop in case we don't have
-          // any peers to try, then break so we will try seeds to get more peers
-          boost::this_thread::sleep_for(boost::chrono::seconds(1));
+          // we did not make any connection: break so we will try seeds to get more peers; the
+          // idle timer that calls us paces the retries, never sleep on the io thread
           break;
         }
         conn_count = new_conn_count;

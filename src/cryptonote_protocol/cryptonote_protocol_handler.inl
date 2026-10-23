@@ -128,7 +128,8 @@ namespace cryptonote
   template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::pruned_peer_can_serve_chain(const cryptonote_connection_context& context) const
   {
-    if (context.m_pruning_seed == 0)
+    // servers only clip the reply when the request does not ask for pruned blocks (!arg.prune)
+    if (context.m_pruning_seed == 0 || m_sync_pruned_blocks)
       return true;
     const uint64_t bc_height = m_core.get_current_blockchain_height();
     if (bc_height == 0 || context.m_remote_blockchain_height <= bc_height)
@@ -2103,7 +2104,12 @@ skip:
       context.m_expect_height = m_core.get_current_blockchain_height();
       CHECK_AND_ASSERT_MES(!r.block_ids.empty(), false, "Short chain history is empty");
 
-      // Continue from this peer's last known block, which may still be queued.
+      // Continue from this peer's last known block, which may still be queued. If the span that
+      // held it was flushed meanwhile the hash is untracked: don't send it, the reply would start
+      // from a block we cannot verify.
+      if (context.m_last_known_hash != crypto::null_hash && !m_core.have_block(context.m_last_known_hash)
+          && !m_block_queue.have(context.m_last_known_hash))
+        context.m_last_known_hash = crypto::null_hash;
       if (context.m_last_known_hash != crypto::null_hash && r.block_ids.front() != context.m_last_known_hash)
       {
         context.m_expect_height = std::numeric_limits<uint64_t>::max();
@@ -2719,7 +2725,8 @@ skip:
           if (!have_block && m_block_queue.have_height(arg.m_block_ids[i]) != arg.start_height)
           {
             drop_reason = "First block hash is unknown, dropping connection";
-            drop_score = 5;
+            // no fail point when we handed the peer that hash ourselves (its span got flushed since)
+            drop_score = arg.m_block_ids[i] == context.m_last_known_hash ? 0 : 5;
             break;
           }
           if (!have_block)
@@ -2735,19 +2742,24 @@ skip:
             drop_score = 5;
             break;
           }
-          block blk;
-          bool orphan = false;
-          if (!m_core.get_block_by_hash(arg.m_block_ids[i], blk, &orphan))
+          // cheap check first: main chain at the expected height; only otherwise parse the block
+          // to tell an alt block (fine) from a misplaced main chain block or an invalid one
+          if (m_core.get_block_id_by_height(arg.start_height + i) != arg.m_block_ids[i])
           {
-            drop_reason = "Block is invalid or known without known type, dropping connection";
-            drop_score = 1;
-            break;
-          }
-          if (!orphan && m_core.get_block_id_by_height(arg.start_height + i) != arg.m_block_ids[i])
-          {
-            drop_reason = "Block is on the main chain, but not at the expected height, dropping connection";
-            drop_score = 5;
-            break;
+            block blk;
+            bool orphan = false;
+            if (!m_core.get_block_by_hash(arg.m_block_ids[i], blk, &orphan))
+            {
+              drop_reason = "Block is invalid or known without known type, dropping connection";
+              drop_score = 1;
+              break;
+            }
+            if (!orphan)
+            {
+              drop_reason = "Block is on the main chain, but not at the expected height, dropping connection";
+              drop_score = 5;
+              break;
+            }
           }
         }
         else
