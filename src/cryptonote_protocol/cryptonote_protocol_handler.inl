@@ -143,6 +143,7 @@ namespace cryptonote
             context.m_last_request_time = boost::date_time::not_a_date_time;
             context.m_expect_response = 0;
             context.m_refresh_for_next_span = false;
+            context.m_idle_kicked = true;
             context.m_expect_height = 0;
             context.m_requested_objects.clear();
             context.m_state = cryptonote_connection_context::state_standby; // we'll go back to adding, then (if we can't), download
@@ -1039,7 +1040,7 @@ namespace cryptonote
     if (context.m_expect_response != NOTIFY_RESPONSE_GET_OBJECTS::ID)
     {
       LOG_ERROR_CCONTEXT("Got NOTIFY_RESPONSE_GET_OBJECTS out of the blue, dropping connection");
-      drop_connection(context, true, false);
+      drop_connection(context, !context.m_idle_kicked, false);
       return LEVIN_ERROR_CONNECTION;
     }
     context.m_expect_response = 0;
@@ -2555,7 +2556,7 @@ skip:
     if (context.m_expect_response != NOTIFY_RESPONSE_CHAIN_ENTRY::ID)
     {
       LOG_ERROR_CCONTEXT("Got NOTIFY_RESPONSE_CHAIN_ENTRY out of the blue, dropping connection");
-      drop_connection(context, true, false);
+      drop_connection(context, !context.m_idle_kicked, false);
       return LEVIN_ERROR_CONNECTION;
     }
     context.m_expect_response = 0;
