@@ -233,8 +233,13 @@ namespace net_utils
     std::map<std::string, t_connection_type> server_type_map;
     void create_server_type_map();
 
-    bool init_server(uint32_t port, const std::string address = "0.0.0.0", ssl_options_t ssl_options = ssl_support_t::e_ssl_support_autodetect);
-    bool init_server(const std::string port, const std::string& address = "0.0.0.0", ssl_options_t ssl_options = ssl_support_t::e_ssl_support_autodetect);
+    // Listens on `address`:`port` and, with `use_ipv6`, on `address_ipv6`:`port` too (IPv6 only, so
+    // IPv4 peers never show up as ::ffff:a.b.c.d). A failed IPv4 bind is fatal unless `require_ipv4`
+    // is false and the IPv6 bind worked.
+    bool init_server(uint32_t port, const std::string address = "0.0.0.0", ssl_options_t ssl_options = ssl_support_t::e_ssl_support_autodetect,
+      const std::string& address_ipv6 = "::", bool use_ipv6 = false, bool require_ipv4 = true);
+    bool init_server(const std::string port, const std::string& address = "0.0.0.0", ssl_options_t ssl_options = ssl_support_t::e_ssl_support_autodetect,
+      const std::string& address_ipv6 = "::", bool use_ipv6 = false, bool require_ipv4 = true);
 
     // Run the server's io_service loop.
     bool run_server(size_t threads_count, bool wait = true, const boost::thread::attributes& attrs = boost::thread::attributes());
@@ -276,6 +281,13 @@ namespace net_utils
     }
 
     int get_binded_port(){return m_port;}
+    //! \return The port the IPv6 listener is bound to, 0 when there is none
+    int get_binded_port_ipv6() const
+    {
+      boost::system::error_code ec;
+      const auto endpoint = acceptor_ipv6.local_endpoint(ec);
+      return ec ? 0 : endpoint.port();
+    }
 
     long get_connections_count() const
     {
@@ -343,8 +355,12 @@ namespace net_utils
   private:
     // Run the server's io_service loop.
     bool worker_thread();
-    // Handle completion of an asynchronous accept operation.
-    void handle_accept(const boost::system::error_code& e);
+    // Handle completion of an asynchronous accept operation on the IPv4 or the IPv6 acceptor.
+    void handle_accept(const boost::system::error_code& e, bool ipv6);
+    // Start listening with `acceptor` on `address`:m_port, returns the error message on failure
+    std::string listen(boost::asio::ip::tcp::acceptor& acceptor, connection_ptr& next_connection, const std::string& address, bool ipv6);
+    // Resolve `adr`:`port`, preferring an IPv4 result when a hostname has both
+    bool resolve(const std::string& adr, const std::string& port, boost::asio::ip::tcp::endpoint& endpoint);
 
     bool is_thread_worker();
 
@@ -363,13 +379,17 @@ namespace net_utils
     std::unique_ptr<worker> m_io_service_local_instance;
     boost::asio::io_context& io_service_;
 
-    // Acceptor used to listen for incoming connections.
+    // Acceptors used to listen for incoming connections.
     boost::asio::ip::tcp::acceptor acceptor_;
+    boost::asio::ip::tcp::acceptor acceptor_ipv6;
     epee::net_utils::network_address default_remote;
 
     std::atomic<bool> m_stop_signal_sent;
     uint32_t m_port;
     std::string m_address;
+    std::string m_address_ipv6;
+    bool m_use_ipv6;
+    bool m_require_ipv4;
     std::string m_thread_name_prefix; //TODO: change to enum server_type, now used
     size_t m_threads_count;
     std::vector<boost::shared_ptr<boost::thread>> m_threads;
@@ -379,8 +399,9 @@ namespace net_utils
 
     t_connection_type m_connection_type;
 
-    // The next connection to be accepted
+    // The next connection to be accepted, per acceptor
     connection_ptr new_connection_;
+    connection_ptr new_connection_ipv6;
 
     boost::mutex connections_mutex;
     std::set<connection_ptr> connections_;

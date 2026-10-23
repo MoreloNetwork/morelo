@@ -10,9 +10,18 @@ namespace net_utils
 		// Get a list of endpoints corresponding to the server name.
 		//////////////////////////////////////////////////////////////////////////
 		boost::asio::ip::tcp::resolver resolver(GET_IO_SERVICE(timeout));
-		const auto results = resolver.resolve(boost::asio::ip::tcp::v4(), addr, port, boost::asio::ip::tcp::resolver::canonical_name);
+		const auto results = resolver.resolve(addr, port, boost::asio::ip::tcp::resolver::canonical_name);
 		if(results.empty()) // Documentation states that successful call is guaranteed to be non-empty
 			throw boost::system::system_error{boost::asio::error::fault, "Failed to resolve " + addr};
+
+		// literals resolve to themselves; a hostname with both records keeps connecting over IPv4
+		boost::asio::ip::tcp::endpoint endpoint = results.begin()->endpoint();
+		for(const auto& entry : results)
+			if(entry.endpoint().address().is_v4())
+			{
+				endpoint = entry.endpoint();
+				break;
+			}
 
 		//////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +44,7 @@ namespace net_utils
 				shared->socket_.close();
 			}
 		});
-		shared->socket_.async_connect(results.begin()->endpoint(), [shared] (boost::system::error_code error)
+		shared->socket_.async_connect(endpoint, [shared] (boost::system::error_code error)
 		{
 			if (shared)
 			{
