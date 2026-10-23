@@ -315,11 +315,13 @@ namespace cryptonote
     bool r;
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_INFO>(invoke_http_mode::JON, "/getinfo", req, res, r))
     {
-      res.bootstrap_daemon_address = m_bootstrap_daemon_address;
+      const bool restricted = m_restricted && ctx;
+      res.bootstrap_daemon_address = restricted ? "" : m_bootstrap_daemon_address;
       crypto::hash top_hash;
       m_core.get_blockchain_top(res.height_without_bootstrap, top_hash);
       ++res.height_without_bootstrap; // turn top block height into blockchain height
       res.was_bootstrap_ever_used = true;
+      res.restricted = restricted;
       return r;
     }
 
@@ -367,6 +369,7 @@ namespace cryptonote
     }
     res.database_size = restricted ? 0 : m_core.get_blockchain_storage().get_db().get_database_size();
     res.update_available = m_core.is_update_available();
+    res.restricted = restricted;
 
     res.status = CORE_RPC_STATUS_OK;
     return true;
