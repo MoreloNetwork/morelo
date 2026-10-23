@@ -5150,8 +5150,16 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   if (keys_password != password)
   {
     // from now on the password is the UTF-8 one that every other code path uses
-    change_password(m_wallet_file, keys_password, password);
-    MWARNING("Re-encrypted the wallet with the password in UTF-8");
+    try
+    {
+      change_password(m_wallet_file, keys_password, password);
+      MWARNING("Re-encrypted the wallet with the password in UTF-8");
+    }
+    catch (const std::exception &e)
+    {
+      // the wallet is loaded fine, it will just keep needing the ANSI fallback
+      MWARNING("Failed to re-encrypt the wallet with the password in UTF-8: " << e.what());
+    }
   }
 #endif
 }
