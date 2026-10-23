@@ -930,19 +930,46 @@ namespace cryptonote
       return 1;
     }
 
+    // a peer sending the same tx twice in one notification is broken or malicious
+    std::unordered_set<crypto::hash> seen;
+    seen.reserve(arg.txs.size());
+    for (const auto &blob: arg.txs)
+    {
+      crypto::hash digest{};
+      if (!blob.empty())
+        tools::sha256sum(reinterpret_cast<const uint8_t*>(blob.data()), blob.size(), digest);
+      if (!seen.insert(digest).second)
+      {
+        LOG_PRINT_CCONTEXT_L1("Duplicate transaction in notification, dropping connection");
+        drop_connection(context, false, false);
+        return LEVIN_ERROR_CONNECTION;
+      }
+    }
+
+    // verify the whole notification as one batch
+    std::vector<tx_blob_entry> tx_blobs;
+    tx_blobs.reserve(arg.txs.size());
+    for (const auto &blob: arg.txs)
+      tx_blobs.push_back({blob, crypto::null_hash});
+    std::vector<cryptonote::tx_verification_context> tvc;
+    m_core.handle_incoming_txs(tx_blobs, tvc, false, true, false);
+    if (tvc.size() != arg.txs.size())
+    {
+      LOG_ERROR_CCONTEXT("Internal error: tvc.size() != arg.txs.size()");
+      return 1;
+    }
+
     std::vector<cryptonote::blobdata> newtxs;
     newtxs.reserve(arg.txs.size());
     for (size_t i = 0; i < arg.txs.size(); ++i)
     {
-      cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-      m_core.handle_incoming_tx({arg.txs[i], crypto::null_hash}, tvc, false, true, false);
-      if(tvc.m_verifivation_failed)
+      if(tvc[i].m_verifivation_failed)
       {
         LOG_PRINT_CCONTEXT_L1("Tx verification failed, dropping connection");
         drop_connection(context, false, false);
         return LEVIN_ERROR_CONNECTION;
       }
-      if(tvc.m_should_be_relayed)
+      if(tvc[i].m_should_be_relayed)
         newtxs.push_back(std::move(arg.txs[i]));
     }
     arg.txs = std::move(newtxs);
