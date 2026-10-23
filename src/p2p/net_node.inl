@@ -1353,7 +1353,7 @@ namespace nodetool
     {
       bool is_priority = is_priority_node(na);
       LOG_PRINT_CC_PRIORITY_NODE(is_priority, bool(con), " Connect failed to " << na.str()/*<< ", try " << try_count*/);
-      //m_peerlist.set_peer_unreachable(pe);
+      record_addr_failed(na);
       return false;
     }
 
@@ -1365,6 +1365,7 @@ namespace nodetool
     {
       bool is_priority = is_priority_node(na);
       LOG_PRINT_CC_PRIORITY_NODE(is_priority, *con, " Failed to HANDSHAKE with peer: " << na.str()/*<< ", try " << try_count*/);
+      record_addr_failed(na);
       return false;
     }
 
@@ -1412,6 +1413,7 @@ namespace nodetool
     {
       bool is_priority = is_priority_node(na);
       LOG_PRINT_CC_PRIORITY_NODE(is_priority, p2p_connection_context{}, " Connect failed to " << na.str());
+      record_addr_failed(na);
       return false;
     }
 
@@ -1423,6 +1425,7 @@ namespace nodetool
       bool is_priority = is_priority_node(na);
 
       LOG_PRINT_CC_PRIORITY_NODE(is_priority, *con, " Failed to HANDSHAKE with peer: " << na.str());
+      record_addr_failed(na);
       return false;
     }
 
@@ -1437,14 +1440,21 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::is_addr_recently_failed(const epee::net_utils::network_address& addr)
+  void node_server<t_payload_net_handler>::record_addr_failed(const epee::net_utils::network_address& addr)
   {
     CRITICAL_REGION_LOCAL(m_conn_fails_cache_lock);
-    auto it = m_conn_fails_cache.find(addr);
+    m_conn_fails_cache[addr.host_str()] = time(NULL);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::is_addr_recently_failed(const epee::net_utils::network_address& addr, time_t forget_seconds)
+  {
+    CRITICAL_REGION_LOCAL(m_conn_fails_cache_lock);
+    auto it = m_conn_fails_cache.find(addr.host_str());
     if(it == m_conn_fails_cache.end())
       return false;
 
-    if(time(NULL) - it->second > P2P_FAILED_ADDR_FORGET_SECONDS)
+    if(time(NULL) - it->second > forget_seconds)
       return false;
     else
       return true;

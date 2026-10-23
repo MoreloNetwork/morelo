@@ -353,8 +353,8 @@ namespace nodetool
     bool try_ping(basic_node_data& node_data, p2p_connection_context& context, const t_callback &cb);
     bool try_get_support_flags(const p2p_connection_context& context, std::function<void(p2p_connection_context&, const uint32_t&)> f);
     bool make_expected_connections_count(network_zone& zone, PeerType peer_type, size_t expected_connections);
-    void cache_connect_fail_info(const epee::net_utils::network_address& addr);
-    bool is_addr_recently_failed(const epee::net_utils::network_address& addr);
+    void record_addr_failed(const epee::net_utils::network_address& addr);
+    bool is_addr_recently_failed(const epee::net_utils::network_address& addr, time_t forget_seconds = P2P_FAILED_ADDR_FORGET_SECONDS);
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(cryptonote::network_type nettype) const;
     std::set<std::string> get_seed_nodes();
@@ -472,7 +472,7 @@ namespace nodetool
     added. `std::map::operator[]` WILL insert! */
     std::map<epee::net_utils::zone, network_zone> m_network_zones;
 
-    std::map<epee::net_utils::network_address, time_t> m_conn_fails_cache;
+    std::map<std::string, time_t> m_conn_fails_cache;
     epee::critical_section m_conn_fails_cache_lock;
 
     epee::critical_section m_blocked_hosts_lock; // for both hosts and subnets
