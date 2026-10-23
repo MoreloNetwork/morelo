@@ -123,8 +123,9 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   // Only peers advertising P2P_SUPPORT_FLAG_IPV6 may be sent IPv6 entries: a node without it
-  // cannot parse them, drops the connection and after a few repeats bans us. Forbidden
-  // addresses are never sent, whatever an old peer list file may hold.
+  // cannot parse them, drops the connection and after a few repeats bans us. Callers mask the
+  // peer's flags with ours, so a node with IPv6 off never passes on IPv6 entries an older run
+  // left in its peer list file. Forbidden addresses are never sent.
   inline void filter_peerlist_for_peer(std::vector<peerlist_entry>& peerlist, uint32_t peer_support_flags)
   {
     const bool ipv6_ok = peer_support_flags & P2P_SUPPORT_FLAG_IPV6;
@@ -2475,7 +2476,7 @@ namespace nodetool
 
     std::vector<peerlist_entry> local_peerlist_new;
     zone.m_peerlist.get_peerlist_head(local_peerlist_new, true, max_peerlist_size);
-    filter_peerlist_for_peer(local_peerlist_new, context.support_flags);
+    filter_peerlist_for_peer(local_peerlist_new, context.support_flags & zone.m_config.m_support_flags);
 
     /* Tor/I2P nodes receiving connections via forwarding (from tor/i2p daemon)
     do not know the address of the connecting peer. This is relayed to them,
@@ -2593,7 +2594,7 @@ namespace nodetool
 
     //fill response
     zone.m_peerlist.get_peerlist_head(rsp.local_peerlist_new, true);
-    filter_peerlist_for_peer(rsp.local_peerlist_new, context.support_flags);
+    filter_peerlist_for_peer(rsp.local_peerlist_new, context.support_flags & zone.m_config.m_support_flags);
     for(const auto &e: rsp.local_peerlist_new)
       context.sent_addresses.insert(e.adr);
     get_local_node_data(rsp.node_data, zone);

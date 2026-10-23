@@ -281,6 +281,9 @@ namespace nodetool
     virtual std::map<epee::net_utils::ipv4_network_subnet, time_t> get_blocked_subnets() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_subnets; }
     virtual std::map<epee::net_utils::ipv6_network_subnet, time_t> get_blocked_subnets6() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_subnets6; }
 
+    // drops entries a peer must not have sent us (public so the unit tests can exercise it)
+    bool sanitize_peerlist(std::vector<peerlist_entry>& local_peerlist);
+
     virtual void add_used_stripe_peer(const typename t_payload_net_handler::connection_context &context);
     virtual void remove_used_stripe_peer(const typename t_payload_net_handler::connection_context &context);
     virtual void clear_used_stripe_peers();
@@ -347,7 +350,6 @@ namespace nodetool
     bool get_local_node_data(basic_node_data& node_data, const network_zone& zone);
     //bool get_local_handshake_data(handshake_data& hshd);
 
-    bool sanitize_peerlist(std::vector<peerlist_entry>& local_peerlist);
     // the subnet ban bookkeeping, shared by the IPv4 and IPv6 subnet maps
     template<class Subnet> bool is_in_blocked_subnet(std::map<Subnet, time_t>& subnets, const epee::net_utils::network_address& address, time_t now, time_t* t);
     template<class Subnet> bool block_subnet_impl(std::map<Subnet, time_t>& subnets, const Subnet& subnet, time_t seconds, bool add_only = false);

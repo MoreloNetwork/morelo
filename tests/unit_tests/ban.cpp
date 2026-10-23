@@ -343,6 +343,95 @@ TEST(ban, ipv6_fail_score_by_prefix)
   ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:3::3", 0), &seconds));
 }
 
+namespace
+{
+  nodetool::peerlist_entry make_peer(const epee::net_utils::network_address& adr, uint64_t id)
+  {
+    nodetool::peerlist_entry pe{};
+    pe.adr = adr;
+    pe.id = id;
+    pe.last_seen = 1000;
+    pe.rpc_port = 38302;
+    return pe;
+  }
+
+  bool contains(const std::vector<nodetool::peerlist_entry>& peers, const epee::net_utils::network_address& adr)
+  {
+    return std::any_of(peers.begin(), peers.end(), [&adr](const nodetool::peerlist_entry& pe) { return pe.adr == adr; });
+  }
+
+  const epee::net_utils::network_address mapped_v6{MAKE_IPV6_ADDRESS("::ffff:45.155.69.10", 38303)};
+  const epee::net_utils::network_address unspecified_v6{MAKE_IPV6_ADDRESS("::", 38303)};
+  const epee::net_utils::network_address multicast_v6{MAKE_IPV6_ADDRESS("ff02::1", 38303)};
+  const epee::net_utils::network_address public_v6{MAKE_IPV6_ADDRESS("2001:db8::1", 38303)};
+  const epee::net_utils::network_address public_v4{MAKE_IPV4_ADDRESS_PORT(11,22,33,44, 38303)};
+}
+
+TEST(node_server, forbidden_ipv6)
+{
+  EXPECT_TRUE(nodetool::is_forbidden_ipv6_address(mapped_v6));
+  EXPECT_TRUE(nodetool::is_forbidden_ipv6_address(unspecified_v6));
+  EXPECT_TRUE(nodetool::is_forbidden_ipv6_address(multicast_v6));
+  EXPECT_FALSE(nodetool::is_forbidden_ipv6_address(public_v6));
+  EXPECT_FALSE(nodetool::is_forbidden_ipv6_address(public_v4));
+
+  EXPECT_TRUE(nodetool::should_skip_connect_address(public_v6, false));
+  EXPECT_FALSE(nodetool::should_skip_connect_address(public_v6, true));
+  EXPECT_TRUE(nodetool::should_skip_connect_address(mapped_v6, true));
+  EXPECT_TRUE(nodetool::should_skip_connect_address(unspecified_v6, true));
+  EXPECT_FALSE(nodetool::should_skip_connect_address(public_v4, false));
+}
+
+TEST(node_server, peerlist_filter_by_support_flags)
+{
+  const std::vector<nodetool::peerlist_entry> all = { make_peer(public_v4, 1), make_peer(public_v6, 2), make_peer(mapped_v6, 3) };
+
+  // a peer without P2P_SUPPORT_FLAG_IPV6 (any deployed node) must never see an IPv6 entry
+  std::vector<nodetool::peerlist_entry> list = all;
+  nodetool::filter_peerlist_for_peer(list, 0);
+  ASSERT_EQ(1, list.size());
+  EXPECT_EQ(public_v4, list[0].adr);
+
+  list = all;
+  nodetool::filter_peerlist_for_peer(list, P2P_SUPPORT_FLAG_FLUFFY_BLOCKS);
+  ASSERT_EQ(1, list.size());
+  EXPECT_EQ(public_v4, list[0].adr);
+
+  // an IPv6 capable peer gets them, forbidden addresses are never sent
+  list = all;
+  nodetool::filter_peerlist_for_peer(list, P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_IPV6);
+  ASSERT_EQ(2, list.size());
+  EXPECT_TRUE(contains(list, public_v4));
+  EXPECT_TRUE(contains(list, public_v6));
+  EXPECT_FALSE(contains(list, mapped_v6));
+}
+
+TEST(node_server, sanitize_peerlist)
+{
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol); // IPv6 is off by default
+  cprotocol.set_p2p_endpoint(&server);
+
+  std::vector<nodetool::peerlist_entry> list;
+  list.push_back(make_peer(epee::net_utils::network_address{}, 1)); // unknown type, as an unparseable entry ends up
+  list.push_back(make_peer(public_v6, 2));
+  list.push_back(make_peer(mapped_v6, 3));
+  list.push_back(make_peer(unspecified_v6, 4));
+  list.push_back(make_peer(MAKE_IPV6_ADDRESS("fe80::1", 38303), 5));
+  list.push_back(make_peer(MAKE_IPV6_ADDRESS("::1", 38303), 6));
+  list.push_back(make_peer(MAKE_IPV4_ADDRESS_PORT(127,0,0,1, 38303), 7));
+  list.push_back(make_peer(MAKE_IPV4_ADDRESS_PORT(10,0,0,1, 38303), 8));
+  list.push_back(make_peer(MAKE_IPV4_ADDRESS_PORT(0,0,0,0, 38303), 9));
+  list.push_back(make_peer(MAKE_IPV4_ADDRESS_PORT(11,22,33,44, 38302), 10)); // p2p port equal to its rpc port
+  list.push_back(make_peer(public_v4, 11));
+
+  ASSERT_TRUE(server.sanitize_peerlist(list));
+  ASSERT_EQ(1, list.size());
+  EXPECT_EQ(public_v4, list[0].adr);
+  EXPECT_EQ(11, list[0].id);
+  EXPECT_EQ(0, list[0].last_seen); // a remote last seen is never trusted
+}
 
 namespace nodetool { template class node_server<cryptonote::t_cryptonote_protocol_handler<test_core>>; }
 namespace cryptonote { template class t_cryptonote_protocol_handler<test_core>; }
