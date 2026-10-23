@@ -4600,7 +4600,8 @@ bool simple_wallet::set_daemon(const std::vector<std::string>& args)
     return true;
   }
 
-  boost::regex rgx("^(.*://)?([A-Za-z0-9\\-\\.]+)(:[0-9]+)?");
+  // hostname, IPv4 or bracketed IPv6 literal, with an optional port
+  boost::regex rgx("^(.*://)?(\\[[0-9A-Fa-f:\\.]+\\]|[A-Za-z0-9\\-\\.]+)(:[0-9]+)?");
   boost::cmatch match;
   // If user input matches URL regex
   if (boost::regex_match(args[0].c_str(), match, rgx))

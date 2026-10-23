@@ -29,16 +29,45 @@
 
 #include "parse.h"
 
+#include <algorithm>
+#include <boost/asio/ip/address_v6.hpp>
+
 #include "net/tor_address.h"
 #include "net/i2p_address.h"
 #include "string_tools.h"
 
 namespace net
 {
+    void get_network_address_host_and_port(const std::string& address, std::string& host, std::string& port)
+    {
+        // IPv6 address with a port: "[addr:addr:...:addr]:port"
+        if (address.find(']') != std::string::npos)
+        {
+            host = address.substr(1, address.rfind(']') - 1);
+            if ((host.size() + 2) < address.size())
+                port = address.substr(address.rfind(':') + 1);
+        }
+        // bare IPv6 address without a port: "addr:addr:...:addr"
+        else if (std::count(address.begin(), address.end(), ':') >= 2)
+        {
+            host = address;
+        }
+        // IPv4, Tor, I2P address or hostname with an optional ":port"
+        else
+        {
+            host = address.substr(0, address.rfind(':'));
+            if (host.size() < address.size())
+                port = address.substr(host.size() + 1);
+        }
+    }
+
     expect<epee::net_utils::network_address>
     get_network_address(const boost::string_ref address, const std::uint16_t default_port)
     {
-        const boost::string_ref host = address.substr(0, address.rfind(':'));
+        std::string host_str;
+        std::string port_str;
+        get_network_address_host_and_port(std::string{address}, host_str, port_str);
+        const boost::string_ref host{host_str};
 
         if (host.empty())
             return make_error_code(net::error::invalid_host);
@@ -48,14 +77,27 @@ namespace net
             return i2p_address::make(address, default_port);
 
         std::uint16_t port = default_port;
-        if (host.size() < address.size())
+        if (!port_str.empty())
         {
-            if (!epee::string_tools::get_xtype_from_string(port, std::string{address.substr(host.size() + 1)}))
+            if (!epee::string_tools::get_xtype_from_string(port, port_str))
                 return make_error_code(net::error::invalid_port);
         }
 
+        boost::system::error_code ec;
+        const boost::asio::ip::address_v6 v6 = boost::asio::ip::make_address_v6(host_str, ec);
+        if (!ec)
+        {
+            const epee::net_utils::ipv6_network_address v6_address{v6, port};
+            // an IPv4-mapped address names an IPv4 host, keep a single representation of it
+            const boost::optional<epee::net_utils::ipv4_network_address> mapped =
+                epee::net_utils::get_ipv4_mapped_address(v6_address);
+            if (mapped)
+                return {*mapped};
+            return {v6_address};
+        }
+
         std::uint32_t ip = 0;
-        if (epee::string_tools::get_ip_int32_from_string(ip, std::string{host}))
+        if (epee::string_tools::get_ip_int32_from_string(ip, host_str))
             return {epee::net_utils::ipv4_network_address{ip, port}};
         return make_error_code(net::error::unsupported_address);
     }
@@ -81,5 +123,32 @@ namespace net
             return make_error_code(net::error::invalid_host);
 
         return {epee::net_utils::ipv4_network_subnet{ip, (uint8_t)mask}};
+    }
+
+    expect<epee::net_utils::ipv6_network_subnet>
+    get_ipv6_subnet_address(const boost::string_ref address, bool allow_implicit_128)
+    {
+        uint32_t mask = 128;
+        const boost::string_ref::size_type slash = address.find_first_of('/');
+        if (slash != boost::string_ref::npos)
+        {
+            if (!epee::string_tools::get_xtype_from_string(mask, std::string{address.substr(slash + 1)}))
+                return make_error_code(net::error::invalid_mask);
+            if (mask > 128)
+                return make_error_code(net::error::invalid_mask);
+        }
+        else if (!allow_implicit_128)
+            return make_error_code(net::error::invalid_mask);
+
+        boost::string_ref host = address.substr(0, slash);
+        if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
+            host = host.substr(1, host.size() - 2);
+
+        boost::system::error_code ec;
+        const boost::asio::ip::address_v6 ip = boost::asio::ip::make_address_v6(std::string{host}, ec);
+        if (ec)
+            return make_error_code(net::error::invalid_host);
+
+        return {epee::net_utils::ipv6_network_subnet{ip, (uint8_t)mask}};
     }
 }

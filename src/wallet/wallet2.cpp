@@ -420,6 +420,9 @@ std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variabl
     daemon_port = get_config(nettype).RPC_DEFAULT_PORT;
   }
 
+  // a bare IPv6 literal needs brackets to be told apart from the port
+  if (daemon_host.find(':') != std::string::npos && daemon_host.front() != '[')
+    daemon_host = "[" + daemon_host + "]";
   if (daemon_address.empty())
     daemon_address = std::string("http://") + daemon_host + ":" + std::to_string(daemon_port);
 
