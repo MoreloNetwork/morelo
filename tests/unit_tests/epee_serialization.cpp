@@ -74,3 +74,25 @@ TEST(epee_binary, array_size_sanity)
   epee::serialization::portable_storage storage{};
   EXPECT_FALSE(storage.load_from_binary(data));
 }
+
+TEST(epee_binary, limits)
+{
+  // one field "a": array of 3 empty objects
+  static constexpr const std::uint8_t data[] = {
+    0x01, 0x11, 0x01, 0x1, 0x01, 0x01, 0x02, 0x1, 0x1, 0x04, 0x01, 'a',
+    0x8C, 0x0C, 0x00, 0x00, 0x00
+  };
+
+  epee::serialization::portable_storage storage{};
+  EXPECT_TRUE(storage.load_from_binary(data));
+
+  const epee::serialization::portable_storage::limits_t three_objects = {3, 16, 16};
+  EXPECT_TRUE(storage.load_from_binary(data, &three_objects));
+
+  const epee::serialization::portable_storage::limits_t two_objects = {2, 16, 16};
+  EXPECT_FALSE(storage.load_from_binary(data, &two_objects));
+
+  // the root section has one field
+  const epee::serialization::portable_storage::limits_t no_fields = {16, 0, 16};
+  EXPECT_FALSE(storage.load_from_binary(data, &no_fields));
+}
