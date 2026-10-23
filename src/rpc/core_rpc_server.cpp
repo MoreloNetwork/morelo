@@ -157,6 +157,9 @@ namespace cryptonote
   {
     m_restricted = restricted;
     m_net_server.set_threads_prefix("RPC");
+    // 1 MB fits a hex encoded max size tx (48 kB) or 5000 get_outs entries many times over;
+    // unrestricted RPC keeps room for large trusted requests (e.g. key image checks of big wallets)
+    m_net_server.get_config_object().m_max_content_length = m_restricted ? MAX_RPC_CONTENT_LENGTH : MAX_RPC_CONTENT_LENGTH * 100;
 
     auto rpc_config = cryptonote::rpc_args::process(vm, true);
     if (!rpc_config)
