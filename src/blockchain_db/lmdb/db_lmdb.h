@@ -155,12 +155,14 @@ struct mdb_txn_safe
   static void prevent_new_txns();
   static void wait_no_active_txns();
   static void allow_new_txns();
+  static void increment_txns(int);
 
   mdb_threadinfo* m_tinfo;
   MDB_txn* m_txn;
   bool m_batch_txn = false;
   bool m_check;
   static std::atomic<uint64_t> num_active_txns;
+  static thread_local uint64_t num_active_txns_per_thread;
 
   // could use a mutex here, but this should be sufficient.
   static std::atomic_flag creation_gate;

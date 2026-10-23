@@ -876,7 +876,7 @@ namespace cryptonote
     {
       cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
       m_core.handle_incoming_tx({arg.txs[i], crypto::null_hash}, tvc, false, true, false);
-      if(tvc.m_verifivation_failed)
+      if(tvc.m_verifivation_failed && !tvc.m_no_drop_offense)
       {
         LOG_PRINT_CCONTEXT_L1("Tx verification failed, dropping connection");
         drop_connection(context, false, false);

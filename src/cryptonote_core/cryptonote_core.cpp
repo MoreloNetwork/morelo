@@ -39,6 +39,7 @@ using namespace epee;
 #include "arqma_mq/arqmaMQ.h"
 
 #include <unordered_set>
+#include <thread>
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -279,7 +280,7 @@ namespace cryptonote
   static const command_line::arg_descriptor<uint64_t> arg_prep_blocks_threads = {
     "prep-blocks-threads"
   , "Max number of threads to use when preparing block hashes in groups."
-  , 4
+  , std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 4
   };
   static const command_line::arg_descriptor<uint64_t> arg_show_time_stats = {
     "show-time-stats"
@@ -1113,7 +1114,7 @@ namespace cryptonote
 
     tvc.resize(tx_blobs.size());
     tools::threadpool& tpool = tools::threadpool::getInstance();
-    tools::threadpool::waiter waiter;
+    tools::threadpool::waiter waiter(tpool);
     std::vector<tx_blob_entry>::const_iterator it = tx_blobs.begin();
     for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
       tpool.submit(&waiter, [&, i, it] {
@@ -1129,7 +1130,8 @@ namespace cryptonote
         }
       });
     }
-    waiter.wait(&tpool);
+    if (!waiter.wait())
+      return false;
     it = tx_blobs.begin();
     std::vector<bool> already_have(tx_blobs.size(), false);
     for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
@@ -1161,7 +1163,8 @@ namespace cryptonote
         });
       }
     }
-    waiter.wait(&tpool);
+    if (!waiter.wait())
+      return false;
 
     std::vector<tx_verification_batch_info> tx_info;
     tx_info.reserve(tx_blobs.size());
@@ -1604,7 +1607,11 @@ namespace cryptonote
   bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks)
   {
     m_incoming_tx_lock.lock();
-    if(!m_blockchain_storage.prepare_handle_incoming_blocks(blocks_entry, blocks))
+    bool success = false;
+    try { success = m_blockchain_storage.prepare_handle_incoming_blocks(blocks_entry, blocks); }
+    catch (const std::exception &e) { MERROR("Failed prepare handle incoming blocks: " << e.what()); }
+    catch (...) { MERROR("Failed prepare handling incoming blocks"); }
+    if(!success)
     {
       cleanup_handle_incoming_blocks(false);
       return false;
