@@ -938,6 +938,16 @@ if(not f.is_open())
       return false;
     }
 
+    // an IP literal needs no lookup; address_configured would even fail on ::1 on a host
+    // without a global IPv6 address
+    boost::system::error_code ec;
+    const boost::asio::ip::address ip = boost::asio::ip::make_address(u_c.host, ec);
+    if (!ec)
+    {
+      MDEBUG("Address '" << address << "' is " << (ip.is_loopback() ? "" : "not ") << "local");
+      return ip.is_loopback();
+    }
+
     // resolve to IP
     boost::asio::io_context io_service;
     boost::asio::ip::tcp::resolver resolver(io_service);
