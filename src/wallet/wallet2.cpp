@@ -9923,7 +9923,7 @@ std::vector<size_t> wallet2::select_available_outputs_from_histogram(uint64_t co
     uint64_t pre_call_credits = m_rpc_payment_state.credits;
     req_t.client = get_client_signature();
     bool r = net_utils::invoke_http_json_rpc("/json_rpc", "get_output_histogram", req_t, resp_t, m_http_client, rpc_timeout);
-    THROW_ON_RPC_RESPONSE_ERROR(r, {}, resp_t, "get_output_histogram", error::get_histogram_error, resp_t.status);
+    THROW_ON_RPC_RESPONSE_ERROR(r, {}, resp_t, "get_output_histogram", error::get_histogram_error, get_rpc_status(resp_t.status));
     uint64_t cost = req_t.amounts.empty() ? COST_PER_FULL_OUTPUT_HISTOGRAM : (COST_PER_OUTPUT_HISTOGRAM * req_t.amounts.size());
     check_rpc_cost("get_output_histogram", resp_t.credits, pre_call_credits, cost);
   }
@@ -9965,7 +9965,7 @@ uint64_t wallet2::get_num_rct_outputs()
     uint64_t pre_call_credits = m_rpc_payment_state.credits;
     req_t.client = get_client_signature();
     bool r = net_utils::invoke_http_json_rpc("/json_rpc", "get_output_histogram", req_t, resp_t, m_http_client, rpc_timeout);
-    THROW_ON_RPC_RESPONSE_ERROR(r, {}, resp_t, "get_output_histogram", error::get_histogram_error, resp_t.status);
+    THROW_ON_RPC_RESPONSE_ERROR(r, {}, resp_t, "get_output_histogram", error::get_histogram_error, get_rpc_status(resp_t.status));
     THROW_WALLET_EXCEPTION_IF(resp_t.histogram.size() != 1, error::get_histogram_error, "Expected exactly one response");
     THROW_WALLET_EXCEPTION_IF(resp_t.histogram[0].amount != 0, error::get_histogram_error, "Expected 0 amount");
     check_rpc_cost("get_output_histogram", resp_t.credits, pre_call_credits, COST_PER_OUTPUT_HISTOGRAM);
@@ -10179,7 +10179,7 @@ std::string wallet2::get_spend_proof(const crypto::hash &txid, const std::string
       pre_call_credits = m_rpc_payment_state.credits;
       req.client = get_client_signature();
       r = epee::net_utils::invoke_http_bin("/get_outs.bin", req, res, m_http_client, rpc_timeout);
-      THROW_ON_RPC_RESPONSE_ERROR(r, {}, res, "get_outs.bin", error::get_outs_error, res.status);
+      THROW_ON_RPC_RESPONSE_ERROR(r, {}, res, "get_outs.bin", error::get_outs_error, get_rpc_status(res.status));
       THROW_WALLET_EXCEPTION_IF(res.outs.size() != ring_size, error::wallet_internal_error,
         "daemon returned wrong response for get_outs.bin, wrong amounts count = " +
         std::to_string(res.outs.size()) + ", expected " +  std::to_string(ring_size));
@@ -10312,7 +10312,7 @@ bool wallet2::check_spend_proof(const crypto::hash &txid, const std::string &mes
       pre_call_credits = m_rpc_payment_state.credits;
       req.client = get_client_signature();
       r = invoke_http_bin("/get_outs.bin", req, res, rpc_timeout);
-      THROW_ON_RPC_RESPONSE_ERROR(r, {}, res, "get_outs.bin", error::get_outs_error, res.status);
+      THROW_ON_RPC_RESPONSE_ERROR(r, {}, res, "get_outs.bin", error::get_outs_error, get_rpc_status(res.status));
       THROW_WALLET_EXCEPTION_IF(res.outs.size() != req.outputs.size(), error::wallet_internal_error,
         "daemon returned wrong response for get_outs.bin, wrong amounts count = " +
         std::to_string(res.outs.size()) + ", expected " +  std::to_string(req.outputs.size()));

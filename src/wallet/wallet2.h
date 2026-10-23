@@ -78,7 +78,7 @@
   } while(0)
 
 #define THROW_ON_RPC_RESPONSE_ERROR_GENERIC(r, err, res, method) \
-  THROW_ON_RPC_RESPONSE_ERROR(r, err, res, method, tools::error::wallet_generic_rpc_error, method, res.status)
+  THROW_ON_RPC_RESPONSE_ERROR(r, err, res, method, tools::error::wallet_generic_rpc_error, method, get_rpc_status(res.status))
 
 class Serialization_portability_wallet_Test;
 
