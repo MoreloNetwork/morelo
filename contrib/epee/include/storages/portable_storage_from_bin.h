@@ -157,6 +157,17 @@ namespace epee
       pod_val = CONVERT_POD(pod_val);
     }
 
+    template<>
+    inline void throwable_buffer_reader::read<bool>(bool& pod_val)
+    {
+      RECURSION_LIMITATION();
+      static_assert(sizeof(bool) == sizeof(uint8_t), "We really shouldn't use bool directly in serialization code. Replace it with uint8_t if this assert triggers!");
+      uint8_t t;
+      read(&t, sizeof(t));
+      CHECK_AND_ASSERT_THROW_MES(t <= 1, "Invalid bool value " << (unsigned)t);
+      pod_val = (t != 0);
+    }
+
     template<class t_type>
     t_type throwable_buffer_reader::read()
     {
