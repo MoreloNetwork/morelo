@@ -2895,6 +2895,12 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
+    if (!m_wallet->is_trusted_daemon())
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "This command requires a trusted daemon.";
+      return false;
+    }
     try
     {
       m_wallet->rescan_spent();
