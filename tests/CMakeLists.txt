@@ -39,36 +39,20 @@ if (WIN32 AND STATIC)
   add_definitions(-DMINIUPNP_STATICLIB)
 endif ()
 
-find_package(GTest)
+find_package(GTest QUIET)
 
-if (GTest_FOUND)
+# GTest 1.17+ requires C++17, this project is built as C++14.
+if (GTest_FOUND AND NOT GTest_VERSION VERSION_GREATER_EQUAL 1.17)
+  message(STATUS "Using system GTest ${GTest_VERSION}")
   include_directories(SYSTEM ${GTEST_INCLUDE_DIRS})
 else ()
-  message(STATUS "GTest not found on the system: will use GTest bundled with this source")
-
-  include(ExternalProject)
-  ExternalProject_Add(googletest
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/gtest
-    BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/gtest
-    DOWNLOAD_COMMAND ""
-    UPDATE_COMMAND ""
-    INSTALL_COMMAND ""
-  )
-  add_library(gtest      UNKNOWN IMPORTED)
-  add_library(gtest_main UNKNOWN IMPORTED)
-  set_target_properties(gtest PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/gtest/${CMAKE_STATIC_LIBRARY_PREFIX}gtest${CMAKE_STATIC_LIBRARY_SUFFIX}"
-  )
-  set_target_properties(gtest_main PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/gtest/${CMAKE_STATIC_LIBRARY_PREFIX}gtest_main${CMAKE_STATIC_LIBRARY_SUFFIX}"
-  )
-  add_dependencies(gtest      googletest)
-  add_dependencies(gtest_main googletest)
-
-  # Emulate the FindGTest module's variable.
+  message(STATUS "Using GTest from external/gtest")
+  set(BUILD_GMOCK OFF CACHE BOOL "Don't build GMock" FORCE)
+  set(INSTALL_GTEST OFF CACHE BOOL "Don't install GTest" FORCE)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/external/gtest" ${CMAKE_BINARY_DIR}/googletest EXCLUDE_FROM_ALL)
+  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/external/gtest/googletest/include")
   set(GTEST_LIBRARIES gtest gtest_main)
-  include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/gtest/include")
-endif (GTest_FOUND)
+endif ()
 
 file(COPY
   data/wallet_9svHk1.keys
