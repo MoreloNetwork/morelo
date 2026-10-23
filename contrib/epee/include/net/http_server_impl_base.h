@@ -150,7 +150,7 @@ namespace epee
         return true;
 
       const bool is_private = na.is_loopback() || na.is_local();
-      const auto elem = config.m_connections.find(na.host_str());
+      const auto elem = config.m_connections.find(net_utils::get_host_limit_key(na)); // public IPv6 counted per /64
       if (elem != config.m_connections.end())
       {
         if (is_private)

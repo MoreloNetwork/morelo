@@ -140,6 +140,27 @@ namespace nodetool
       MWARNING(na.str() << " is an IPv6 address, it will not be used without --" << arg_p2p_use_ipv6.name);
   }
   //-----------------------------------------------------------------------------------
+  // whether `na` lies in `subnet`, false for an address of the other family
+  inline bool subnet_matches(const epee::net_utils::ipv4_network_subnet& subnet, const epee::net_utils::network_address& na)
+  {
+    return na.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id() && subnet.matches(na.as<const epee::net_utils::ipv4_network_address>());
+  }
+  inline bool subnet_matches(const epee::net_utils::ipv6_network_subnet& subnet, const epee::net_utils::network_address& na)
+  {
+    return na.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id() && subnet.matches(na.as<const epee::net_utils::ipv6_network_address>());
+  }
+  //-----------------------------------------------------------------------------------
+  // the /64 a public IPv6 host owns as a rule; banning a single address of it would be pointless
+  inline boost::optional<epee::net_utils::ipv6_network_subnet> get_ipv6_ban_prefix(const epee::net_utils::network_address& na)
+  {
+    if (na.get_type_id() != epee::net_utils::ipv6_network_address::get_type_id())
+      return boost::none;
+    const boost::asio::ip::address_v6 ip = na.as<const epee::net_utils::ipv6_network_address>().ip();
+    if (!epee::net_utils::should_group_ipv6_by_prefix(ip))
+      return boost::none;
+    return epee::net_utils::ipv6_network_subnet{ip, 64};
+  }
+  //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::init_options(boost::program_options::options_description& desc)
   {
@@ -237,30 +258,33 @@ namespace nodetool
     }
 
     // manually loop in subnets
-    if (address.get_type_id() == epee::net_utils::address_type::ipv4)
-    {
-      auto ipv4_address = address.template as<epee::net_utils::ipv4_network_address>();
-      std::map<epee::net_utils::ipv4_network_subnet, time_t>::iterator it;
-      for (it = m_blocked_subnets.begin(); it != m_blocked_subnets.end(); )
-      {
-        if (now >= it->second)
-        {
-          MCLOG_CYAN(el::Level::Info, "global", "Subnet " << it->first.host_str() << " unblocked.");
-          it = m_blocked_subnets.erase(it);
-          continue;
-        }
-        if (it->first.matches(ipv4_address))
-        {
-          if (t)
-            *t = it->second - now;
-          return false;
-        }
-        ++it;
-      }
-    }
+    if (is_in_blocked_subnet(m_blocked_subnets, address, now, t) || is_in_blocked_subnet(m_blocked_subnets6, address, now, t))
+      return false;
 
     // not found in hosts or subnets, allowed
     return true;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler> template<class Subnet>
+  bool node_server<t_payload_net_handler>::is_in_blocked_subnet(std::map<Subnet, time_t>& subnets, const epee::net_utils::network_address& address, time_t now, time_t* t)
+  {
+    for (auto it = subnets.begin(); it != subnets.end(); )
+    {
+      if (now >= it->second)
+      {
+        MCLOG_CYAN(el::Level::Info, "global", "Subnet " << it->first.host_str() << " unblocked.");
+        it = subnets.erase(it);
+        continue;
+      }
+      if (subnet_matches(it->first, address))
+      {
+        if (t)
+          *t = it->second - now;
+        return true;
+      }
+      ++it;
+    }
+    return false;
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -288,6 +312,10 @@ namespace nodetool
     if(!addr.is_blockable())
       return false;
 
+    // a public IPv6 host is banned together with its /64
+    if (const auto prefix = get_ipv6_ban_prefix(addr))
+      return block_subnet_impl(m_blocked_subnets6, *prefix, seconds, add_only);
+
     const time_t now = time(nullptr);
     bool added = false;
 
@@ -304,19 +332,7 @@ namespace nodetool
       m_blocked_hosts[host_str] = limit;
 
       // if the host was already blocked due to being in a blocked subnet, let it be silent
-      bool matches_blocked_subnet = false;
-      if (addr.get_type_id() == epee::net_utils::address_type::ipv4)
-      {
-        auto ipv4_address = addr.template as<epee::net_utils::ipv4_network_address>();
-        for (auto jt = m_blocked_subnets.begin(); jt != m_blocked_subnets.end(); ++jt)
-        {
-          if (jt->first.matches(ipv4_address))
-          {
-            matches_blocked_subnet = true;
-            break;
-          }
-        }
-      }
+      const bool matches_blocked_subnet = is_in_blocked_subnet(m_blocked_subnets, addr, now, nullptr) || is_in_blocked_subnet(m_blocked_subnets6, addr, now, nullptr);
       if (!matches_blocked_subnet)
         added = true;
     }
@@ -341,7 +357,9 @@ namespace nodetool
       // a ban is per host: without a port take every entry of that host out of the lists
       peerlist_entry pe{};
       pe.adr = addr;
-      if (addr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id() && addr.as<const epee::net_utils::ipv4_network_address>().port() == 0)
+      const bool whole_host = (addr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id() && addr.as<const epee::net_utils::ipv4_network_address>().port() == 0)
+        || (addr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id() && addr.as<const epee::net_utils::ipv6_network_address>().port() == 0);
+      if (whole_host)
       {
         zone.second.m_peerlist.evict_host_from_peerlist(true, pe);
         zone.second.m_peerlist.evict_host_from_peerlist(false, pe);
@@ -369,6 +387,9 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::unblock_host(const epee::net_utils::network_address &address)
   {
+    if (const auto prefix = get_ipv6_ban_prefix(address))
+      return unblock_subnet(*prefix);
+
     CRITICAL_REGION_LOCAL(m_blocked_hosts_lock);
     auto i = m_blocked_hosts.find(address.host_str());
     if (i == m_blocked_hosts.end())
@@ -381,6 +402,18 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::block_subnet(const epee::net_utils::ipv4_network_subnet &subnet, time_t seconds)
   {
+    return block_subnet_impl(m_blocked_subnets, subnet, seconds);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::block_subnet(const epee::net_utils::ipv6_network_subnet &subnet, time_t seconds)
+  {
+    return block_subnet_impl(m_blocked_subnets6, subnet, seconds);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler> template<class Subnet>
+  bool node_server<t_payload_net_handler>::block_subnet_impl(std::map<Subnet, time_t>& subnets, const Subnet& subnet, time_t seconds, bool add_only)
+  {
     const time_t now = time(nullptr);
 
     CRITICAL_REGION_LOCAL(m_blocked_hosts_lock);
@@ -389,8 +422,10 @@ namespace nodetool
       limit = std::numeric_limits<time_t>::max();
     else
       limit = now + seconds;
-    const bool added = m_blocked_subnets.find(subnet) == m_blocked_subnets.end();
-    m_blocked_subnets[subnet] = limit;
+    time_t& entry = subnets[subnet];
+    const bool added = entry == 0;
+    if (added || entry < limit || !add_only)
+      entry = limit;
 
     // drop any connection to that subnet. This should only have to look into
     // the zone related to the connection, but really make sure everything is
@@ -400,10 +435,7 @@ namespace nodetool
     {
       zone.second.m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
       {
-        if (cntxt.m_remote_address.get_type_id() != epee::net_utils::ipv4_network_address::get_type_id())
-          return true;
-        auto ipv4_address = cntxt.m_remote_address.template as<epee::net_utils::ipv4_network_address>();
-        if (subnet.matches(ipv4_address))
+        if (subnet_matches(subnet, cntxt.m_remote_address))
         {
           conns.push_back(cntxt.m_connection_id);
         }
@@ -414,9 +446,7 @@ namespace nodetool
 
       for (int i = 0; i < 2; ++i)
         zone.second.m_peerlist.filter(i == 0, [&subnet](const peerlist_entry &pe){
-          if (pe.adr.get_type_id() != epee::net_utils::ipv4_network_address::get_type_id())
-            return false;
-          return subnet.matches(pe.adr.as<const epee::net_utils::ipv4_network_address>());
+          return subnet_matches(subnet, pe.adr);
         });
 
       conns.clear();
@@ -432,11 +462,23 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::unblock_subnet(const epee::net_utils::ipv4_network_subnet &subnet)
   {
+    return unblock_subnet_impl(m_blocked_subnets, subnet);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::unblock_subnet(const epee::net_utils::ipv6_network_subnet &subnet)
+  {
+    return unblock_subnet_impl(m_blocked_subnets6, subnet);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler> template<class Subnet>
+  bool node_server<t_payload_net_handler>::unblock_subnet_impl(std::map<Subnet, time_t>& subnets, const Subnet& subnet)
+  {
     CRITICAL_REGION_LOCAL(m_blocked_hosts_lock);
-    auto i = m_blocked_subnets.find(subnet);
-    if (i == m_blocked_subnets.end())
+    auto i = subnets.find(subnet);
+    if (i == subnets.end())
       return false;
-    m_blocked_subnets.erase(i);
+    subnets.erase(i);
     MCLOG_CYAN(el::Level::Info, "global", "Subnet " << subnet.host_str() << " unblocked.");
     return true;
   }
@@ -445,9 +487,10 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::clear_bans()
   {
     CRITICAL_REGION_LOCAL(m_blocked_hosts_lock);
-    const bool had_bans = !m_blocked_hosts.empty() || !m_blocked_subnets.empty();
+    const bool had_bans = !m_blocked_hosts.empty() || !m_blocked_subnets.empty() || !m_blocked_subnets6.empty();
     m_blocked_hosts.clear();
     m_blocked_subnets.clear();
+    m_blocked_subnets6.clear();
     if (had_bans)
       MCLOG_CYAN(el::Level::Info, "global", "All bans cleared.");
     return had_bans;
@@ -461,7 +504,8 @@ namespace nodetool
 
     CRITICAL_REGION_LOCAL(m_host_fails_score_lock);
     const time_t now = time(nullptr);
-    host_fails &entry = m_host_fails_score[address.host_str()];
+    // public IPv6 hosts score as their /64, like they are banned and limited
+    host_fails &entry = m_host_fails_score[epee::net_utils::get_host_limit_key(address)];
     // forgive one point per P2P_IP_FAILS_DECAY_SECONDS without a new fail, so that unrelated
     // transient problems spread over days don't add up to a ban on a small network; bad PoW
     // and invalid blocks score P2P_IP_FAILS_BEFORE_BLOCK at once, so the next fail of any kind
@@ -627,13 +671,19 @@ namespace nodetool
           block_subnet(*subnet, std::numeric_limits<time_t>::max());
           continue;
         }
+        auto subnet6 = net::get_ipv6_subnet_address(line);
+        if (subnet6)
+        {
+          block_subnet(*subnet6, std::numeric_limits<time_t>::max());
+          continue;
+        }
         const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(line, 0);
         if (parsed_addr)
         {
           block_host(*parsed_addr, std::numeric_limits<time_t>::max());
           continue;
         }
-        MERROR("Invalid IP address or IPv4 subnet: " << line);
+        MERROR("Invalid IP address or subnet: " << line);
       }
     }
 
@@ -2045,6 +2095,13 @@ namespace nodetool
           ++good;
           continue;
         }
+        auto subnet6 = net::get_ipv6_subnet_address(ip);
+        if (subnet6)
+        {
+          block_subnet(*subnet6, DNS_BLOCKLIST_LIFETIME);
+          ++good;
+          continue;
+        }
         const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(ip, 0);
         if (parsed_addr)
         {
@@ -2800,9 +2857,11 @@ namespace nodetool
       return false; // Unable to determine connections quantity from host
     size_t count = 0;
 
+    // a public IPv6 host is counted together with its /64
+    const std::string key = epee::net_utils::get_host_limit_key(address);
     m_network_zones.at(epee::net_utils::zone::public_).m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
     {
-      if (cntxt.m_is_income && cntxt.m_remote_address.is_same_host(address)) {
+      if (cntxt.m_is_income && epee::net_utils::get_host_limit_key(cntxt.m_remote_address) == key) {
         count++;
 
         // the only call location happens BEFORE foreach_connection list is updated

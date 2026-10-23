@@ -39,6 +39,7 @@
 #define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),0}
 #define MAKE_IPV4_ADDRESS_PORT(a,b,c,d,e) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),e}
 #define MAKE_IPV4_SUBNET(a,b,c,d,e) epee::net_utils::ipv4_network_subnet{(uint32_t)MAKE_IP(a,b,c,d),e}
+#define MAKE_IPV6_ADDRESS(str,port) epee::net_utils::ipv6_network_address{boost::asio::ip::make_address_v6(str),port}
 
 class test_core
 {
@@ -257,6 +258,91 @@ TEST(ban, subnet_parse)
   ASSERT_FALSE(net::get_ipv4_subnet_address("1.2.3.4/24")->matches(MAKE_IPV4_ADDRESS_PORT(1,2,4,4,1)));
   ASSERT_EQ(net::get_ipv4_subnet_address("1.2.3.4/24")->host_str(), "1.2.3.0/24");
 }
+
+TEST(ban, ipv6_host_bans_its_prefix)
+{
+  time_t seconds;
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol);
+  cprotocol.set_p2p_endpoint(&server);
+
+  // a public IPv6 host owns a /64 as a rule, banning one address bans the prefix
+  ASSERT_TRUE(server.block_host(MAKE_IPV6_ADDRESS("2001:db8:1:2::1", 38303), 10));
+  ASSERT_TRUE(server.get_blocked_hosts().empty());
+  ASSERT_EQ(1, server.get_blocked_subnets6().size());
+  ASSERT_EQ("2001:db8:1:2::/64", server.get_blocked_subnets6().begin()->first.host_str());
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:2::1", 0), &seconds));
+  ASSERT_TRUE(seconds >= 9);
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:2:ffff:ffff:ffff:ffff", 1), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:3::1", 0), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,3,4), &seconds));
+  // add_only never shortens a ban, a plain ban sets it
+  ASSERT_TRUE(server.block_host(MAKE_IPV6_ADDRESS("2001:db8:1:2::7", 0), 100));
+  ASSERT_TRUE(server.block_host(MAKE_IPV6_ADDRESS("2001:db8:1:2::8", 0), 5, true));
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:2::1", 0), &seconds));
+  ASSERT_TRUE(seconds >= 99);
+  ASSERT_TRUE(server.block_host(MAKE_IPV6_ADDRESS("2001:db8:1:2::8", 0), 10));
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:2::1", 0), &seconds));
+  ASSERT_TRUE(seconds <= 10);
+  ASSERT_EQ(1, server.get_blocked_subnets6().size());
+  // unbanning any address of the prefix lifts it
+  ASSERT_TRUE(server.unblock_host(MAKE_IPV6_ADDRESS("2001:db8:1:2::5", 0)));
+  ASSERT_TRUE(server.get_blocked_subnets6().empty());
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:2::1", 0), &seconds));
+  ASSERT_FALSE(server.unblock_host(MAKE_IPV6_ADDRESS("2001:db8:1:2::5", 0)));
+
+  // loopback and local addresses are banned individually
+  ASSERT_TRUE(server.block_host(MAKE_IPV6_ADDRESS("::1", 0), 10));
+  ASSERT_TRUE(server.block_host(MAKE_IPV6_ADDRESS("fd00::1", 0), 10));
+  ASSERT_EQ(2, server.get_blocked_hosts().size());
+  ASSERT_TRUE(server.get_blocked_subnets6().empty());
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("::1", 5), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("fd00::2", 5), &seconds));
+  ASSERT_TRUE(server.unblock_host(MAKE_IPV6_ADDRESS("::1", 0)));
+  ASSERT_TRUE(server.clear_bans());
+  ASSERT_TRUE(server.get_blocked_hosts().empty());
+}
+
+TEST(ban, ipv6_subnet)
+{
+  time_t seconds;
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol);
+  cprotocol.set_p2p_endpoint(&server);
+
+  ASSERT_TRUE(server.block_subnet(*net::get_ipv6_subnet_address("2001:db8::/32"), 10));
+  ASSERT_EQ(1, server.get_blocked_subnets6().size());
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:ffff::1", 0), &seconds));
+  ASSERT_TRUE(seconds >= 9);
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db9::1", 0), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(32,1,13,184), &seconds));
+  ASSERT_TRUE(server.unblock_subnet(*net::get_ipv6_subnet_address("2001:db8::/32")));
+  ASSERT_FALSE(server.unblock_subnet(*net::get_ipv6_subnet_address("2001:db8::/32")));
+  ASSERT_TRUE(server.get_blocked_subnets6().empty());
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:ffff::1", 0), &seconds));
+  ASSERT_TRUE(server.block_subnet(*net::get_ipv6_subnet_address("2001:db8::/32"), 10));
+  ASSERT_TRUE(server.clear_bans());
+  ASSERT_TRUE(server.get_blocked_subnets6().empty());
+}
+
+TEST(ban, ipv6_fail_score_by_prefix)
+{
+  time_t seconds;
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol);
+  cprotocol.set_p2p_endpoint(&server);
+
+  // fails of the addresses of one /64 add up and the block covers the whole prefix
+  nodetool::i_p2p_endpoint<cryptonote::t_cryptonote_protocol_handler<test_core>::connection_context>& endpoint = server;
+  for (unsigned i = 0; i <= P2P_IP_FAILS_BEFORE_BLOCK; ++i)
+    ASSERT_TRUE(endpoint.add_host_fail(MAKE_IPV6_ADDRESS(i % 2 ? "2001:db8:1:2::1" : "2001:db8:1:2::2", 0)));
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:2::3", 0), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV6_ADDRESS("2001:db8:1:3::3", 0), &seconds));
+}
+
 
 namespace nodetool { template class node_server<cryptonote::t_cryptonote_protocol_handler<test_core>>; }
 namespace cryptonote { template class t_cryptonote_protocol_handler<test_core>; }
