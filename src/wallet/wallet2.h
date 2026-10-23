@@ -119,6 +119,8 @@ private:
     wallet_keys_unlocker(wallet2 &w, const boost::optional<tools::password_container> &password);
     wallet_keys_unlocker(wallet2 &w, bool locked, const epee::wipeable_string &password);
     ~wallet_keys_unlocker();
+    //! drops the bookkeeping of a wallet that is being destroyed
+    static void forget_wallet(const wallet2 *w);
   private:
     void unlock(const epee::wipeable_string &password);
 

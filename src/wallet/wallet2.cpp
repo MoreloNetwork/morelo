@@ -1089,6 +1089,9 @@ wallet_keys_unlocker::wallet_keys_unlocker(wallet2 &w, bool locked, const epee::
 
 void wallet_keys_unlocker::unlock(const epee::wipeable_string &password)
 {
+  static_assert(!std::is_move_assignable<wallet2>::value && !std::is_move_constructible<wallet2>::value,
+    "Keeping track of wallet instances by pointer doesn't work if wallet2 can be moved");
+
   w.generate_chacha_key_from_password(password, key);
 
   boost::lock_guard<boost::mutex> lock(lockers_lock);
@@ -1107,6 +1110,12 @@ void wallet_keys_unlocker::unlock(const epee::wipeable_string &password)
     should_relock = false;
     throw;
   }
+}
+
+void wallet_keys_unlocker::forget_wallet(const wallet2 *w)
+{
+  boost::lock_guard<boost::mutex> lock(lockers_lock);
+  lockers_per_wallet.erase(const_cast<wallet2*>(w));
 }
 
 wallet_keys_unlocker::~wallet_keys_unlocker()
@@ -1202,6 +1211,10 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
 
 wallet2::~wallet2()
 {
+  // re-encrypt while the wallet is still whole, then make sure no unlocker count
+  // survives it and gets picked up by a later wallet at the same address
+  m_encrypt_keys_after_refresh.reset();
+  wallet_keys_unlocker::forget_wallet(this);
 }
 
 bool wallet2::has_testnet_option(const boost::program_options::variables_map& vm)
