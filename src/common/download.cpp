@@ -120,10 +120,10 @@ namespace tools
           {
             // we requested a range, so check if we're getting it, otherwise truncate
             bool got_range = false;
-            const std::string prefix = "bytes=" + std::to_string(offset) + "-";
             for (const auto &kv: headers.m_header_info.m_etc_fields)
             {
-              if (kv.first == "Content-Range" && strncmp(kv.second.c_str(), prefix.c_str(), prefix.size()))
+              if (!epee::string_tools::compare_no_case(kv.first, "Content-Range") &&
+                  tools::content_range_starts_at(kv.second, offset))
               {
                 got_range = true;
                 break;
