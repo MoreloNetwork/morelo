@@ -34,6 +34,7 @@
 #include <boost/version.hpp>
 #include <boost/uuid/nil_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <limits>
 #include "string_tools.h"
 #include "cryptonote_protocol_defs.h"
 #include "common/pruning.h"
@@ -56,28 +57,28 @@ namespace std {
 namespace cryptonote
 {
 
-void block_queue::add_blocks(uint64_t height, std::vector<cryptonote::block_complete_entry> bcel, const boost::uuids::uuid &connection_id, float rate, size_t size)
+void block_queue::add_blocks(uint64_t height, std::vector<cryptonote::block_complete_entry> bcel, const boost::uuids::uuid &connection_id, const epee::net_utils::network_address &addr, float rate, size_t size)
 {
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
   std::vector<crypto::hash> hashes;
   bool has_hashes = remove_span(height, &hashes);
-  blocks.insert(span(height, std::move(bcel), connection_id, rate, size));
+  blocks.insert(span(height, std::move(bcel), connection_id, addr, rate, size));
   if (has_hashes)
   {
-    for (const crypto::hash &h: hashes)
+    for (std::size_t i = 0; i < hashes.size(); ++i)
     {
-      requested_hashes.insert(h);
-      have_blocks.insert(h);
+      requested_hashes.insert(hashes[i]);
+      have_blocks.emplace(hashes[i], height + i);
     }
     set_span_hashes(height, connection_id, hashes);
   }
 }
 
-void block_queue::add_blocks(uint64_t height, uint64_t nblocks, const boost::uuids::uuid &connection_id, boost::posix_time::ptime time)
+bool block_queue::add_blocks(uint64_t height, uint64_t nblocks, const boost::uuids::uuid &connection_id, const epee::net_utils::network_address &addr, boost::posix_time::ptime time)
 {
   CHECK_AND_ASSERT_THROW_MES(nblocks > 0, "Empty span");
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
-  blocks.insert(span(height, nblocks, connection_id, time));
+  return blocks.insert(span(height, nblocks, connection_id, addr, time)).second;
 }
 
 void block_queue::flush_spans(const boost::uuids::uuid &connection_id, bool all)
@@ -166,18 +167,26 @@ uint64_t block_queue::get_next_needed_height(uint64_t blockchain_height) const
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
   if (blocks.empty())
     return blockchain_height;
-  uint64_t last_needed_height = blockchain_height;
-  bool first = true;
+
+  uint64_t covered_until = blockchain_height;
+
   for (const auto &span: blocks)
   {
-    if (span.start_block_height + span.nblocks - 1 < blockchain_height)
+    // Ignore spans entirely below current chain height
+    const uint64_t span_end = span.start_block_height + span.nblocks - 1;
+    if (span_end < blockchain_height)
       continue;
-    if (span.start_block_height != last_needed_height || (first && span.blocks.empty()))
-      return last_needed_height;
-    last_needed_height = span.start_block_height + span.nblocks;
-    first = false;
+
+    // If this span starts after what we already have/scheduled, we found the first gap
+    if (span.start_block_height > covered_until)
+      return covered_until;
+
+    // This span overlaps or is adjacent; extend coverage regardless of filled/scheduled
+    if (span.start_block_height <= covered_until)
+      covered_until = std::max(covered_until, span.start_block_height + span.nblocks);
   }
-  return last_needed_height;
+
+  return covered_until;
 }
 
 void block_queue::print() const
@@ -232,11 +241,20 @@ bool block_queue::have(const crypto::hash &hash) const
   return have_blocks.find(hash) != have_blocks.end();
 }
 
-std::pair<uint64_t, uint64_t> block_queue::reserve_span(uint64_t first_block_height, uint64_t last_block_height, uint64_t max_blocks, const boost::uuids::uuid &connection_id, bool sync_pruned_blocks, uint32_t local_pruning_seed, uint32_t pruning_seed, uint64_t blockchain_height, const std::vector<std::pair<crypto::hash, uint64_t> > &block_hashes, boost::posix_time::ptime time)
+std::uint64_t block_queue::have_height(const crypto::hash &hash) const
+{
+  boost::unique_lock<boost::recursive_mutex> lock(mutex);
+  const auto elem = have_blocks.find(hash);
+  if (elem == have_blocks.end())
+    return std::numeric_limits<std::uint64_t>::max();
+  return elem->second;
+}
+
+std::pair<uint64_t, uint64_t> block_queue::reserve_span(uint64_t first_block_height, uint64_t last_block_height, uint64_t max_blocks, uint64_t max_weight, const boost::uuids::uuid &connection_id, const epee::net_utils::network_address &addr, bool sync_pruned_blocks, uint32_t local_pruning_seed, uint32_t pruning_seed, uint64_t blockchain_height, const std::vector<std::pair<crypto::hash, uint64_t> > &block_hashes, boost::posix_time::ptime time)
 {
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
 
-  MDEBUG("reserve_span: first_block_height " << first_block_height << ", last_block_height " << last_block_height << ", max " << max_blocks << ", peer seed " << epee::string_tools::to_string_hex(pruning_seed) << ", blockchain_height "
+  MDEBUG("reserve_span: first_block_height " << first_block_height << ", last_block_height " << last_block_height << ", max " << max_blocks << " blocks / " << max_weight << " bytes, peer seed " << epee::string_tools::to_string_hex(pruning_seed) << ", blockchain_height "
       << blockchain_height << ", block hashes size " << block_hashes.size() << ", local seed " << epee::string_tools::to_string_hex(local_pruning_seed) << ", sync_pruned_blocks " << sync_pruned_blocks);
   if (last_block_height < first_block_height || max_blocks == 0)
   {
@@ -287,9 +305,11 @@ std::pair<uint64_t, uint64_t> block_queue::reserve_span(uint64_t first_block_hei
   }
 
   uint64_t span_length = 0;
+  uint64_t span_weight = 0;
   std::vector<crypto::hash> hashes;
   bool first_is_pruned = sync_pruned_blocks && !tools::has_unpruned_block(span_start_height + span_length, blockchain_height, local_pruning_seed);
-  while (i != block_hashes.end() && span_length < max_blocks && (sync_pruned_blocks || tools::has_unpruned_block(span_start_height + span_length, blockchain_height, pruning_seed)))
+  while (i != block_hashes.end() && span_length < max_blocks && !requested_internal((*i).first) &&
+      (sync_pruned_blocks || tools::has_unpruned_block(span_start_height + span_length, blockchain_height, pruning_seed)))
   {
     // if we want to sync pruned blocks, stop at the first block for which we need full data
     if (sync_pruned_blocks && first_is_pruned == tools::has_unpruned_block(span_start_height + span_length, blockchain_height, local_pruning_seed))
@@ -297,6 +317,13 @@ std::pair<uint64_t, uint64_t> block_queue::reserve_span(uint64_t first_block_hei
       MDEBUG("Stopping at " << span_start_height + span_length << " for peer on stripe " << tools::get_pruning_stripe(pruning_seed) << " as we need full data for " << tools::get_pruning_stripe(local_pruning_seed));
       break;
     }
+    // keep the response well below the levin packet limit, using the weights the peer advertised
+    if (max_weight && span_length > 0 && span_weight + (*i).second > max_weight)
+    {
+      MDEBUG("Stopping at " << span_start_height + span_length << " as the span would weigh more than " << max_weight << " bytes");
+      break;
+    }
+    span_weight += (*i).second;
     hashes.push_back((*i).first);
     ++i;
     ++span_length;
@@ -306,8 +333,12 @@ std::pair<uint64_t, uint64_t> block_queue::reserve_span(uint64_t first_block_hei
     MDEBUG("span_length 0, cannot reserve");
     return std::make_pair(0, 0);
   }
+  if (!add_blocks(span_start_height, span_length, connection_id, addr, time))
+  {
+    MDEBUG("Span already starts at height " << span_start_height << ", cannot reserve");
+    return std::make_pair(0, 0);
+  }
   MDEBUG("Reserving span " << span_start_height << " - " << (span_start_height + span_length - 1) << " for " << connection_id);
-  add_blocks(span_start_height, span_length, connection_id, time);
   set_span_hashes(span_start_height, connection_id, hashes);
   return std::make_pair(span_start_height, span_length);
 }
@@ -331,10 +362,10 @@ std::pair<uint64_t, uint64_t> block_queue::get_next_span_if_scheduled(std::vecto
 void block_queue::reset_next_span_time(boost::posix_time::ptime t)
 {
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
-  CHECK_AND_ASSERT_THROW_MES(!blocks.empty(), "No next span to reset time");
+  CHECK_AND_ASSERT_MES_NO_RET(!blocks.empty(), "No next span to reset time");
   block_map::iterator i = blocks.begin();
-  CHECK_AND_ASSERT_THROW_MES(i != blocks.end(), "No next span to reset time");
-  CHECK_AND_ASSERT_THROW_MES(i->blocks.empty(), "Next span is not empty");
+  CHECK_AND_ASSERT_MES_NO_RET(i != blocks.end(), "No next span to reset time");
+  CHECK_AND_ASSERT_MES_NO_RET(i->blocks.empty(), "Next span is not empty");
   (boost::posix_time::ptime&)i->time = t; // sod off, time doesn't influence sorting
 }
 
@@ -356,7 +387,7 @@ void block_queue::set_span_hashes(uint64_t start_height, const boost::uuids::uui
   }
 }
 
-bool block_queue::get_next_span(uint64_t &height, std::vector<cryptonote::block_complete_entry> &bcel, boost::uuids::uuid &connection_id, bool filled) const
+bool block_queue::get_next_span(uint64_t &height, std::vector<cryptonote::block_complete_entry> &bcel, boost::uuids::uuid &connection_id, epee::net_utils::network_address &addr, bool filled) const
 {
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
   if (blocks.empty())
@@ -369,6 +400,7 @@ bool block_queue::get_next_span(uint64_t &height, std::vector<cryptonote::block_
       height = i->start_block_height;
       bcel = i->blocks;
       connection_id = i->connection_id;
+      addr = i->origin;
       return true;
     }
   }
