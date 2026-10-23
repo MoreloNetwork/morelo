@@ -51,4 +51,17 @@ namespace net
     */
     expect<epee::net_utils::network_address>
         get_network_address(boost::string_ref address, std::uint16_t default_port);
+
+    /*!
+      Identifies an IPv4 subnet in CIDR notation and returns it as a generic
+      `ipv4_network_subnet`. If the type is unsupported, it might be a hostname,
+      and `error() == net::error::kUnsupportedAddress` is returned.
+
+      \param address An ipv4 address or hostname. Hostname will return an error.
+      \param allow_implicit_32 whether to accept an address without a /32 suffix
+
+      \return A ipv4 subnet, else error.
+    */
+    expect<epee::net_utils::ipv4_network_subnet>
+        get_ipv4_subnet_address(boost::string_ref address, bool allow_implicit_32 = false);
 }
