@@ -167,8 +167,8 @@ namespace net_utils
 		std::string hex_to_dec_2bytes(const char *s)
 	{
 		const char *hex = get_hex_vals();
-		int i0 = get_index(hex, toupper(s[0]));
-		int i1 = get_index(hex, toupper(s[1]));
+		int i0 = get_index(hex, toupper(static_cast<unsigned char>(s[0])));
+		int i1 = get_index(hex, toupper(static_cast<unsigned char>(s[1])));
 		if (i0 < 0 || i1 < 0)
 			return std::string("%") + std::string(1, s[0]) + std::string(1, s[1]);
 		return std::string(1, i0 * 16 | i1);
@@ -880,7 +880,7 @@ namespace net_utils
 						++ptr;
 					// an identifier composed of letters or -
 					const char *key_pos = ptr;
-					while (isalnum(*ptr) || *ptr == '_' || *ptr == '-')
+					while (isalnum(static_cast<unsigned char>(*ptr)) || *ptr == '_' || *ptr == '-')
 						++ptr;
 					const char *key_end = ptr;
 					// optional space (not in RFC, but in previous code)
@@ -889,14 +889,14 @@ namespace net_utils
 					CHECK_AND_ASSERT_MES(*ptr == ':', true, "http_stream_filter::parse_cached_header() invalid header (" << m_cache_to_process.size() << " bytes)");
 					++ptr;
 					// optional whitespace, but not newlines - line folding is obsolete, let's ignore it
-					while (isblank(*ptr))
+					while (isblank(static_cast<unsigned char>(*ptr)))
 						++ptr;
 					const char *value_pos = ptr;
 					while (*ptr != '\r' && *ptr != '\n')
 						++ptr;
 					const char *value_end = ptr;
 					// optional trailing whitespace
-					while (value_end > value_pos && isblank(*(value_end-1)))
+					while (value_end > value_pos && isblank(static_cast<unsigned char>(*(value_end-1))))
 						--value_end;
 					if (*ptr == '\r')
 						++ptr;
@@ -949,14 +949,14 @@ namespace net_utils
 				ptr = end + 1;
 				CHECK_AND_ASSERT_MES(epee::misc_utils::parse::isdigit(*ptr), false, "Invalid first response line (" << m_header_cache.size() << " header bytes)");
 				ul = strtoul(ptr, &end, 10);
-				CHECK_AND_ASSERT_MES(ul <= INT_MAX && isblank(*end), false, "Invalid first response line (" << m_header_cache.size() << " header bytes)");
+				CHECK_AND_ASSERT_MES(ul <= INT_MAX && isblank(static_cast<unsigned char>(*end)), false, "Invalid first response line (" << m_header_cache.size() << " header bytes)");
 				m_response_info.m_http_ver_lo = ul;
 				ptr = end + 1;
-				while (isblank(*ptr))
+				while (isblank(static_cast<unsigned char>(*ptr)))
 					++ptr;
 				CHECK_AND_ASSERT_MES(epee::misc_utils::parse::isdigit(*ptr), false, "Invalid first response line (" << m_header_cache.size() << " header bytes)");
 				ul = strtoul(ptr, &end, 10);
-				CHECK_AND_ASSERT_MES(ul >= 100 && ul <= 999 && isspace(*end), false, "Invalid first response line (" << m_header_cache.size() << " header bytes)");
+				CHECK_AND_ASSERT_MES(ul >= 100 && ul <= 999 && isspace(static_cast<unsigned char>(*end)), false, "Invalid first response line (" << m_header_cache.size() << " header bytes)");
 				m_response_info.m_response_code = ul;
 				ptr = end;
 				// ignore the optional text, till the end
