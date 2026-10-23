@@ -145,7 +145,8 @@ namespace epee
     {
       auto& config = m_net_server.get_config_object();
       CRITICAL_REGION_LOCAL(config.m_lock);
-      if (config.m_max_connections <= config.m_connection_count)
+      // loopback is exempt from the total cap so idle public keep-alives can't lock out local wallets
+      if (!na.is_loopback() && config.m_max_connections <= config.m_connection_count)
         return true;
 
       const bool is_private = na.is_loopback() || na.is_local();
