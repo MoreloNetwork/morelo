@@ -43,7 +43,7 @@ namespace levin
 	{
 		uint64_t m_signature;
 		uint64_t m_cb;
-		bool     m_have_to_return_data;
+		uint8_t  m_have_to_return_data;
 		uint32_t m_command;
 		int32_t  m_return_code;
 		uint32_t m_reservedA; //probably some flags in future
@@ -58,7 +58,7 @@ namespace levin
   {
     uint64_t m_signature;
     uint64_t m_cb;
-    bool     m_have_to_return_data;
+    uint8_t  m_have_to_return_data;
     uint32_t m_command;
     int32_t  m_return_code;
     uint32_t m_flags;
@@ -68,7 +68,8 @@ namespace levin
 
 
 #define LEVIN_DEFAULT_TIMEOUT_PRECONFIGURED 0
-#define LEVIN_DEFAULT_MAX_PACKET_SIZE 100000000      //100MB by default
+#define LEVIN_INITIAL_MAX_PACKET_SIZE  (256*1024)    // 256 KiB before handshake
+#define LEVIN_DEFAULT_MAX_PACKET_SIZE 100000000      //100MB by default after handshake
 
 #define LEVIN_PACKET_REQUEST			0x00000001
 #define LEVIN_PACKET_RESPONSE		0x00000002

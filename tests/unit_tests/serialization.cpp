@@ -291,6 +291,36 @@ TEST(Serialization, serializes_vector_int64_as_fixed_int)
   ASSERT_EQ(57, blob.size());
 }
 
+TEST(Serialization, deserializes_vector_reserve)
+{
+  std::vector<int64_t> v;
+  string blob;
+
+  tools::write_varint(std::back_inserter(blob), unsigned(100));
+  blob.append(std::string(100, 0));
+
+  ASSERT_LT(v.capacity(), 20);
+  ASSERT_FALSE(serialization::parse_binary(blob, v));
+  ASSERT_LT(v.capacity(), 100); // could fail if lib allocates more in reserve call
+}
+
+TEST(Serialization, custom_vector_min_wire)
+{
+  // a v1 tx claiming more ring signature data than the blob holds must fail early
+  cryptonote::transaction tx;
+  tx.version = 1;
+  cryptonote::txin_to_key in;
+  in.amount = 1;
+  in.key_offsets.resize(1000, 1);
+  tx.vin.push_back(in);
+  std::string blob;
+  ASSERT_TRUE(serialization::dump_binary(static_cast<cryptonote::transaction_prefix&>(tx), blob));
+  blob.append(64, 0); // room for 1 signature, 1000 claimed
+
+  cryptonote::transaction tx2;
+  ASSERT_FALSE(serialization::parse_binary(blob, tx2));
+}
+
 namespace
 {
   template<typename T>

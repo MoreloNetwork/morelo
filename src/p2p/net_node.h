@@ -127,6 +127,7 @@ namespace nodetool
 
     typedef COMMAND_HANDSHAKE_T<typename t_payload_net_handler::payload_type> COMMAND_HANDSHAKE;
     typedef COMMAND_TIMED_SYNC_T<typename t_payload_net_handler::payload_type> COMMAND_TIMED_SYNC;
+    static_assert(p2p_connection_context::handshake_command() == COMMAND_HANDSHAKE::ID, "invalid handshake command id");
 
     typedef epee::net_utils::boosted_tcp_server<epee::levin::async_protocol_handler<p2p_connection_context>> net_server;
 
@@ -280,7 +281,7 @@ namespace nodetool
 
     BEGIN_INVOKE_MAP2(node_server)
       if (is_filtered_command(context.m_remote_address, command))
-        return LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED;
+        return is_notify ? LEVIN_OK : LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED;
 
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)

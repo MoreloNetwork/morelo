@@ -31,6 +31,8 @@
 #define _HTTP_SERVER_H_
 
 #include <boost/optional/optional.hpp>
+#include <boost/utility/string_ref.hpp>
+#include <limits>
 #include <string>
 #include "net_utils_base.h"
 #include "to_nonconst_iterator.h"
@@ -53,9 +55,9 @@ namespace net_utils
 		/************************************************************************/
 		struct http_server_config
 		{
-			std::string m_folder;
 			std::vector<std::string> m_access_control_origins;
 			boost::optional<login> m_user;
+			size_t m_max_content_length{std::numeric_limits<size_t>::max()};
 			critical_section m_lock;
 		};
 
@@ -116,23 +118,17 @@ namespace net_utils
 			bool analize_cached_request_header_and_invoke_state(size_t pos);
 
 			bool handle_invoke_query_line();
-			bool parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos);
+			bool parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos, size_t& content_length);
 			std::string::size_type match_end_of_header(const std::string& buf);
-			bool get_len_from_content_lenght(const std::string& str, size_t& len);
+			bool get_len_from_content_lenght(boost::string_ref str, size_t& len);
 			bool handle_retriving_query_body();
 			bool handle_query_measure();
 			bool set_ready_state();
-			bool slash_to_back_slash(std::string& str);
-			std::string get_file_mime_tipe(const std::string& path);
 			std::string get_response_header(const http_response_info& response);
 
 			//major function
 			inline bool handle_request_and_send_response(const http::http_request_info& query_info);
 
-
-			std::string get_not_found_response_body(const std::string& URI);
-
-			std::string m_root_path;
 			std::string m_cache;
 			machine_state m_state;
 			body_transfer_type m_body_transfer_type;
@@ -142,6 +138,7 @@ namespace net_utils
 			config_type& m_config;
 			bool m_want_close;
 			size_t m_newlines;
+			size_t m_bytes_read;
 		protected:
 			i_service_endpoint* m_psnd_hndlr;
 			t_connection_context& m_conn_context;

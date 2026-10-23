@@ -42,8 +42,17 @@
   LOG_PRINT_L2("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI); \
   response.m_response_code = 200; \
   response.m_response_comment = "Ok"; \
-  if(!handle_http_request_map(query_info, response, m_conn_context)) \
-  {response.m_response_code = 404;response.m_response_comment = "Not found";} \
+  try \
+  { \
+    if(!handle_http_request_map(query_info, response, m_conn_context)) \
+    {response.m_response_code = 404;response.m_response_comment = "Not found";} \
+  } \
+  catch (const std::exception &e) \
+  { \
+    MERROR(m_conn_context << "Exception in handle_http_request_map: " << e.what()); \
+    response.m_response_code = 500; \
+    response.m_response_comment = "Internal Server Error"; \
+  } \
   return true; \
 }
 
@@ -65,12 +74,20 @@
       uint64_t ticks = misc_utils::get_tick_count(); \
       boost::value_initialized<command_type::request> req; \
       bool parse_res = epee::serialization::load_t_from_json(static_cast<command_type::request&>(req), query_info.m_body); \
-      CHECK_AND_ASSERT_MES(parse_res, false, "Failed to parse json: \r\n" << query_info.m_body); \
+      if (!parse_res) \
+      { \
+         MERROR("Failed to parse JSON request"); \
+         response_info.m_response_code = 400; \
+         response_info.m_response_comment = "Bad request"; \
+         return true; \
+      } \
       uint64_t ticks1 = epee::misc_utils::get_tick_count(); \
       boost::value_initialized<command_type::response> resp;\
-      if(!callback_f(static_cast<command_type::request&>(req), static_cast<command_type::response&>(resp), &m_conn_context)) \
+      bool res = false; \
+      try { res = callback_f(static_cast<command_type::request&>(req), static_cast<command_type::response&>(resp), &m_conn_context); } \
+      catch (const std::exception &e) { MERROR(m_conn_context << "Failed to " << #callback_f << "(): " << e.what()); } \
+      if (!res) \
       { \
-        LOG_ERROR("Failed to " << #callback_f << "()"); \
         response_info.m_response_code = 500; \
         response_info.m_response_comment = "Internal Server Error"; \
         return true; \
@@ -92,12 +109,20 @@
       uint64_t ticks = misc_utils::get_tick_count(); \
       boost::value_initialized<command_type::request> req; \
       bool parse_res = epee::serialization::load_t_from_binary(static_cast<command_type::request&>(req), epee::strspan<uint8_t>(query_info.m_body)); \
-      CHECK_AND_ASSERT_MES(parse_res, false, "Failed to parse bin body data, body size=" << query_info.m_body.size()); \
+      if (!parse_res) \
+      { \
+         MERROR("Failed to parse bin body data, body size=" << query_info.m_body.size()); \
+         response_info.m_response_code = 400; \
+         response_info.m_response_comment = "Bad request"; \
+         return true; \
+      } \
       uint64_t ticks1 = misc_utils::get_tick_count(); \
       boost::value_initialized<command_type::response> resp;\
-      if(!callback_f(static_cast<command_type::request&>(req), static_cast<command_type::response&>(resp), &m_conn_context)) \
+      bool res = false; \
+      try { res = callback_f(static_cast<command_type::request&>(req), static_cast<command_type::response&>(resp), &m_conn_context); } \
+      catch (const std::exception &e) { MERROR(m_conn_context << "Failed to " << #callback_f << "(): " << e.what()); } \
+      if (!res) \
       { \
-        LOG_ERROR("Failed to " << #callback_f << "()"); \
         response_info.m_response_code = 500; \
         response_info.m_response_comment = "Internal Server Error"; \
         return true; \
@@ -179,7 +204,10 @@
   epee::json_rpc::error_response fail_resp = AUTO_VAL_INIT(fail_resp); \
   fail_resp.jsonrpc = "2.0"; \
   fail_resp.id = req.id; \
-  if(!callback_f(req.params, resp.result, fail_resp.error, &m_conn_context)) \
+  bool res = false; \
+  try { res = callback_f(req.params, resp.result, fail_resp.error, &m_conn_context); } \
+  catch (const std::exception &e) { MERROR(m_conn_context << "Failed to " << #callback_f << "(): " << e.what()); } \
+  if (!res) \
   { \
     epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(fail_resp), response_info.m_body); \
     return true; \
@@ -197,7 +225,10 @@
   epee::json_rpc::error_response fail_resp = AUTO_VAL_INIT(fail_resp); \
   fail_resp.jsonrpc = "2.0"; \
   fail_resp.id = req.id; \
-  if(!callback_f(req.params, resp.result, fail_resp.error, response_info, &m_conn_context)) \
+  bool res = false; \
+  try { res = callback_f(req.params, resp.result, fail_resp.error, response_info, &m_conn_context); } \
+  catch (const std::exception &e) { MERROR(m_conn_context << "Failed to " << #callback_f << "(): " << e.what()); } \
+  if (!res) \
   { \
     epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(fail_resp), response_info.m_body); \
     return true; \
@@ -210,7 +241,10 @@
     else if(callback_name == method_name) \
 { \
   PREPARE_OBJECTS_FROM_JSON(command_type) \
-  if(!callback_f(req.params, resp.result, &m_conn_context)) \
+  bool res = false; \
+  try { res = callback_f(req.params, resp.result, &m_conn_context); } \
+  catch (const std::exception &e) { MERROR(m_conn_context << "Failed to " << #callback_f << "(): " << e.what()); } \
+  if (!res) \
   { \
     epee::json_rpc::error_response fail_resp = AUTO_VAL_INIT(fail_resp); \
     fail_resp.jsonrpc = "2.0"; \
