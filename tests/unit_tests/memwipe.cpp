@@ -30,6 +30,7 @@
 #include "gtest/gtest.h"
 
 #include <stdint.h>
+#include <iomanip>
 #include "misc_log_ex.h"
 #include "memwipe.h"
 
