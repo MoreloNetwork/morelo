@@ -156,6 +156,7 @@ namespace nodetool
         : m_connect(nullptr),
           m_net_server(epee::net_utils::e_connection_type_P2P),
           m_bind_ip(),
+          m_bind_ipv6_address(),
           m_port(),
           m_our_address(),
           m_peerlist(),
@@ -172,6 +173,7 @@ namespace nodetool
         : m_connect(nullptr),
           m_net_server(public_service, epee::net_utils::e_connection_type_P2P),
           m_bind_ip(),
+          m_bind_ipv6_address(),
           m_port(),
           m_our_address(),
           m_peerlist(),
@@ -187,6 +189,7 @@ namespace nodetool
       connect_func* m_connect;
       net_server m_net_server;
       std::string m_bind_ip;
+      std::string m_bind_ipv6_address;
       std::string m_port;
       epee::net_utils::network_address m_our_address; // in anonymity networks
       peerlist_manager m_peerlist;
@@ -230,6 +233,8 @@ namespace nodetool
         m_hide_my_port(false),
         m_igd(no_igd),
         m_offline(false),
+        m_use_ipv6(false),
+        m_require_ipv4(true),
         m_save_graph(false),
         is_closing(false),
         m_network_id(),
@@ -443,6 +448,8 @@ namespace nodetool
     bool m_hide_my_port;
     igd_t m_igd;
     bool m_offline;
+    bool m_use_ipv6;
+    bool m_require_ipv4;
     std::atomic<bool> m_save_graph;
     std::atomic<bool> is_closing;
     std::unique_ptr<boost::thread> mPeersLoggerThread;
@@ -507,7 +514,10 @@ namespace nodetool
     const int64_t default_limit_up = P2P_DEFAULT_LIMIT_RATE_UP;
     const int64_t default_limit_down = P2P_DEFAULT_LIMIT_RATE_DOWN;
     extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ip;
+    extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ipv6_address;
     extern const command_line::arg_descriptor<std::string, false, true, 2> arg_p2p_bind_port;
+    extern const command_line::arg_descriptor<bool> arg_p2p_use_ipv6;
+    extern const command_line::arg_descriptor<bool> arg_p2p_ignore_ipv4;
     extern const command_line::arg_descriptor<uint32_t> arg_p2p_external_port;
     extern const command_line::arg_descriptor<bool> arg_p2p_allow_local_ip;
     extern const command_line::arg_descriptor<std::vector<std::string>> arg_p2p_add_peer;

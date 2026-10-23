@@ -106,10 +106,11 @@ namespace
 
 namespace nodetool
 {
-    const command_line::arg_descriptor<std::string> arg_p2p_bind_ip        = {"p2p-bind-ip", "Interface for p2p network protocol", "0.0.0.0"};
+    const command_line::arg_descriptor<std::string> arg_p2p_bind_ip        = {"p2p-bind-ip", "Interface for p2p network protocol (IPv4)", "0.0.0.0"};
+    const command_line::arg_descriptor<std::string> arg_p2p_bind_ipv6_address = {"p2p-bind-ipv6-address", "Interface for p2p network protocol (IPv6)", "::"};
     const command_line::arg_descriptor<std::string, false, true, 2> arg_p2p_bind_port = {
         "p2p-bind-port"
-      , "Port for p2p network protocol"
+      , "Port for p2p network protocol (IPv4 and IPv6)"
       , std::to_string(config::P2P_DEFAULT_PORT)
       , {{ &cryptonote::arg_testnet_on, &cryptonote::arg_stagenet_on }}
       , [](std::array<bool, 2> testnet_stagenet, bool defaulted, std::string val)->std::string {
@@ -135,6 +136,8 @@ namespace nodetool
 
     const command_line::arg_descriptor<bool>        arg_no_igd  = {"no-igd", "Disable UPnP port mapping"};
     const command_line::arg_descriptor<std::string> arg_igd = {"igd", "UPnP port mapping (disabled, enabled, delayed)", "delayed"};
+    const command_line::arg_descriptor<bool>        arg_p2p_use_ipv6  = {"p2p-use-ipv6", "Enable IPv6 for p2p", false};
+    const command_line::arg_descriptor<bool>        arg_p2p_ignore_ipv4  = {"p2p-ignore-ipv4", "Ignore unsuccessful IPv4 bind for p2p", false};
     const command_line::arg_descriptor<int64_t>     arg_out_peers = {"out-peers", "set max number of out peers", -1};
     const command_line::arg_descriptor<int64_t>     arg_in_peers = {"in-peers", "set max number of in peers", -1};
     const command_line::arg_descriptor<int> arg_tos_flag = {"tos-flag", "set TOS flag", -1};

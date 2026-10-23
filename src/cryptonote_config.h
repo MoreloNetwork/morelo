@@ -180,6 +180,7 @@
 #define DNS_BLOCKLIST_LIFETIME													(86400 * 8)
 
 #define P2P_SUPPORT_FLAG_FLUFFY_BLOCKS									0x01
+#define P2P_SUPPORT_FLAG_IPV6														0x02		// understands IPv6 peerlist entries, advertised only with --p2p-use-ipv6
 #define P2P_SUPPORT_FLAGS																P2P_SUPPORT_FLAG_FLUFFY_BLOCKS
 
 #define ALLOW_DEBUG_COMMANDS

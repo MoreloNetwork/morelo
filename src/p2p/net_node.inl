@@ -93,13 +93,61 @@ namespace nodetool
     }
   }
   //-----------------------------------------------------------------------------------
-  inline bool append_net_address(std::vector<epee::net_utils::network_address> & seed_nodes, std::string const & addr, uint16_t default_port);
+  inline bool append_net_address(std::vector<epee::net_utils::network_address> & seed_nodes, std::string const & addr, uint16_t default_port, bool use_ipv6);
+  //-----------------------------------------------------------------------------------
+  // IPv6 addresses no peer can legitimately announce: ::ffff:a.b.c.d names an IPv4 host and
+  // would let one host appear under two identities, :: and multicast are not hosts at all
+  inline bool is_forbidden_ipv6_address(const epee::net_utils::network_address& address)
+  {
+    if (address.get_type_id() != epee::net_utils::ipv6_network_address::get_type_id())
+      return false;
+
+    const boost::asio::ip::address_v6 ip = address.as<const epee::net_utils::ipv6_network_address>().ip();
+    return ip.is_v4_mapped() || ip.is_unspecified() || ip.is_multicast();
+  }
+  //-----------------------------------------------------------------------------------
+  inline bool should_skip_connect_address(const epee::net_utils::network_address& address, bool use_ipv6)
+  {
+    if (address.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id() && !use_ipv6)
+      return true;
+
+    return is_forbidden_ipv6_address(address);
+  }
+  //-----------------------------------------------------------------------------------
+  // `na` with its port replaced by `port`: the address a peer tells us it listens on
+  inline epee::net_utils::network_address with_port(const epee::net_utils::network_address& na, uint16_t port)
+  {
+    if (na.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id())
+      return epee::net_utils::ipv6_network_address{na.as<const epee::net_utils::ipv6_network_address>().ip(), port};
+    return epee::net_utils::ipv4_network_address{na.as<const epee::net_utils::ipv4_network_address>().ip(), port};
+  }
+  //-----------------------------------------------------------------------------------
+  // Only peers advertising P2P_SUPPORT_FLAG_IPV6 may be sent IPv6 entries: a node without it
+  // cannot parse them, drops the connection and after a few repeats bans us. Forbidden
+  // addresses are never sent, whatever an old peer list file may hold.
+  inline void filter_peerlist_for_peer(std::vector<peerlist_entry>& peerlist, uint32_t peer_support_flags)
+  {
+    const bool ipv6_ok = peer_support_flags & P2P_SUPPORT_FLAG_IPV6;
+    peerlist.erase(std::remove_if(peerlist.begin(), peerlist.end(), [ipv6_ok](const peerlist_entry& pe) {
+      return (!ipv6_ok && pe.adr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id()) || is_forbidden_ipv6_address(pe.adr);
+    }), peerlist.end());
+  }
+  //-----------------------------------------------------------------------------------
+  // an IPv6 peer given on the command line is never used without --p2p-use-ipv6, say so
+  inline void warn_if_ipv6_disabled(const epee::net_utils::network_address& na, bool use_ipv6)
+  {
+    if (!use_ipv6 && na.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id())
+      MWARNING(na.str() << " is an IPv6 address, it will not be used without --" << arg_p2p_use_ipv6.name);
+  }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::init_options(boost::program_options::options_description& desc)
   {
     command_line::add_arg(desc, arg_p2p_bind_ip);
+    command_line::add_arg(desc, arg_p2p_bind_ipv6_address);
     command_line::add_arg(desc, arg_p2p_bind_port, false);
+    command_line::add_arg(desc, arg_p2p_use_ipv6);
+    command_line::add_arg(desc, arg_p2p_ignore_ipv4);
     command_line::add_arg(desc, arg_p2p_external_port);
     command_line::add_arg(desc, arg_p2p_allow_local_ip);
     command_line::add_arg(desc, arg_p2p_add_peer);
@@ -131,7 +179,7 @@ namespace nodetool
     if (storage)
       m_peerlist_storage = std::move(*storage);
 
-    m_network_zones[epee::net_utils::zone::public_].m_config.m_support_flags = P2P_SUPPORT_FLAGS;
+    m_network_zones[epee::net_utils::zone::public_].m_config.m_support_flags = P2P_SUPPORT_FLAGS | (m_use_ipv6 ? P2P_SUPPORT_FLAG_IPV6 : 0);
     m_first_connection_maker_call = true;
 
     CATCH_ENTRY_L0("node_server::init_config", false);
@@ -444,6 +492,11 @@ namespace nodetool
     network_zone& public_zone = m_network_zones[epee::net_utils::zone::public_];
     public_zone.m_connect = &public_connect;
     public_zone.m_bind_ip = command_line::get_arg(vm, arg_p2p_bind_ip);
+    public_zone.m_bind_ipv6_address = command_line::get_arg(vm, arg_p2p_bind_ipv6_address);
+    // "[::]" is accepted for symmetry with the [host]:port notation used elsewhere
+    std::string& ipv6_bind_address = public_zone.m_bind_ipv6_address;
+    if (ipv6_bind_address.size() > 2 && ipv6_bind_address.front() == '[' && ipv6_bind_address.back() == ']')
+      ipv6_bind_address = ipv6_bind_address.substr(1, ipv6_bind_address.size() - 2);
     public_zone.m_port = command_line::get_arg(vm, arg_p2p_bind_port);
     public_zone.m_can_pingback = true;
     m_external_port = command_line::get_arg(vm, arg_p2p_external_port);
@@ -478,6 +531,8 @@ namespace nodetool
       return false;
     }
     m_offline = command_line::get_arg(vm, cryptonote::arg_offline);
+    m_use_ipv6 = command_line::get_arg(vm, arg_p2p_use_ipv6);
+    m_require_ipv4 = !command_line::get_arg(vm, arg_p2p_ignore_ipv4);
 
     if (command_line::has_arg(vm, arg_p2p_add_peer))
     {
@@ -490,6 +545,7 @@ namespace nodetool
         expect<epee::net_utils::network_address> adr = net::get_network_address(pr_str, default_port);
         if (adr)
         {
+          warn_if_ipv6_disabled(*adr, m_use_ipv6);
           add_zone(adr->get_zone());
           pe.adr = std::move(*adr);
           m_command_line_peers.push_back(std::move(pe));
@@ -497,7 +553,7 @@ namespace nodetool
         }
         CHECK_AND_ASSERT_MES(adr == net::error::unsupported_address, false, "Bad address (\"" << pr_str << "\"): " << adr.error().message());
         std::vector<epee::net_utils::network_address> resolved_addrs;
-        bool r = append_net_address(resolved_addrs, pr_str, default_port);
+        bool r = append_net_address(resolved_addrs, pr_str, default_port, m_use_ipv6);
         CHECK_AND_ASSERT_MES(r, false, "Failed to parse or resolve address from string: " << pr_str);
         for (const epee::net_utils::network_address& addr : resolved_addrs)
         {
@@ -666,19 +722,16 @@ namespace nodetool
       std::vector<epee::net_utils::network_address> & seed_nodes
     , std::string const & addr
     , uint16_t default_port
+    , bool use_ipv6
     )
   {
     using namespace boost::asio;
 
-    std::string host = addr;
+    // "host", "host:port", "[v6]", "[v6]:port" or a bare "v6"
+    std::string host;
     std::string port = std::to_string(default_port);
-    size_t pos = addr.find_last_of(':');
-    if (std::string::npos != pos)
-    {
-      CHECK_AND_ASSERT_MES(addr.length() - 1 != pos && 0 != pos, false, "Failed to parse seed address from string: '" << addr << '\'');
-      host = addr.substr(0, pos);
-      port = addr.substr(pos + 1);
-    }
+    net::get_network_address_host_and_port(addr, host, port);
+    CHECK_AND_ASSERT_MES(!host.empty() && !port.empty(), false, "Failed to parse seed address from string: '" << addr << '\'');
     MINFO("Resolving node address: host=" << host << ", port=" << port);
 
     io_context io_srv;
@@ -690,16 +743,23 @@ namespace nodetool
     for (const auto &entry : results)
     {
       ip::tcp::endpoint endpoint = entry.endpoint();
+      epee::net_utils::network_address na;
       if (endpoint.address().is_v4())
-      {
-        epee::net_utils::network_address na{epee::net_utils::ipv4_network_address{boost::asio::detail::socket_ops::host_to_network_long(endpoint.address().to_v4().to_uint()), endpoint.port()}};
-        seed_nodes.push_back(na);
-        MINFO("Added node: " << na.str());
-      }
+        na = epee::net_utils::ipv4_network_address{boost::asio::detail::socket_ops::host_to_network_long(endpoint.address().to_v4().to_uint()), endpoint.port()};
       else
       {
-        MWARNING("IPv6 unsupported, skip '" << host << "' -> " << endpoint.address().to_v6().to_string());
+        na = epee::net_utils::ipv6_network_address{endpoint.address().to_v6(), endpoint.port()};
+        // ::ffff:a.b.c.d is an IPv4 host, keep a single representation of it
+        if (const auto mapped = epee::net_utils::get_ipv4_mapped_address(na))
+          na = *mapped;
       }
+      if (should_skip_connect_address(na, use_ipv6))
+      {
+        MINFO("IPv6 disabled or unusable address, skip '" << host << "' -> " << na.str());
+        continue;
+      }
+      seed_nodes.push_back(na);
+      MINFO("Added node: " << na.str());
     }
     return true;
   }
@@ -805,9 +865,9 @@ namespace nodetool
     std::set<std::string> full_addrs;
 
     // for each hostname in the seed nodes list, attempt to DNS resolve and
-    // add the result addresses as seed nodes
-    // TODO: at some point add IPv6 support, but that won't be relevant
-    // for some time yet.
+    // add the result addresses as seed nodes (A records, plus AAAA with --p2p-use-ipv6)
+    const bool use_ipv6 = m_use_ipv6;
+    const uint16_t p2p_port = cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT;
 
     struct frame_t
     {
@@ -830,7 +890,7 @@ namespace nodetool
     const std::weak_ptr<frame_t> frame_weak{frame};
     for (const std::string& addr_str : m_seed_nodes_list)
     {
-      boost::thread th = boost::thread(thread_attributes, [frame_weak, addr_str, result_index]
+      boost::thread th = boost::thread(thread_attributes, [frame_weak, addr_str, result_index, use_ipv6, p2p_port]
       {
         MDEBUG("dns_threads[" << result_index << "] created for: " << addr_str);
         bool avail, valid;
@@ -839,6 +899,19 @@ namespace nodetool
         {
           MWARNING("DNSSEC validation failed for a DNS seed node: " << addr_str << ", ignoring " << addr_list.size() << " results: " << boost::algorithm::join(addr_list, ", "));
           addr_list.clear();
+        }
+        for (std::string& addr : addr_list)
+          addr += ":" + std::to_string(p2p_port);
+        if (use_ipv6)
+        {
+          std::vector<std::string> addr6_list = tools::DNSResolver::instance().get_ipv6(addr_str, avail, valid);
+          if (avail && !valid)
+          {
+            MWARNING("DNSSEC validation failed for a DNS seed node: " << addr_str << ", ignoring " << addr6_list.size() << " AAAA results: " << boost::algorithm::join(addr6_list, ", "));
+            addr6_list.clear();
+          }
+          for (const std::string& addr : addr6_list)
+            addr_list.push_back("[" + addr + "]:" + std::to_string(p2p_port));
         }
         MINFO("dns_threads[" << result_index << "] addr_str: " << addr_str << "  number of results: " << addr_list.size());
         // a timed out lookup finds the frame gone and simply discards its results
@@ -876,7 +949,7 @@ namespace nodetool
       if (result.size())
       {
         for (const auto& addr_string : result)
-          full_addrs.insert(addr_string + ":" + std::to_string(cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT));
+          full_addrs.insert(addr_string);
       }
       ++i;
     }
@@ -998,14 +1071,21 @@ namespace nodetool
       {
         zone.second.m_net_server.set_connection_filter(this);
         zone.second.m_net_server.set_connection_limit(this);
+        // only the public zone has an IPv6 bind address, anonymity zones listen on a local socks inbound
+        const bool use_ipv6 = m_use_ipv6 && !zone.second.m_bind_ipv6_address.empty();
         MINFO("Binding on " << zone.second.m_bind_ip << ":" << zone.second.m_port);
-        res = zone.second.m_net_server.init_server(zone.second.m_port, zone.second.m_bind_ip, epee::net_utils::ssl_support_t::e_ssl_support_disabled);
+        if (use_ipv6)
+          MINFO("Binding on [" << zone.second.m_bind_ipv6_address << "]:" << zone.second.m_port);
+        res = zone.second.m_net_server.init_server(zone.second.m_port, zone.second.m_bind_ip, epee::net_utils::ssl_support_t::e_ssl_support_disabled,
+          zone.second.m_bind_ipv6_address, use_ipv6, m_require_ipv4);
         CHECK_AND_ASSERT_MES(res, false, "Failed to bind server");
       }
     }
 
     m_listening_port = public_zone.m_net_server.get_binded_port();
     MLOG_GREEN(el::Level::Info, "Net service bound to " << public_zone.m_bind_ip << ":" << m_listening_port);
+    if (m_use_ipv6 && public_zone.m_net_server.get_binded_port_ipv6())
+      MLOG_GREEN(el::Level::Info, "Net service bound to [" << public_zone.m_bind_ipv6_address << "]:" << public_zone.m_net_server.get_binded_port_ipv6());
     if(m_external_port)
       MDEBUG("External port defined as " << m_external_port);
 
@@ -1386,6 +1466,9 @@ namespace nodetool
     if (zone.m_connect == nullptr) // outgoing connections in zone NOT possible
       return false;
 
+    if (should_skip_connect_address(na, m_use_ipv6))
+      return false;
+
     if (zone.m_current_number_of_out_peers == zone.m_config.m_net_config.max_out_connection_count) // max peers OUT limit reached
     {
       return false;
@@ -1459,6 +1542,9 @@ namespace nodetool
   {
     network_zone& zone = m_network_zones.at(na.get_zone());
     if (zone.m_connect == nullptr)
+      return false;
+
+    if (should_skip_connect_address(na, m_use_ipv6))
       return false;
 
     LOG_PRINT_L1("Connecting to " << na.str() << "(last_seen: " << (last_seen_stamp ? epee::misc_utils::get_time_interval_string(time(NULL) - last_seen_stamp):"never") << ")...");
@@ -1563,13 +1649,15 @@ namespace nodetool
       std::deque<size_t> filtered;
       const size_t limit = use_white_list ? 20 : std::numeric_limits<size_t>::max();
       size_t idx = 0;
-      zone.m_peerlist.foreach(use_white_list, [&filtered, &idx, limit, next_needed_pruning_stripe](const peerlist_entry &pe)
+      zone.m_peerlist.foreach(use_white_list, [this, &filtered, &idx, limit, next_needed_pruning_stripe](const peerlist_entry &pe)
       {
         if (filtered.size() >= limit)
           return false;
-        if (next_needed_pruning_stripe == 0 || pe.pruning_seed == 0)
+        // IPv6 entries stay listed for peers that can use them, we just never pick them
+        const bool usable = !should_skip_connect_address(pe.adr, m_use_ipv6);
+        if (usable && (next_needed_pruning_stripe == 0 || pe.pruning_seed == 0))
           filtered.push_back(idx);
-        else if (next_needed_pruning_stripe == tools::get_pruning_stripe(pe.pruning_seed))
+        else if (usable && next_needed_pruning_stripe == tools::get_pruning_stripe(pe.pruning_seed))
           filtered.push_front(idx);
         ++idx;
         return true;
@@ -1656,7 +1744,7 @@ namespace nodetool
       for (const auto& full_addr : get_seed_nodes())
       {
         MDEBUG("Seed node: " << full_addr);
-        append_net_address(m_seed_nodes, full_addr, cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT);
+        append_net_address(m_seed_nodes, full_addr, cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT, m_use_ipv6);
       }
       MDEBUG("Number of seed nodes: " << m_seed_nodes.size());
       }
@@ -1691,12 +1779,12 @@ namespace nodetool
               for(const auto &peer: get_ip_seed_nodes())
               {
                 MDEBUG("Fallback seed node: " << peer);
-                append_net_address(m_seed_nodes, peer, cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT);
+                append_net_address(m_seed_nodes, peer, cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT, m_use_ipv6);
               }
               for(const auto &peer: get_seed_nodes(m_nettype))
               {
                 MDEBUG("Fallback seed node: " << peer);
-                append_net_address(m_seed_nodes, peer, cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT);
+                append_net_address(m_seed_nodes, peer, cryptonote::get_config(m_nettype).P2P_DEFAULT_PORT, m_use_ipv6);
               }
             }
             if (current_index == m_seed_nodes.size() - 1)
@@ -2036,7 +2124,18 @@ namespace nodetool
       bool ignore = false;
       peerlist_entry &be = local_peerlist[i];
       epee::net_utils::network_address &na = be.adr;
-      if(na.is_loopback() || na.is_local())
+      // an address type we could not parse (a peer running a newer version) must not reach
+      // the zone check in handle_remote_peerlist: it would drop and eventually ban that peer
+      if(na.get_type_id() == epee::net_utils::address_type::invalid)
+      {
+        ignore = true;
+      }
+      // IPv6 while it is disabled here, IPv4-mapped, unspecified and multicast addresses
+      else if(should_skip_connect_address(na, m_use_ipv6))
+      {
+        ignore = true;
+      }
+      else if(na.is_loopback() || na.is_local())
       {
         ignore = true;
       }
@@ -2046,6 +2145,11 @@ namespace nodetool
         if(ipv4.ip() == 0)
           ignore = true;
         else if(ipv4.port() == be.rpc_port)
+          ignore = true;
+      }
+      else if(be.adr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id())
+      {
+        if(na.as<const epee::net_utils::ipv6_network_address>().port() == be.rpc_port)
           ignore = true;
       }
       if (be.pruning_seed && (be.pruning_seed < tools::make_pruning_seed(1, CRYPTONOTE_PRUNING_LOG_STRIPES) || be.pruning_seed > tools::make_pruning_seed(1ul << CRYPTONOTE_PRUNING_LOG_STRIPES, CRYPTONOTE_PRUNING_LOG_STRIPES)))
@@ -2193,19 +2297,18 @@ namespace nodetool
     if(!node_data.my_port)
       return false;
 
-    CHECK_AND_ASSERT_MES(context.m_remote_address.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id(), false,
-        "Only IPv4 addresses are supported here");
-
     const epee::net_utils::network_address na = context.m_remote_address;
-    uint32_t actual_ip = na.as<const epee::net_utils::ipv4_network_address>().ip();
+    const bool address_ok = na.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id() || na.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id();
+    CHECK_AND_ASSERT_MES(address_ok, false, "Only IPv4 or IPv6 addresses are supported here");
+
     network_zone& zone = m_network_zones.at(na.get_zone());
 
     if(!zone.m_peerlist.is_host_allowed(context.m_remote_address))
       return false;
 
-    std::string ip = epee::string_tools::get_ip_string_from_int32(actual_ip);
+    std::string ip = na.host_str();
     std::string port = epee::string_tools::num_to_string_fast(node_data.my_port);
-    epee::net_utils::network_address address{epee::net_utils::ipv4_network_address(actual_ip, node_data.my_port)};
+    const epee::net_utils::network_address address = with_port(na, node_data.my_port);
     peerid_type pr = node_data.peer_id;
     bool r = zone.m_net_server.connect_async(ip, port, zone.m_config.m_net_config.ping_connection_timeout, [cb, /*context,*/ address, pr, this](
       const typename net_server::t_connection_context& ping_context,
@@ -2315,6 +2418,7 @@ namespace nodetool
 
     std::vector<peerlist_entry> local_peerlist_new;
     zone.m_peerlist.get_peerlist_head(local_peerlist_new, true, max_peerlist_size);
+    filter_peerlist_for_peer(local_peerlist_new, context.support_flags);
 
     /* Tor/I2P nodes receiving connections via forwarding (from tor/i2p daemon)
     do not know the address of the connecting peer. This is relayed to them,
@@ -2405,12 +2509,12 @@ namespace nodetool
       //try ping to be sure that we can add this peer to peer_list
       try_ping(arg.node_data, context, [peer_id_l, port_l, context, this]()
       {
-        CHECK_AND_ASSERT_MES(context.m_remote_address.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id(), void(),
-            "Only IPv4 addresses are supported here");
+        const auto type = context.m_remote_address.get_type_id();
+        CHECK_AND_ASSERT_MES(type == epee::net_utils::ipv4_network_address::get_type_id() || type == epee::net_utils::ipv6_network_address::get_type_id(), void(),
+            "Only IPv4 or IPv6 addresses are supported here");
         //called only(!) if success pinged, update local peerlist
         peerlist_entry pe;
-        const epee::net_utils::network_address na = context.m_remote_address;
-        pe.adr = epee::net_utils::ipv4_network_address(na.as<epee::net_utils::ipv4_network_address>().ip(), port_l);
+        pe.adr = with_port(context.m_remote_address, port_l);
         time_t last_seen;
         time(&last_seen);
         pe.last_seen = static_cast<int64_t>(last_seen);
@@ -2432,6 +2536,7 @@ namespace nodetool
 
     //fill response
     zone.m_peerlist.get_peerlist_head(rsp.local_peerlist_new, true);
+    filter_peerlist_for_peer(rsp.local_peerlist_new, context.support_flags);
     for(const auto &e: rsp.local_peerlist_new)
       context.sent_addresses.insert(e.adr);
     get_local_node_data(rsp.node_data, zone);
@@ -2544,12 +2649,13 @@ namespace nodetool
       expect<epee::net_utils::network_address> adr = net::get_network_address(pr_str, default_port);
       if (adr)
       {
+        warn_if_ipv6_disabled(*adr, m_use_ipv6);
         add_zone(adr->get_zone());
         container.push_back(std::move(*adr));
         continue;
       }
       std::vector<epee::net_utils::network_address> resolved_addrs;
-      bool r = append_net_address(resolved_addrs, pr_str, default_port);
+      bool r = append_net_address(resolved_addrs, pr_str, default_port, m_use_ipv6);
       CHECK_AND_ASSERT_MES(r, false, "Failed to parse or resolve address from string: " << pr_str);
       for (const epee::net_utils::network_address& addr : resolved_addrs)
       {
@@ -2730,6 +2836,16 @@ namespace nodetool
       if (!zone.second.m_peerlist.get_random_gray_peer(pe))
         continue;
 
+      if (is_forbidden_ipv6_address(pe.adr))
+      {
+        zone.second.m_peerlist.remove_from_peer_gray(pe);
+        LOG_PRINT_L2("PEER EVICTED FROM GRAY PEER LIST: address: " << pe.adr.host_str() << " Peer ID: " << peerid_to_string(pe.id));
+        continue;
+      }
+
+      if (should_skip_connect_address(pe.adr, m_use_ipv6))
+        continue;
+
       if (!check_connection_and_handshake_with_peer(pe.adr, pe.last_seen))
       {
         zone.second.m_peerlist.remove_from_peer_gray(pe);
@@ -2887,13 +3003,17 @@ namespace nodetool
   boost::optional<p2p_connection_context_t<typename t_payload_net_handler::connection_context>>
   node_server<t_payload_net_handler>::public_connect(network_zone& zone, epee::net_utils::network_address const& na, epee::net_utils::ssl_support_t ssl_support)
   {
-    CHECK_AND_ASSERT_MES(na.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id(), boost::none,
-      "Only IPv4 addresses are supported here");
-    const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+    const bool is_ipv4 = na.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id();
+    const bool is_ipv6 = na.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id();
+    CHECK_AND_ASSERT_MES(is_ipv4 || is_ipv6, boost::none,
+      "Only IPv4 or IPv6 addresses are supported here");
+    if (is_forbidden_ipv6_address(na))
+      return boost::none;
+    const uint16_t port = is_ipv4 ? na.as<const epee::net_utils::ipv4_network_address>().port() : na.as<const epee::net_utils::ipv6_network_address>().port();
 
     typename net_server::t_connection_context con{};
-    const bool res = zone.m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
-      epee::string_tools::num_to_string_fast(ipv4.port()),
+    const bool res = zone.m_net_server.connect(na.host_str(),
+      epee::string_tools::num_to_string_fast(port),
       zone.m_config.m_net_config.connection_timeout,
       con, "0.0.0.0", ssl_support);
 
