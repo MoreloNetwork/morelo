@@ -55,7 +55,6 @@ namespace net_utils
 		/************************************************************************/
 		struct http_server_config
 		{
-			std::string m_folder;
 			std::vector<std::string> m_access_control_origins;
 			boost::optional<login> m_user;
 			size_t m_max_content_length{std::numeric_limits<size_t>::max()};
@@ -125,17 +124,11 @@ namespace net_utils
 			bool handle_retriving_query_body();
 			bool handle_query_measure();
 			bool set_ready_state();
-			bool slash_to_back_slash(std::string& str);
-			std::string get_file_mime_tipe(const std::string& path);
 			std::string get_response_header(const http_response_info& response);
 
 			//major function
 			inline bool handle_request_and_send_response(const http::http_request_info& query_info);
 
-
-			std::string get_not_found_response_body(const std::string& URI);
-
-			std::string m_root_path;
 			std::string m_cache;
 			machine_state m_state;
 			body_transfer_type m_body_transfer_type;

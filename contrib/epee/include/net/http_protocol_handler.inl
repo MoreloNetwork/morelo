@@ -644,30 +644,10 @@ namespace net_utils
   template<class t_connection_context>
 	bool simple_http_connection_handler<t_connection_context>::handle_request(const http::http_request_info& query_info, http_response_info& response)
 	{
-
-		std::string uri_to_path = query_info.m_uri_content.m_path;
-		if("/" == uri_to_path)
-			uri_to_path = "/index.html";
-
-		//slash_to_back_slash(uri_to_path);
-		m_config.m_lock.lock();
-		std::string destination_file_path = m_config.m_folder + uri_to_path;
-		m_config.m_lock.unlock();
-		if(!file_io_utils::load_file_to_string(destination_file_path.c_str(), response.m_body))
-		{
-			MWARNING("URI \""<< query_info.m_full_request_str.substr(0, query_info.m_full_request_str.size()-2) << "\" [" << destination_file_path << "] Not Found (404 )");
-			response.m_body = get_not_found_response_body(query_info.m_URI);
-			response.m_response_code = 404;
-			response.m_response_comment = "Not found";
-			response.m_mime_tipe = "text/html";
-			return true;
-		}
-
-		MDEBUG(" -->> " << query_info.m_full_request_str << "\r\n<<--OK");
-		response.m_response_code = 200;
-		response.m_response_comment = "OK";
-		response.m_mime_tipe = get_file_mime_tipe(uri_to_path);
-
+		// the built in static file server was never used and could serve any file
+		// (no path sanitizing); real servers override this
+		response.m_response_code = 404;
+		response.m_response_comment = "Not found";
 		return true;
 	}
 	//-----------------------------------------------------------------------------------
@@ -727,58 +707,6 @@ namespace net_utils
 		buf+="\r\n";
 
 		return buf;
-	}
-	//-----------------------------------------------------------------------------------
-	template<class t_connection_context>
-  std::string simple_http_connection_handler<t_connection_context>::get_file_mime_tipe(const std::string& path)
-	{
-		std::string result;
-		std::string ext = string_tools::get_extension(path);
-		if(!string_tools::compare_no_case(ext, "gif"))
-			result = "image/gif";
-		else if(!string_tools::compare_no_case(ext, "jpg"))
-			result = "image/jpeg";
-		else if(!string_tools::compare_no_case(ext, "html"))
-			result = "text/html";
-		else if(!string_tools::compare_no_case(ext, "htm"))
-			result = "text/html";
-		else if(!string_tools::compare_no_case(ext, "js"))
-			result = "application/x-javascript";
-		else if(!string_tools::compare_no_case(ext, "css"))
-			result = "text/css";
-		else if(!string_tools::compare_no_case(ext, "xml"))
-			result = "application/xml";
-    else if(!string_tools::compare_no_case(ext, "svg"))
-      result = "image/svg+xml";
-
-
-		return result;
-	}
-	//-----------------------------------------------------------------------------------
-	template<class t_connection_context>
-  std::string simple_http_connection_handler<t_connection_context>::get_not_found_response_body(const std::string& URI)
-	{
-		std::string body =
-			"<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\r\n"
-			"<html><head>\r\n"
-			"<title>404 Not Found</title>\r\n"
-			"</head><body>\r\n"
-			"<h1>Not Found</h1>\r\n"
-			"<p>The requested URL \r\n";
-		body += URI;
-		body += "was not found on this server.</p>\r\n"
-			"</body></html>\r\n";
-
-		return body;
-	}
-	//--------------------------------------------------------------------------------------------
-	template<class t_connection_context>
-  bool simple_http_connection_handler<t_connection_context>::slash_to_back_slash(std::string& str)
-	{
-		for(std::string::iterator it = str.begin(); it!=str.end(); it++)
-			if('/' == *it)
-				*it = '\\';
-		return true;
 	}
 	}
 }
