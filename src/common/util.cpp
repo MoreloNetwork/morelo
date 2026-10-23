@@ -963,10 +963,11 @@ if(not f.is_open())
         return -1;
       if (i >= f1.size())
         return 1;
-      int f0i = atoi(f0[i].c_str()), f1i = atoi(f1[i].c_str());
-      int n = f0i - f1i;
-      if (n)
-        return n;
+      // strtoull saturates instead of overflowing like atoi, and comparing
+      // avoids the overflow of subtracting two large values
+      const unsigned long long f0i = strtoull(f0[i].c_str(), NULL, 10), f1i = strtoull(f1[i].c_str(), NULL, 10);
+      if (f0i != f1i)
+        return f0i < f1i ? -1 : 1;
     }
     return 0;
   }

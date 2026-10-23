@@ -28,6 +28,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <regex>
 #include <boost/algorithm/string.hpp>
 #include "misc_log_ex.h"
 #include "util.h"
@@ -78,13 +79,21 @@ namespace tools
       if(software != fields[0] || buildtag != fields[1])
         continue;
 
-      bool alnum = true;
+      bool xdigit = true;
       for(auto c : fields[3])
-        if(!isalnum(c))
-          alnum = false;
-      if(fields[3].size() != 64 || !alnum)
+        if(!isxdigit((unsigned char)c))
+          xdigit = false;
+      if(fields[3].size() != 64 || !xdigit)
       {
         MWARNING("Invalid hash: " << fields[3]);
+        continue;
+      }
+
+      // the version ends up in URLs and in the update extraction path
+      static const std::regex version_format("^[0-9]+(\\.[0-9]+){1,3}(-[A-Za-z0-9]+)?$");
+      if(!std::regex_match(fields[2], version_format))
+      {
+        MWARNING("Invalid version: " << fields[2]);
         continue;
       }
 
