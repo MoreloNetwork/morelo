@@ -620,30 +620,16 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     m_send_que_lock.lock(); // *** critical ***
     epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){m_send_que_lock.unlock();});
 
-    long int retry = 0;
-    const long int retry_limit = (5 * 4);
-    while (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
+    if (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
     {
-        retry++;
-
-        /* if ( ::cryptonote::core::get_is_stopping() ) { // TODO re-add fast stop
-            _fact("ABORT queue wait due to stopping");
-            return false; // aborted
-        }*/
-
-        long int ms = 250 + (rand()%50);
-        MDEBUG("Sleeping because QUEUE is FULL, in " << __FUNCTION__ << " for " << ms << " ms before packet_size= " << cb); // XXX debug sleep
-        m_send_que_lock.unlock();
-        boost::this_thread::sleep(boost::posix_time::milliseconds( ms ) );
-        m_send_que_lock.lock();
-        _dbg1("sleep for queue: " << ms);
-
-        if(retry > retry_limit)
-        {
-            MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
-            shutdown();
-            return false;
-        }
+        // Do not sleep on a worker thread waiting for the queue to drain: under
+        // load every worker could be blocked here, leaving none to complete the
+        // writes, and a peer that stops reading would park a worker for seconds.
+        // Drop the connection instead (Monero #8426 approach). shutdown() does
+        // not take m_send_que_lock; the scope handler unlocks it on return.
+        MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
+        shutdown();
+        return false;
     }
 
     m_send_que.resize(m_send_que.size()+1);
