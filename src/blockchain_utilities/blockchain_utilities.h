@@ -30,11 +30,13 @@
 #pragma once
 
 #include "version.h"
+#include "net/levin_base.h"
 
 
 // bounds checking is done before writing to buffer, but buffer size
-// should be a sensible maximum
-#define BUFFER_SIZE (2 * 1024 * 1024)
+// should be a sensible maximum: blocks a peer can send fit in a levin packet,
+// mainnet has some over 2 MB with their transactions
+#define BUFFER_SIZE LEVIN_DEFAULT_MAX_PACKET_SIZE
 #define CHUNK_SIZE_WARNING_THRESHOLD 500000
 #define NUM_BLOCKS_PER_CHUNK 1
 #define BLOCKCHAIN_RAW "blockchain.raw"

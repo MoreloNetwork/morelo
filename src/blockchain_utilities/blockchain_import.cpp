@@ -182,7 +182,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 
   std::string str1;
   char buffer1[1024];
-  char buffer_block[BUFFER_SIZE];
+  std::string buffer_block;
   block b;
   transaction tx;
   int quit = 0;
@@ -265,7 +265,8 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
       MFATAL("ERROR: chunk_size == 0");
       return 2;
     }
-    import_file.read(buffer_block, chunk_size);
+    buffer_block.resize(chunk_size);
+    import_file.read(&buffer_block[0], chunk_size);
     if (! import_file) {
       if (import_file.eof())
       {
@@ -297,7 +298,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 
     try
     {
-      str1.assign(buffer_block, chunk_size);
+      str1 = std::move(buffer_block);
 
       int display_interval = 1000;
       int progress_interval = 10;
