@@ -2757,7 +2757,15 @@ bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes
     MERROR_VER("get_tx_outputs_gindexs failed to find transaction with id = " << tx_id);
     return false;
   }
-  indexs = m_db->get_tx_amount_output_indices(tx_index, n_txes);
+  try
+  {
+    indexs = m_db->get_tx_amount_output_indices(tx_index, n_txes);
+  }
+  catch (const TX_DNE& e)
+  {
+    MERROR_VER("get_tx_outputs_gindexs: " << e.what());
+    return false;
+  }
   CHECK_AND_ASSERT_MES(n_txes == indexs.size(), false, "Wrong indexs size");
 
   return true;
@@ -2773,7 +2781,16 @@ bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<u
     MERROR_VER("get_tx_outputs_gindexs failed to find transaction with id = " << tx_id);
     return false;
   }
-  std::vector<std::vector<uint64_t>> indices = m_db->get_tx_amount_output_indices(tx_index, 1);
+  std::vector<std::vector<uint64_t>> indices;
+  try
+  {
+    indices = m_db->get_tx_amount_output_indices(tx_index, 1);
+  }
+  catch (const TX_DNE& e)
+  {
+    MERROR_VER("get_tx_outputs_gindexs: " << e.what());
+    return false;
+  }
   CHECK_AND_ASSERT_MES(indices.size() == 1, false, "Wrong indices size");
   indexs = indices.front();
   return true;
