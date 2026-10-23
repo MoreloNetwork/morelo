@@ -2260,14 +2260,13 @@ namespace cryptonote
     {
       for (const auto &str: req.txids)
       {
-        cryptonote::blobdata txid_data;
-        if(!epee::string_tools::parse_hexstr_to_binbuff(str, txid_data))
+        crypto::hash txid;
+        if(!epee::string_tools::hex_to_pod(str, txid))
         {
           failed = true;
         }
         else
         {
-          crypto::hash txid = *reinterpret_cast<const crypto::hash*>(txid_data.data());
           txids.push_back(txid);
         }
       }
@@ -2618,15 +2617,14 @@ namespace cryptonote
     res.status = "";
     for (const auto &str: req.txids)
     {
-      cryptonote::blobdata txid_data;
-      if(!epee::string_tools::parse_hexstr_to_binbuff(str, txid_data))
+      crypto::hash txid;
+      if(!epee::string_tools::hex_to_pod(str, txid))
       {
         if (!res.status.empty()) res.status += ", ";
         res.status += std::string("invalid transaction id: ") + str;
         failed = true;
         continue;
       }
-      crypto::hash txid = *reinterpret_cast<const crypto::hash*>(txid_data.data());
 
       cryptonote::blobdata txblob;
       bool r = m_core.get_pool_transaction(txid, txblob);
