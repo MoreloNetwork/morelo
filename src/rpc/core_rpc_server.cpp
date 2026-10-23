@@ -69,6 +69,13 @@ using namespace epee;
 #define DEFAULT_PAYMENT_DIFFICULTY 1000
 #define DEFAULT_PAYMENT_CREDITS_PER_HASH 10
 
+// Sanity limits applied to restricted (public) RPC only; unrestricted RPC is unaffected.
+// Wallets chunk their requests to stay below these (see wallet2 update_pool_state/get_outs).
+#define RESTRICTED_BLOCK_HEADER_RANGE 1000
+#define RESTRICTED_TRANSACTIONS_COUNT 100
+#define RESTRICTED_SPENT_KEY_IMAGES_COUNT 5000
+#define RESTRICTED_BLOCK_COUNT 1000
+
 #define RPC_TRACKER(rpc) \
   PERF_TIMER(rpc); \
   RPCTracker tracker(#rpc, PERF_TIMER_NAME(rpc))
@@ -519,6 +526,13 @@ namespace cryptonote
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_BLOCKS_BY_HEIGHT>(invoke_http_mode::BIN, "/getblocks_by_height.bin", req, res, r))
       return r;
 
+    const bool restricted = m_restricted && ctx;
+    if (restricted && req.heights.size() > RESTRICTED_BLOCK_COUNT)
+    {
+      res.status = "Too many blocks requested in restricted mode";
+      return true;
+    }
+
     res.status = "Failed";
     res.blocks.clear();
     res.blocks.reserve(req.heights.size());
@@ -671,6 +685,14 @@ namespace cryptonote
     bool ok;
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_TRANSACTIONS>(invoke_http_mode::JON, "/gettransactions", req, res, ok))
       return ok;
+
+    const bool restricted = m_restricted && ctx;
+
+    if (restricted && req.txs_hashes.size() > RESTRICTED_TRANSACTIONS_COUNT)
+    {
+      res.status = "Too many transactions requested in restricted mode";
+      return true;
+    }
 
     CHECK_PAYMENT_MIN1(req, res, req.txs_hashes.size() * COST_PER_TX, false);
 
@@ -897,10 +919,16 @@ namespace cryptonote
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_IS_KEY_IMAGE_SPENT>(invoke_http_mode::JON, "/is_key_image_spent", req, res, ok))
       return ok;
 
-    CHECK_PAYMENT_MIN1(req, res, req.key_images.size() * COST_PER_KEY_IMAGE, false);
-
     const bool restricted = m_restricted && ctx;
     const bool request_has_rpc_origin = ctx != NULL;
+
+    if (restricted && req.key_images.size() > RESTRICTED_SPENT_KEY_IMAGES_COUNT)
+    {
+      res.status = "Too many key images queried in restricted mode";
+      return true;
+    }
+
+    CHECK_PAYMENT_MIN1(req, res, req.key_images.size() * COST_PER_KEY_IMAGE, false);
 
     std::vector<crypto::key_image> key_images;
     for(const auto& ki_hex_str: req.key_images)
@@ -1798,6 +1826,12 @@ namespace cryptonote
     CHECK_PAYMENT_MIN1(req, res, COST_PER_BLOCK_HEADER, false);
 
     const bool restricted = m_restricted && ctx;
+    if (restricted && req.hashes.size() > RESTRICTED_BLOCK_COUNT)
+    {
+      error_resp.code = CORE_RPC_ERROR_CODE_RESTRICTED;
+      error_resp.message = "Too many block headers requested in restricted mode";
+      return false;
+    }
 
     auto get = [this](const std::string &hash, bool fill_pow_hash, block_header_response &block_header, epee::json_rpc::error &error_resp) -> bool {
       crypto::hash block_hash;
@@ -1866,6 +1900,12 @@ namespace cryptonote
       return false;
     }
     const bool restricted = m_restricted && ctx;
+    if (restricted && req.end_height - req.start_height > RESTRICTED_BLOCK_HEADER_RANGE)
+    {
+      error_resp.code = CORE_RPC_ERROR_CODE_RESTRICTED;
+      error_resp.message = "Too many block headers requested.";
+      return false;
+    }
     CHECK_PAYMENT_MIN1(req, res, (req.end_height - req.start_height + 1) * COST_PER_BLOCK_HEADER, false);
     for (uint64_t h = req.start_height; h <= req.end_height; ++h)
     {
