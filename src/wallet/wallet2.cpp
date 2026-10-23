@@ -6949,7 +6949,7 @@ bool wallet2::find_and_save_rings(bool force)
 
   // get those transactions from the daemon
   auto it = txs_hashes.begin();
-  static const size_t SLICE_SIZE = 200;
+  static const size_t SLICE_SIZE = 100; // RESTRICTED_TRANSACTIONS_COUNT as defined in rpc/core_rpc_server.cpp
   for (size_t slice = 0; slice < txs_hashes.size(); slice += SLICE_SIZE)
   {
     req.decode_as_json = false;
