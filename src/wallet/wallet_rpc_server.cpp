@@ -96,6 +96,27 @@ namespace
 
   constexpr const char default_rpc_username[] = "morelo";
 
+  // a plain file name inside --wallet-dir: no path separators, and none of the
+  // Windows reserved device names, which would open a device instead of a file
+  bool is_valid_wallet_filename(const std::string &filename)
+  {
+    if (filename.empty() || filename == "." || filename == ".." || filename.find('/') != std::string::npos)
+      return false;
+#ifdef _WIN32
+    if (filename.find_first_of("\\:") != std::string::npos)
+      return false;
+    std::string base = boost::algorithm::to_upper_copy(filename.substr(0, filename.find('.')));
+    base.erase(base.find_last_not_of(' ') + 1);
+    static const char *const reserved[] = { "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$" };
+    for (const char *r: reserved)
+      if (base == r)
+        return false;
+    if (base.size() == 4 && (base.compare(0, 3, "COM") == 0 || base.compare(0, 3, "LPT") == 0) && base[3] >= '0' && base[3] <= '9')
+      return false;
+#endif
+    return true;
+  }
+
   boost::optional<tools::password_container> password_prompter(const char *prompt, bool verify)
   {
     auto pwd_container = tools::password_container::prompt(verify, prompt);
@@ -2984,14 +3005,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-#ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-#endif
-    if (ptr)
+    if (!is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3082,14 +3096,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-#ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-#endif
-    if (ptr)
+    if (!is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3299,14 +3306,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-  #ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-  #endif
-    if (ptr)
+    if (!req.filename.empty() && !is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3475,14 +3475,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-  #ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-  #endif
-    if (ptr)
+    if (!req.filename.empty() && !is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
