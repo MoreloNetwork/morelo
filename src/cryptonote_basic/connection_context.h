@@ -33,6 +33,7 @@
 #include <unordered_set>
 #include <atomic>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/optional/optional.hpp>
 #include "net/net_utils_base.h"
 #include "copyable_atomic.h"
 #include "crypto/hash.h"
@@ -43,7 +44,7 @@ namespace cryptonote
   struct cryptonote_connection_context: public epee::net_utils::connection_context_base
   {
     cryptonote_connection_context(): m_state(state_before_handshake), m_remote_blockchain_height(0), m_last_response_height(0),
-        m_last_request_time(boost::date_time::not_a_date_time), m_callback_request_count(0), m_last_known_hash(crypto::null_hash), m_pruning_seed(0), m_rpc_port(0), m_rpc_credits_per_hash(0), m_anchor(false), m_zmq_port(0), m_score(0) {}
+        m_last_request_time(boost::date_time::not_a_date_time), m_callback_request_count(0), m_last_known_hash(crypto::null_hash), m_pruning_seed(0), m_rpc_port(0), m_rpc_credits_per_hash(0), m_anchor(false), m_zmq_port(0), m_score(0), m_expected_heights_start(0), m_expect_response(0), m_expect_height(0), m_num_requested(0) {}
 
     enum state
     {
@@ -60,11 +61,18 @@ namespace cryptonote
     //! \return Maximum number of bytes permissible for `command`.
     static size_t get_max_bytes(int command) noexcept;
 
+    //! Use this instead of `m_state = state_normal`.
+    void set_state_normal();
+
+    boost::optional<crypto::hash> get_expected_hash(uint64_t height) const;
+
     state m_state;
     std::vector<std::pair<crypto::hash, uint64_t>> m_needed_objects;
+    std::vector<crypto::hash> m_expected_heights;
     std::unordered_set<crypto::hash> m_requested_objects;
     uint64_t m_remote_blockchain_height;
     uint64_t m_last_response_height;
+    uint64_t m_expected_heights_start;
     boost::posix_time::ptime m_last_request_time;
     epee::copyable_atomic m_callback_request_count; //in debug purpose: problem with double callback rise
     crypto::hash m_last_known_hash;
@@ -74,6 +82,9 @@ namespace cryptonote
     uint32_t m_rpc_credits_per_hash;
     bool m_anchor;
     int32_t m_score;
+    int m_expect_response;
+    uint64_t m_expect_height;
+    size_t m_num_requested;
   };
 
   inline std::string get_protocol_state_string(cryptonote_connection_context::state s)
