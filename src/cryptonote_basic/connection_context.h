@@ -85,6 +85,7 @@ namespace cryptonote
     int m_expect_response;
     uint64_t m_expect_height;
     size_t m_num_requested;
+    bool m_refresh_for_next_span = false;
     epee::copyable_atomic m_new_stripe_notification{0};
     epee::copyable_atomic m_idle_peer_notification{0};
   };
