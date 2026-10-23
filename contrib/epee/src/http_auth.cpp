@@ -785,7 +785,13 @@ namespace epee
         if (user->server.generator)
         {
           ++(user->counter);
-          return std::make_pair(std::string(client_auth_field), user->server.generator(*user, method, uri));
+          std::string value = user->server.generator(*user, method, uri);
+          if (value.empty()) // generator failed (e.g. no randomness for the cnonce)
+          {
+            --(user->counter);
+            return boost::none;
+          }
+          return std::make_pair(std::string(client_auth_field), std::move(value));
         }
         return boost::none;
       }
