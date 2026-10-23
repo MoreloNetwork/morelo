@@ -271,8 +271,11 @@ public:
       return false;
     }
     boost::shared_ptr<invoke_response_handler_base> handler(boost::make_shared<anvoke_handler<callback_t>>(cb, timeout, con, command));
+    // a handler without a timer could never time out and would block validate_response_command()
+    if (!handler->is_timer_started())
+      return false;
     m_invoke_response_handlers.push_back(handler);
-    return handler->is_timer_started();
+    return true;
   }
   template<class callback_t> friend struct anvoke_handler;
 
