@@ -1025,35 +1025,69 @@ uint64_t gamma_picker::pick()
   return first_rct + crypto::rand_idx(n_rct);
 };
 
+// Keys are decrypted by the first unlocker of a wallet and re-encrypted by the
+// last one to go away, so nested or concurrent unlockers (e.g. a command and the
+// refresh thread) never see the keys re-encrypted under their feet.
+boost::mutex wallet_keys_unlocker::lockers_lock;
+std::map<wallet2*, std::size_t> wallet_keys_unlocker::lockers_per_wallet;
+
 wallet_keys_unlocker::wallet_keys_unlocker(wallet2 &w, const boost::optional<tools::password_container> &password):
   w(w),
-  locked(password != boost::none)
+  should_relock(password != boost::none && w.is_key_encryption_enabled())
 {
-  if (!locked || w.is_unattended() || w.ask_password() != tools::wallet2::AskPasswordToDecrypt)
-  {
-    locked = false;
-    return;
-  }
-  const epee::wipeable_string pass = password->password();
-  w.generate_chacha_key_from_password(pass, key);
-  w.decrypt_keys(key);
+  if (should_relock)
+    unlock(password->password());
 }
 
 wallet_keys_unlocker::wallet_keys_unlocker(wallet2 &w, bool locked, const epee::wipeable_string &password):
   w(w),
-  locked(locked)
+  should_relock(locked)
 {
-  if (!locked)
-    return;
+  if (should_relock)
+    unlock(password);
+}
+
+void wallet_keys_unlocker::unlock(const epee::wipeable_string &password)
+{
   w.generate_chacha_key_from_password(password, key);
-  w.decrypt_keys(key);
+
+  boost::lock_guard<boost::mutex> lock(lockers_lock);
+  wallet2* w_ptr = std::addressof(w);
+  if (lockers_per_wallet[w_ptr]++ > 0)
+    return;
+
+  try
+  {
+    w.decrypt_keys(key);
+  }
+  catch (...)
+  {
+    if (--lockers_per_wallet[w_ptr] == 0)
+      lockers_per_wallet.erase(w_ptr);
+    should_relock = false;
+    throw;
+  }
 }
 
 wallet_keys_unlocker::~wallet_keys_unlocker()
 {
-  if (!locked)
+  if (!should_relock)
     return;
-  try { w.encrypt_keys(key); }
+
+  try
+  {
+    boost::lock_guard<boost::mutex> lock(lockers_lock);
+    wallet2* w_ptr = std::addressof(w);
+    if (lockers_per_wallet[w_ptr] == 0)
+    {
+      MERROR("There are no lockers in wallet_keys_unlocker dtor");
+      return;
+    }
+    if (--lockers_per_wallet[w_ptr] > 0)
+      return; // there are other unlockers for this wallet, do nothing for now
+    lockers_per_wallet.erase(w_ptr);
+    w.encrypt_keys(key);
+  }
   catch (...)
   {
     MERROR("Failed to re-encrypt wallet keys");
@@ -1116,7 +1150,7 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_ring_history_saved(false),
   m_ringdb(),
   m_last_block_reward(0),
-  m_encrypt_keys_after_refresh(boost::none),
+  m_encrypt_keys_after_refresh(),
   m_unattended(unattended),
   m_use_dns(false),
   m_offline(false),
@@ -1632,8 +1666,7 @@ void wallet2::scan_output(const cryptonote::transaction &tx, bool miner_tx, cons
       boost::optional<epee::wipeable_string> pwd = m_callback->on_get_password(pool ? "output found in pool" : "output received");
       THROW_WALLET_EXCEPTION_IF(!pwd, error::password_needed, tr("Password is needed to compute key image for incoming Morelo"));
       THROW_WALLET_EXCEPTION_IF(!verify_password(*pwd), error::password_needed, tr("Invalid password: password is needed to compute key image for incoming Morelo"));
-      decrypt_keys(*pwd);
-      m_encrypt_keys_after_refresh = *pwd;
+      m_encrypt_keys_after_refresh.reset(new wallet_keys_unlocker(*this, true, *pwd));
     }
   }
 
@@ -2628,11 +2661,7 @@ void wallet2::update_pool_state(bool refreshed)
   MDEBUG("update_pool_state start");
 
   auto keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this]() {
-    if (m_encrypt_keys_after_refresh)
-    {
-      encrypt_keys(*m_encrypt_keys_after_refresh);
-      m_encrypt_keys_after_refresh = boost::none;
-    }
+    m_encrypt_keys_after_refresh.reset();
   });
 
   // get the pool state
@@ -3026,11 +3055,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
   start_height = 0;
 
   auto keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this]() {
-    if (m_encrypt_keys_after_refresh)
-    {
-      encrypt_keys(*m_encrypt_keys_after_refresh);
-      m_encrypt_keys_after_refresh = boost::none;
-    }
+    m_encrypt_keys_after_refresh.reset();
   });
 
   bool first = true;
@@ -3951,6 +3976,13 @@ bool wallet2::verify_password(const std::string& keys_file_name, const epee::wip
   if(!no_spend_key)
     r = r && hwdev.verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
   return r;
+}
+
+bool wallet2::is_key_encryption_enabled() const
+{
+  return !is_unattended()
+    && ask_password() == tools::wallet2::AskPasswordToDecrypt
+    && !watch_only();
 }
 
 void wallet2::encrypt_keys(const crypto::chacha_key &key)

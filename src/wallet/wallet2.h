@@ -119,9 +119,13 @@ private:
     wallet_keys_unlocker(wallet2 &w, bool locked, const epee::wipeable_string &password);
     ~wallet_keys_unlocker();
   private:
+    void unlock(const epee::wipeable_string &password);
+
     wallet2 &w;
-    bool locked;
+    bool should_relock;
     crypto::chacha_key key;
+    static boost::mutex lockers_lock;
+    static std::map<wallet2*, std::size_t> lockers_per_wallet;
   };
 
   class i_wallet2_callback
@@ -676,6 +680,7 @@ private:
     cryptonote::account_base& get_account(){return m_account;}
     const cryptonote::account_base& get_account()const{return m_account;}
 
+    bool is_key_encryption_enabled() const;
     void encrypt_keys(const crypto::chacha_key &key);
     void encrypt_keys(const epee::wipeable_string &password);
     void decrypt_keys(const crypto::chacha_key &key);
@@ -1482,7 +1487,7 @@ private:
     std::unique_ptr<tools::file_locker> m_keys_file_locker;
 
     crypto::chacha_key m_cache_key;
-    boost::optional<epee::wipeable_string> m_encrypt_keys_after_refresh;
+    std::shared_ptr<wallet_keys_unlocker> m_encrypt_keys_after_refresh;
 
     bool m_unattended;
 
