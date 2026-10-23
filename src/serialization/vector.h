@@ -31,6 +31,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <limits>
+#include <type_traits>
 #include <vector>
 #include "serialization.h"
 
@@ -44,9 +47,24 @@ namespace serialization
   namespace detail
   {
     template <typename T>
-    void do_reserve(std::vector<T> &c, size_t N)
+    void do_reserve(std::vector<T> &c, size_t N, size_t B)
     {
-      c.reserve(N);
+      // N comes from the wire: never reserve more than the remaining bytes B
+      // could decode to, assuming at most this many bytes of T per wire byte
+      static constexpr size_t max_compression_ratio =
+        is_blob_type<T>::type::value ? 1 :
+        (std::is_same<T, uint32_t>::value || std::is_same<T, uint64_t>::value) ? sizeof(T) : // varint
+        (std::is_same<T, char>::value || std::is_same<T, unsigned char>::value) ? 1 :
+        4; // default
+
+      B /= sizeof(T);
+      B = std::max(size_t(1), B);
+      if (std::numeric_limits<size_t>::max() / max_compression_ratio <= B)
+        B = std::numeric_limits<size_t>::max();
+      else
+        B *= max_compression_ratio;
+
+      c.reserve(std::min(N, B));
     }
 
     template <typename T>

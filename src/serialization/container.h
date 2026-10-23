@@ -58,7 +58,7 @@ namespace serialization
     }
 
     template <typename C>
-    void do_reserve(C &c, size_t N) {}
+    void do_reserve(C &c, size_t N, size_t B) {}
   }
 }
 
@@ -77,7 +77,7 @@ bool do_serialize_container(Archive<false> &ar, C &v)
     return false;
   }
 
-  ::serialization::detail::do_reserve(v, cnt);
+  ::serialization::detail::do_reserve(v, cnt, ar.remaining_bytes());
 
   for (size_t i = 0; i < cnt; i++) {
     if (i > 0)
