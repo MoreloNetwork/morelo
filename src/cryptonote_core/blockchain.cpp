@@ -2638,7 +2638,7 @@ bool Blockchain::add_block_as_invalid(const block_extended_info& bei, const cryp
   return true;
 }
 //------------------------------------------------------------------
-bool Blockchain::have_block(const crypto::hash& id) const
+bool Blockchain::have_block(const crypto::hash& id, int *where) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
@@ -2646,18 +2646,21 @@ bool Blockchain::have_block(const crypto::hash& id) const
   if(m_db->block_exists(id))
   {
     LOG_PRINT_L3("block exists in main chain");
+    if (where) *where = HAVE_BLOCK_MAIN_CHAIN;
     return true;
   }
 
   if(m_db->get_alt_block(id, NULL, NULL))
   {
     LOG_PRINT_L3("block found in alternative chains");
+    if (where) *where = HAVE_BLOCK_ALT_CHAIN;
     return true;
   }
 
   if(m_invalid_blocks.count(id))
   {
     LOG_PRINT_L3("block found in m_invalid_blocks");
+    if (where) *where = HAVE_BLOCK_INVALID;
     return true;
   }
 
@@ -4350,10 +4353,13 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc)
   CRITICAL_REGION_LOCAL(m_tx_pool);//to avoid deadlock lets lock tx_pool for whole add/reorganize process
   CRITICAL_REGION_LOCAL1(m_blockchain_lock);
   db_rtxn_guard rtxn_guard(m_db);
-  if(have_block(id))
+  int where = 0;
+  if(have_block(id, &where))
   {
     LOG_PRINT_L3("block with id = " << id << " already exists");
     bvc.m_already_exists = true;
+    if (where == HAVE_BLOCK_INVALID)
+      bvc.m_verifivation_failed = true;
     m_blocks_txs_check.clear();
     return false;
   }
