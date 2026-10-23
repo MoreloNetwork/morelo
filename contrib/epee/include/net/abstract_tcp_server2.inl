@@ -60,6 +60,7 @@
 #define AGGRESSIVE_TIMEOUT_THRESHOLD 240  // sockets
 #define NEW_CONNECTION_TIMEOUT_LOCAL 1200000 // 2 minutes
 #define NEW_CONNECTION_TIMEOUT_REMOTE 10000 // 10 seconds
+#define CONNECTION_CLEANUP_GRACE_MS 2000 // force-shutdown grace when a closing connection's send queue won't drain
 
 PRAGMA_WARNING_PUSH
 namespace epee
@@ -817,6 +818,27 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     if(!send_que_size)
     {
       shutdown();
+    }
+    else if(!m_was_shutdown)
+    {
+      // The send queue hasn't drained. If the peer stops reading (e.g. it
+      // accepts the TCP connection but never answers the handshake), the write
+      // completion that would eventually call shutdown() never fires and the
+      // connection leaks - it stays counted as a peer and is_addr_connected()
+      // keeps returning true, so the node never reconnects. Force a teardown
+      // after a short grace period; the resulting FIN also unblocks the peer.
+      auto self = safe_shared_from_this();
+      if(self)
+      {
+        m_timer.expires_from_now(boost::posix_time::milliseconds(CONNECTION_CLEANUP_GRACE_MS));
+        m_timer.async_wait([self](const boost::system::error_code& ec)
+        {
+          if(ec == boost::asio::error::operation_aborted)
+            return;
+          MDEBUG(self->context << "close: send queue did not drain, forcing shutdown");
+          self->shutdown();
+        });
+      }
     }
 
     return true;
