@@ -93,6 +93,7 @@ namespace cryptonote
     size_t get_data_size() const;
     size_t get_num_filled_spans_prefix() const;
     size_t get_num_filled_spans() const;
+    uint64_t get_num_filled_blocks() const;
     crypto::hash get_last_known_hash(const boost::uuids::uuid &connection_id) const;
     bool has_spans(const boost::uuids::uuid &connection_id) const;
     float get_speed(const boost::uuids::uuid &connection_id) const;

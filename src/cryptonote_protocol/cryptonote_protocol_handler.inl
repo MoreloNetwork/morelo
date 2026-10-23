@@ -55,6 +55,7 @@
   MCINFO(MORELO_DEFAULT_LOG_CATEGORY, context << "[" << epee::string_tools::to_string_hex(context.m_pruning_seed) << "] state: " << x << " in state " << cryptonote::get_protocol_state_string(context.m_state))
 
 #define BLOCK_QUEUE_NSPANS_THRESHOLD 10 // chunks of N blocks
+#define BLOCK_QUEUE_NBLOCKS_THRESHOLD 4000 // blocks, well below a chain entry so peers always have something left to ask for
 #define BLOCK_QUEUE_SIZE_THRESHOLD (209715200) // MB
 #define BLOCK_QUEUE_MAX_SPAN_WEIGHT (32 * 1024 * 1024) // bytes, keeps a span response well below the levin packet limit
 #define BLOCK_QUEUE_FORCE_DOWNLOAD_NEAR_BLOCKS 2000
@@ -2087,6 +2088,7 @@ skip:
       do
       {
         size_t nspans = m_block_queue.get_num_filled_spans();
+        const uint64_t nblocks = m_block_queue.get_num_filled_blocks();
         size_t size = m_block_queue.get_data_size();
         const uint64_t bc_height = m_core.get_current_blockchain_height();
         const auto next_needed_pruning_stripe = get_next_needed_pruning_stripe();
@@ -2094,13 +2096,23 @@ skip:
         const uint32_t peer_stripe = tools::get_pruning_stripe(context.m_pruning_seed);
         const uint32_t local_stripe = tools::get_pruning_stripe(m_core.get_blockchain_pruning_seed());
         const size_t block_queue_size_threshold = m_block_download_max_size ? m_block_download_max_size : BLOCK_QUEUE_SIZE_THRESHOLD;
-        bool queue_proceed = nspans < BLOCK_QUEUE_NSPANS_THRESHOLD || size < block_queue_size_threshold;
+        // Morelo blocks are tiny, so the byte threshold alone never fills up: bound by blocks as well
+        bool queue_proceed = (nspans < BLOCK_QUEUE_NSPANS_THRESHOLD || nblocks < BLOCK_QUEUE_NBLOCKS_THRESHOLD) && size < block_queue_size_threshold;
         // get rid of blocks we already requested, or already have
+        const bool tail_queued = !context.m_needed_objects.empty() && m_block_queue.have(context.m_needed_objects.back().first);
         if (skip_unneeded_hashes(context, true) && context.m_needed_objects.empty() && context.m_num_requested == 0)
         {
           const uint64_t needed_height = m_block_queue.get_next_needed_height(bc_height);
           if (context.m_remote_blockchain_height > needed_height)
           {
+            if (tail_queued)
+            {
+              // everything this peer told us about is already reserved by other peers: not stale, just late
+              LOG_DEBUG_CC(context, "All blocks this peer announced are queued already, pausing");
+              context.m_state = cryptonote_connection_context::state_standby;
+              MLOG_PEER_STATE("pausing");
+              return true;
+            }
             // inside the compiled block hash area the trailing, incomplete group of hashes can't be
             // validated yet, so a peer less than a group ahead legitimately has nothing for us: wait for it
             if (context.m_remote_blockchain_height - needed_height < HASH_OF_HASHES_STEP && m_core.is_within_compiled_block_hash_area(bc_height))

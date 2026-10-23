@@ -473,6 +473,18 @@ size_t block_queue::get_num_filled_spans() const
   return size;
 }
 
+uint64_t block_queue::get_num_filled_blocks() const
+{
+  boost::unique_lock<boost::recursive_mutex> lock(mutex);
+  uint64_t size = 0;
+  for (const auto &span: blocks)
+  {
+    if (!span.blocks.empty())
+      size += span.nblocks;
+  }
+  return size;
+}
+
 crypto::hash block_queue::get_last_known_hash(const boost::uuids::uuid &connection_id) const
 {
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
