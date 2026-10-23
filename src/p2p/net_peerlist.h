@@ -501,6 +501,7 @@ namespace nodetool
   inline
   void peerlist_manager::evict_host_from_peerlist(bool white, const peerlist_entry& pr)
   {
+    CRITICAL_REGION_LOCAL(m_peerlist_lock);
     peers_indexed& peers = white ? m_peers_white : m_peers_gray;
     peers_indexed::index<by_addr>::type& addr_index = peers.get<by_addr>();
     auto it = addr_index.begin();
