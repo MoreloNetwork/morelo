@@ -388,6 +388,7 @@ namespace nodetool
     bool check_connection_and_handshake_with_peer(const epee::net_utils::network_address& na, uint64_t last_seen_stamp);
     bool gray_peerlist_housekeeping();
     bool check_incoming_connections();
+    bool update_dns_blocklist();
 
     void kill() { ///< will be called e.g. from deinit()
       _info("Killing the net_node");
@@ -454,6 +455,7 @@ namespace nodetool
     epee::math_helper::once_a_time_seconds<60*30, false> m_peerlist_store_interval;
     epee::math_helper::once_a_time_seconds<60> m_gray_peerlist_housekeeping_interval;
     epee::math_helper::once_a_time_seconds<3600, false> m_incoming_connections_interval;
+    epee::math_helper::once_a_time_seconds<7000> m_dns_blocklist_interval;
 
     std::list<epee::net_utils::network_address>   m_priority_peers;
     std::vector<epee::net_utils::network_address> m_exclusive_peers;
@@ -496,6 +498,7 @@ namespace nodetool
     epee::net_utils::ssl_support_t m_ssl_support;
 
     uint32_t max_connections;
+    bool m_enable_dns_blocklist;
   };
 
     const int64_t default_limit_up = P2P_DEFAULT_LIMIT_RATE_UP;
@@ -511,6 +514,7 @@ namespace nodetool
     extern const command_line::arg_descriptor<std::vector<std::string>> arg_proxy;
     extern const command_line::arg_descriptor<std::vector<std::string>> arg_anonymous_inbound;
     extern const command_line::arg_descriptor<std::string> arg_ban_list;
+    extern const command_line::arg_descriptor<bool> arg_enable_dns_blocklist;
     extern const command_line::arg_descriptor<bool> arg_p2p_hide_my_port;
 
     extern const command_line::arg_descriptor<bool> arg_no_igd;

@@ -36,9 +36,9 @@
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.inl"
 
-#define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{MAKE_IP(a,b,c,d),0}
-#define MAKE_IPV4_ADDRESS_PORT(a,b,c,d,e) epee::net_utils::ipv4_network_address{MAKE_IP(a,b,c,d),e}
-#define MAKE_IPV4_SUBNET(a,b,c,d,e) epee::net_utils::ipv4_network_subnet{MAKE_IP(a,b,c,d),e}
+#define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),0}
+#define MAKE_IPV4_ADDRESS_PORT(a,b,c,d,e) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),e}
+#define MAKE_IPV4_SUBNET(a,b,c,d,e) epee::net_utils::ipv4_network_subnet{(uint32_t)MAKE_IP(a,b,c,d),e}
 
 namespace cryptonote {
   class blockchain_storage;
