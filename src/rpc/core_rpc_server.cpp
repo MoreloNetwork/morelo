@@ -244,6 +244,11 @@ namespace cryptonote
     const auto max_connections_private = command_line::get_arg(vm, arg_rpc_max_connections_per_private_ip);
     const auto max_connections = command_line::get_arg(vm, arg_rpc_max_connections);
 
+    if (max_connections == 0)
+    {
+      MFATAL(arg_rpc_max_connections.name << " must be at least 1");
+      return false;
+    }
     if (max_connections < max_connections_public)
     {
       MFATAL(arg_rpc_max_connections_per_public_ip.name << " is bigger than " << arg_rpc_max_connections.name);
@@ -3116,7 +3121,7 @@ namespace cryptonote
 
   const command_line::arg_descriptor<std::size_t> core_rpc_server::arg_rpc_max_connections_per_public_ip = {
       "rpc-max-connections-per-public-ip"
-    , "Max RPC connections permitted from a single public IP (generous by default; raise behind a shared reverse proxy / busy explorer)"
+    , "Max RPC connections permitted from a single public IP. Generous by default; behind a reverse proxy all clients share the proxy's IP, so raise this (or the private-IP limit if the proxy is local) accordingly"
     , DEFAULT_RPC_MAX_CONNECTIONS_PER_PUBLIC_IP
     };
 
