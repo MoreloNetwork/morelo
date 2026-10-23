@@ -121,6 +121,28 @@ namespace cryptonote
       m_p2p = &m_p2p_stub;
   }
   //------------------------------------------------------------------------------------------------------------------------
+  // A pruned peer answers NOTIFY_REQUEST_CHAIN with silence when the split point lies in a stripe
+  // it pruned (find_blockchain_supplement clips the reply to nothing), and we would kick it as idle
+  // and eventually drop it with fail points. Same test as the server: the split point is our top
+  // block, or this peer's last known block when that one is still only queued.
+  template<class t_core>
+  bool t_cryptonote_protocol_handler<t_core>::pruned_peer_can_serve_chain(const cryptonote_connection_context& context) const
+  {
+    if (context.m_pruning_seed == 0)
+      return true;
+    const uint64_t bc_height = m_core.get_current_blockchain_height();
+    if (bc_height == 0 || context.m_remote_blockchain_height <= bc_height)
+      return true;
+    uint64_t split_height = bc_height - 1;
+    if (context.m_last_known_hash != crypto::null_hash)
+    {
+      const uint64_t queued_height = m_block_queue.have_height(context.m_last_known_hash);
+      if (queued_height != std::numeric_limits<uint64_t>::max())
+        split_height = std::max(split_height, queued_height);
+    }
+    return tools::has_unpruned_block(split_height, context.m_remote_blockchain_height, context.m_pruning_seed);
+  }
+  //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::on_callback(cryptonote_connection_context& context)
   {
@@ -168,6 +190,14 @@ namespace cryptonote
 
     if(context.m_state == cryptonote_connection_context::state_synchronizing && context.m_last_request_time == boost::posix_time::not_a_date_time)
     {
+      if (!pruned_peer_can_serve_chain(context))
+      {
+        MINFO(context << "Pruned peer cannot serve our chain request, dropping without fail point");
+        if (!context.m_is_income)
+          m_p2p->add_used_stripe_peer(context);
+        drop_connection(context, false, false);
+        return false;
+      }
       NOTIFY_REQUEST_CHAIN::request r = {};
       context.m_needed_objects.clear();
       m_core.get_short_chain_history(r.block_ids);
@@ -2057,6 +2087,15 @@ skip:
         // Refresh history from the committed chain.
         context.m_needed_objects.clear();
         context.m_last_known_hash = crypto::null_hash;
+      }
+
+      if (!pruned_peer_can_serve_chain(context))
+      {
+        // the caller drops us without a fail point ("Failed to request missing objects")
+        MINFO(context << "Pruned peer cannot serve our chain request, dropping without fail point");
+        if (!context.m_is_income)
+          m_p2p->add_used_stripe_peer(context);
+        return false;
       }
 
       NOTIFY_REQUEST_CHAIN::request r = {};

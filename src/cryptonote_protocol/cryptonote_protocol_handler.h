@@ -145,6 +145,7 @@ namespace cryptonote
     int try_add_next_blocks(cryptonote_connection_context &context);
     void notify_new_stripe(cryptonote_connection_context &context, uint32_t stripe);
     size_t skip_unneeded_hashes(cryptonote_connection_context& context, bool check_block_queue) const;
+    bool pruned_peer_can_serve_chain(const cryptonote_connection_context& context) const;
 
     t_core& m_core;
 
