@@ -425,7 +425,7 @@ namespace cryptonote
       LOG_PRINT_CCONTEXT_L1("Block verification failed, dropping connection");
       drop_connection(context, false, false);
       m_core.resume_mine();
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     for(auto tx_blob_it = arg.b.txs.begin(); tx_blob_it!=arg.b.txs.end();tx_blob_it++)
     {
@@ -437,7 +437,7 @@ namespace cryptonote
         drop_connection(context, false, false);
         m_core.cleanup_handle_incoming_blocks();
         m_core.resume_mine();
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
     }
 
@@ -454,7 +454,7 @@ namespace cryptonote
     {
       LOG_PRINT_CCONTEXT_L0("Block verification failed, dropping connection");
       drop_connection(context, true, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     if(bvc.m_added_to_main_chain)
     {
@@ -513,7 +513,7 @@ namespace cryptonote
 
           drop_connection(context, false, false);
           m_core.resume_mine();
-          return 1;
+          return LEVIN_ERROR_CONNECTION;
         }
       }
 
@@ -545,7 +545,7 @@ namespace cryptonote
 
               drop_connection(context, false, false);
               m_core.resume_mine();
-              return 1;
+              return LEVIN_ERROR_CONNECTION;
             }
           }
           catch(...)
@@ -559,7 +559,7 @@ namespace cryptonote
 
             drop_connection(context, false, false);
             m_core.resume_mine();
-            return 1;
+            return LEVIN_ERROR_CONNECTION;
           }
 
           // hijacking m_requested objects in connection context to patch up
@@ -583,7 +583,7 @@ namespace cryptonote
 
               drop_connection(context, false, false);
               m_core.resume_mine();
-              return 1;
+              return LEVIN_ERROR_CONNECTION;
             }
 
             context.m_requested_objects.erase(req_tx_it);
@@ -600,7 +600,7 @@ namespace cryptonote
               LOG_PRINT_CCONTEXT_L1("Block verification failed: transaction verification failed, dropping connection");
               drop_connection(context, false, false);
               m_core.resume_mine();
-              return 1;
+              return LEVIN_ERROR_CONNECTION;
             }
 
             //
@@ -622,7 +622,7 @@ namespace cryptonote
 
           drop_connection(context, false, false);
           m_core.resume_mine();
-          return 1;
+          return LEVIN_ERROR_CONNECTION;
         }
       }
 
@@ -642,7 +642,7 @@ namespace cryptonote
 
         drop_connection(context, false, false);
         m_core.resume_mine();
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
 
       size_t tx_idx = 0;
@@ -729,7 +729,7 @@ namespace cryptonote
         {
           LOG_PRINT_CCONTEXT_L0("Block verification failed, dropping connection");
           drop_connection(context, true, false);
-          return 1;
+          return LEVIN_ERROR_CONNECTION;
         }
         if(bvc.m_added_to_main_chain)
         {
@@ -765,7 +765,7 @@ namespace cryptonote
       m_core.resume_mine();
       drop_connection(context, false, false);
 
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     return 1;
@@ -779,7 +779,7 @@ namespace cryptonote
     {
       LOG_ERROR_CCONTEXT("Requested fluffy tx before handshake, dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     std::vector<std::pair<cryptonote::blobdata, block>> local_blocks;
@@ -790,7 +790,7 @@ namespace cryptonote
     {
       LOG_ERROR_CCONTEXT("failed to find block: " << arg.block_hash << ", dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     std::vector<crypto::hash> txids;
@@ -816,7 +816,7 @@ namespace cryptonote
         );
 
         drop_connection(context, false, false);
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
     }
 
@@ -827,14 +827,14 @@ namespace cryptonote
       LOG_ERROR_CCONTEXT("Failed to handle request NOTIFY_REQUEST_FLUFFY_MISSING_TX, "
         << "failed to get requested transactions");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     if (!missed.empty() || txs.size() != txids.size())
     {
       LOG_ERROR_CCONTEXT("Failed to handle request NOTIFY_REQUEST_FLUFFY_MISSING_TX, "
         << missed.size() << " requested transactions not found" << ", dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     for(auto& tx: txs)
@@ -880,7 +880,7 @@ namespace cryptonote
       {
         LOG_PRINT_CCONTEXT_L1("Tx verification failed, dropping connection");
         drop_connection(context, false, false);
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
       if(tvc.m_should_be_relayed)
         newtxs.push_back(std::move(arg.txs[i]));
@@ -903,7 +903,7 @@ namespace cryptonote
     {
       LOG_ERROR_CCONTEXT("Requested objects before handshake, dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     MLOG_P2P_MESSAGE("Received NOTIFY_REQUEST_GET_OBJECTS (" << arg.blocks.size() << " blocks)");
     NOTIFY_RESPONSE_GET_OBJECTS::request rsp;
@@ -911,7 +911,7 @@ namespace cryptonote
     {
       LOG_ERROR_CCONTEXT("failed to handle request NOTIFY_REQUEST_GET_OBJECTS, dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     MLOG_P2P_MESSAGE("-->>NOTIFY_RESPONSE_GET_OBJECTS: blocks.size()=" << rsp.blocks.size() << ", rsp.m_current_blockchain_height=" << rsp.current_blockchain_height << ", missed_ids.size()=" << rsp.missed_ids.size());
     post_notify<NOTIFY_RESPONSE_GET_OBJECTS>(rsp, context);
@@ -977,7 +977,7 @@ namespace cryptonote
         << " < m_last_response_height=" << context.m_last_response_height << ", dropping connection");
       drop_connection(context, false, false);
       ++m_sync_bad_spans_downloaded;
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     context.m_remote_blockchain_height = arg.current_blockchain_height;
@@ -1002,7 +1002,7 @@ namespace cryptonote
           << epee::string_tools::buff_to_hex_nodelimer(block_entry.block) << ", dropping connection");
         drop_connection(context, false, false);
         ++m_sync_bad_spans_downloaded;
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
       if (b.miner_tx.vin.size() != 1 || b.miner_tx.vin.front().type() != typeid(txin_gen))
       {
@@ -1010,7 +1010,7 @@ namespace cryptonote
           << epee::string_tools::buff_to_hex_nodelimer(block_entry.block) << ", dropping connection");
         drop_connection(context, false, false);
         ++m_sync_bad_spans_downloaded;
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
       if (start_height == std::numeric_limits<uint64_t>::max())
         start_height = boost::get<txin_gen>(b.miner_tx.vin[0]).height;
@@ -1023,7 +1023,7 @@ namespace cryptonote
           << " wasn't requested, dropping connection");
         drop_connection(context, false, false);
         ++m_sync_bad_spans_downloaded;
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
       if(b.tx_hashes.size() != block_entry.txs.size())
       {
@@ -1031,7 +1031,7 @@ namespace cryptonote
           << ", tx_hashes.size()=" << b.tx_hashes.size() << " mismatch with block_complete_entry.m_txs.size()=" << block_entry.txs.size() << ", dropping connection");
         drop_connection(context, false, false);
         ++m_sync_bad_spans_downloaded;
-        return 1;
+        return LEVIN_ERROR_CONNECTION;
       }
 
       context.m_requested_objects.erase(req_it);
@@ -1044,7 +1044,7 @@ namespace cryptonote
         << context.m_requested_objects.size() << "), dropping connection");
       drop_connection(context, false, false);
       ++m_sync_bad_spans_downloaded;
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     const bool pruned_ok = should_ask_for_pruned_data(context, start_height, arg.blocks.size(), true);
@@ -1058,14 +1058,14 @@ namespace cryptonote
           MERROR(context << "returned a pruned block, dropping connection");
           drop_connection(context, false, false);
           ++m_sync_bad_spans_downloaded;
-          return 1;
+          return LEVIN_ERROR_CONNECTION;
         }
         if(block_entry.block_weight)
         {
           MERROR(context << "returned a block weight for a non pruned block, dropping connection");
           drop_connection(context, false, false);
           ++m_sync_bad_spans_downloaded;
-          return 1;
+          return LEVIN_ERROR_CONNECTION;
         }
         for(const tx_blob_entry &tx_entry: block_entry.txs)
         {
@@ -1074,7 +1074,7 @@ namespace cryptonote
             MERROR(context << "returned at least one pruned object which we did not expect, dropping connection");
             drop_connection(context, false, false);
             ++m_sync_bad_spans_downloaded;
-            return 1;
+            return LEVIN_ERROR_CONNECTION;
           }
         }
       }
@@ -1089,7 +1089,7 @@ namespace cryptonote
           MERROR(context << "returned at least one pruned block with 0 weight, dropping connection");
           drop_connection(context, false, false);
           ++m_sync_bad_spans_downloaded;
-          return 1;
+          return LEVIN_ERROR_CONNECTION;
         }
       }
     }
@@ -1625,7 +1625,7 @@ skip:
     {
       LOG_ERROR_CCONTEXT("Requested chain before handshake, dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     NOTIFY_RESPONSE_CHAIN_ENTRY::request r;
     if(!m_core.find_blockchain_supplement(arg.block_ids, !arg.prune, r))
@@ -2277,19 +2277,19 @@ skip:
     {
       LOG_ERROR_CCONTEXT("sent empty m_block_ids, dropping connection");
       drop_connection(context, true, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     if (arg.total_height < arg.m_block_ids.size() || arg.start_height > arg.total_height - arg.m_block_ids.size())
     {
       LOG_ERROR_CCONTEXT("sent invalid start/nblocks/height, dropping connection");
       drop_connection(context, true, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     if (!arg.m_block_weights.empty() && arg.m_block_weights.size() != arg.m_block_ids.size())
     {
       LOG_ERROR_CCONTEXT("sent invalid block weight array, dropping connection");
       drop_connection(context, true, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     MDEBUG(context << "first block hash " << arg.m_block_ids.front() << ", last " << arg.m_block_ids.back());
 
@@ -2297,7 +2297,7 @@ skip:
     {
       LOG_ERROR_CCONTEXT("sent wrong NOTIFY_RESPONSE_CHAIN_ENTRY, with total_height=" << arg.total_height << " and block_ids=" << arg.m_block_ids.size());
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
     context.m_remote_blockchain_height = arg.total_height;
     context.m_last_response_height = arg.start_height + arg.m_block_ids.size()-1;
@@ -2307,7 +2307,7 @@ skip:
                                                                          << ", m_start_height=" << arg.start_height
                                                                          << ", m_block_ids.size()=" << arg.m_block_ids.size());
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     uint64_t n_use_blocks = m_core.prevalidate_block_hashes(arg.start_height, arg.m_block_ids, arg.m_block_weights);
@@ -2315,7 +2315,7 @@ skip:
     {
       LOG_ERROR_CCONTEXT("Most blocks are invalid, dropping connection");
       drop_connection(context, true, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     context.m_needed_objects.clear();
@@ -2333,7 +2333,7 @@ skip:
     {
       LOG_ERROR_CCONTEXT("Failed to request missing objects, dropping connection");
       drop_connection(context, false, false);
-      return 1;
+      return LEVIN_ERROR_CONNECTION;
     }
 
     if (arg.total_height > m_core.get_target_blockchain_height())
