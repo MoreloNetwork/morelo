@@ -699,18 +699,25 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     static boost::mutex hosts_mutex;
     CRITICAL_REGION_LOCAL(hosts_mutex);
     static std::map<std::string, unsigned int> hosts;
-    auto it = hosts.emplace(host, 0).first;
-    unsigned int &val = it->second;
+    // don't create an entry before the checks: a throw must not leave a 0 count behind
+    const auto it = hosts.find(host);
+    const unsigned int val = it == hosts.end() ? 0 : it->second;
     if(delta > 0)
       MTRACE("New connection from host " << host << ": " << val);
     else if(delta < 0)
       MTRACE("Closed connection from host " << host << ": " << val);
     CHECK_AND_ASSERT_THROW_MES(delta >= 0 || val >= (unsigned)-delta, "Count would go negative");
     CHECK_AND_ASSERT_THROW_MES(delta <= 0 || val <= std::numeric_limits<unsigned int>::max() - (unsigned)delta, "Count would wrap");
-    val += delta;
-    const unsigned int ret = val;
+    const unsigned int ret = val + delta;
     if(ret == 0)
-      hosts.erase(it);
+    {
+      if(it != hosts.end())
+        hosts.erase(it);
+    }
+    else if(it == hosts.end())
+      hosts.emplace(host, ret);
+    else
+      it->second = ret;
     return ret;
   }
   //---------------------------------------------------------------------------------
