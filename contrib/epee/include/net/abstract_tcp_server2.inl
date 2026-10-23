@@ -967,7 +967,10 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     boost::asio::ip::tcp::resolver resolver(io_service_);
     boost::asio::ip::tcp::endpoint endpoint = resolver.resolve(address, boost::lexical_cast<std::string>(port), boost::asio::ip::tcp::resolver::canonical_name).begin()->endpoint();
     acceptor_.open(endpoint.protocol());
+#if !defined(_WIN32)
+    // on Windows SO_REUSEADDR lets other sockets bind the same port and steal connections
     acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+#endif
     acceptor_.bind(endpoint);
     acceptor_.listen();
     boost::asio::ip::tcp::endpoint binded_endpoint = acceptor_.local_endpoint();
