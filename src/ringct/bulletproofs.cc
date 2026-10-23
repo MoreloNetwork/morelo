@@ -887,6 +887,7 @@ bool bulletproof_VERIFY(const std::vector<const Bulletproof*> &proofs)
   rct::keyV m_z4(maxMN, rct::zero()), m_z5(maxMN, rct::zero());
   rct::key m_y0 = rct::zero(), y1 = rct::zero();
   int proof_data_index = 0;
+  std::vector<ge_p3> proof8_V, proof8_L, proof8_R;
   for (const Bulletproof *p: proofs)
   {
     const Bulletproof &proof = *p;
@@ -899,13 +900,17 @@ bool bulletproof_VERIFY(const std::vector<const Bulletproof*> &proofs)
     const rct::key weight_z = rct::skGen();
 
     // pre-multiply some points by 8
-    rct::keyV proof8_V = proof.V; for (rct::key &k: proof8_V) k = rct::scalarmult8(k);
-    rct::keyV proof8_L = proof.L; for (rct::key &k: proof8_L) k = rct::scalarmult8(k);
-    rct::keyV proof8_R = proof.R; for (rct::key &k: proof8_R) k = rct::scalarmult8(k);
-    rct::key proof8_T1 = rct::scalarmult8(proof.T1);
-    rct::key proof8_T2 = rct::scalarmult8(proof.T2);
-    rct::key proof8_S = rct::scalarmult8(proof.S);
-    rct::key proof8_A = rct::scalarmult8(proof.A);
+    proof8_V.resize(proof.V.size()); for (size_t i = 0; i < proof.V.size(); ++i) rct::scalarmult8(proof8_V[i], proof.V[i]);
+    proof8_L.resize(proof.L.size()); for (size_t i = 0; i < proof.L.size(); ++i) rct::scalarmult8(proof8_L[i], proof.L[i]);
+    proof8_R.resize(proof.R.size()); for (size_t i = 0; i < proof.R.size(); ++i) rct::scalarmult8(proof8_R[i], proof.R[i]);
+    ge_p3 proof8_T1;
+    ge_p3 proof8_T2;
+    ge_p3 proof8_S;
+    ge_p3 proof8_A;
+    rct::scalarmult8(proof8_T1, proof.T1);
+    rct::scalarmult8(proof8_T2, proof.T2);
+    rct::scalarmult8(proof8_S, proof.S);
+    rct::scalarmult8(proof8_A, proof.A);
 
     PERF_TIMER_START_BP(VERIFY_line_61);
     // PAPER LINE 61
