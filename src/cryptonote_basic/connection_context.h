@@ -32,8 +32,10 @@
 #pragma once
 #include <unordered_set>
 #include <atomic>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include "net/net_utils_base.h"
 #include "copyable_atomic.h"
+#include "crypto/hash.h"
 
 namespace cryptonote
 {
@@ -51,6 +53,12 @@ namespace cryptonote
       state_idle,
       state_normal
     };
+
+    static constexpr int handshake_command() noexcept { return 1001; }
+    bool handshake_complete() const noexcept { return m_state != state_before_handshake; }
+
+    //! \return Maximum number of bytes permissible for `command`.
+    static size_t get_max_bytes(int command) noexcept;
 
     state m_state;
     std::vector<std::pair<crypto::hash, uint64_t>> m_needed_objects;

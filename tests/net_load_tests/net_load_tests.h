@@ -47,6 +47,9 @@ namespace net_load_tests
 {
   struct test_connection_context : epee::net_utils::connection_context_base
   {
+    static constexpr int handshake_command() noexcept { return 1001; }
+    static constexpr bool handshake_complete() noexcept { return true; }
+    size_t get_max_bytes(int command) const { return LEVIN_DEFAULT_MAX_PACKET_SIZE; }
     volatile bool m_closed;
   };
 

@@ -83,6 +83,7 @@ class async_protocol_handler_config
 
 public:
   typedef t_connection_context connection_context;
+  uint64_t m_initial_max_packet_size;
   uint64_t m_max_packet_size;
   uint64_t m_invoke_timeout;
 
@@ -103,7 +104,7 @@ public:
   size_t get_in_connections_count();
   void set_handler(levin_commands_handler<t_connection_context>* handler, void (*destroy)(levin_commands_handler<t_connection_context>*) = NULL);
 
-  async_protocol_handler_config():m_pcommands_handler(NULL), m_pcommands_handler_destroy(NULL), m_max_packet_size(LEVIN_DEFAULT_MAX_PACKET_SIZE), m_invoke_timeout(LEVIN_DEFAULT_TIMEOUT_PRECONFIGURED)
+  async_protocol_handler_config():m_pcommands_handler(NULL), m_pcommands_handler_destroy(NULL), m_initial_max_packet_size(LEVIN_INITIAL_MAX_PACKET_SIZE), m_max_packet_size(LEVIN_DEFAULT_MAX_PACKET_SIZE), m_invoke_timeout(LEVIN_DEFAULT_TIMEOUT_PRECONFIGURED)
   {}
   ~async_protocol_handler_config() { set_handler(NULL, NULL); }
   void del_out_connections(size_t count);
@@ -145,6 +146,7 @@ public:
   net_utils::i_service_endpoint* m_pservice_endpoint;
   config_type& m_config;
   t_connection_context& m_connection_context;
+  std::atomic<uint64_t> m_max_packet_size;
 
   net_utils::buffer m_cache_in_buffer;
   stream_state m_state;
@@ -267,7 +269,8 @@ public:
             m_current_head(bucket_head2()),
             m_pservice_endpoint(psnd_hndlr), 
             m_config(config), 
-            m_connection_context(conn_context), 
+            m_connection_context(conn_context),
+            m_max_packet_size(config.m_initial_max_packet_size),
             m_cache_in_buffer(4 * 1024),
             m_state(stream_state_head)
   {
@@ -376,9 +379,14 @@ public:
       return false;
     }
 
-    if(m_cache_in_buffer.size() + cb > m_config.m_max_packet_size)
+    // these should never fail, but do runtime check for safety
+    const uint64_t max_packet_size = m_max_packet_size;
+    CHECK_AND_ASSERT_MES(max_packet_size >= m_cache_in_buffer.size(), false, "Bad m_cache_in_buffer.size()");
+
+    // flipped to subtraction; prevent overflow since m_max_packet_size is variable and public
+    if(cb > max_packet_size - m_cache_in_buffer.size())
     {
-      MWARNING(m_connection_context << "Maximum packet size exceed!, m_max_packet_size = " << m_config.m_max_packet_size
+      MWARNING(m_connection_context << "Maximum packet size exceed!, m_max_packet_size = " << max_packet_size
                           << ", packet received " << m_cache_in_buffer.size() + cb
                           << ", connection will be closed.");
       return false;
@@ -463,6 +471,11 @@ public:
                                                                   buff_to_invoke, 
                                                                   return_buff, 
                                                                   m_connection_context);
+
+              // peer_id remains unset if dropped
+              if (m_current_head.m_command == m_connection_context.handshake_command() && m_connection_context.handshake_complete())
+                m_max_packet_size = m_config.m_max_packet_size;
+
               m_current_head.m_cb = return_buff.size();
               m_current_head.m_have_to_return_data = false;
               m_current_head.m_protocol_version = LEVIN_PROTOCOL_VER_1;
@@ -530,10 +543,11 @@ public:
           m_cache_in_buffer.erase(sizeof(bucket_head2));
           m_state = stream_state_body;
           m_oponent_protocol_ver = m_current_head.m_protocol_version;
-          if(m_current_head.m_cb > m_config.m_max_packet_size)
+          const size_t max_bytes = m_connection_context.get_max_bytes(m_current_head.m_command);
+          if(m_current_head.m_cb > std::min<size_t>(max_packet_size, max_bytes))
           {
-            LOG_ERROR_CC(m_connection_context, "Maximum packet size exceed!, m_max_packet_size = " << m_config.m_max_packet_size
-              << ", packet header received " << m_current_head.m_cb
+            LOG_ERROR_CC(m_connection_context, "Maximum packet size exceed!, m_max_packet_size = " << std::min<size_t>(max_packet_size, max_bytes)
+              << ", packet header received " << m_current_head.m_cb << ", command " << m_current_head.m_command
               << ", connection will be closed.");
             return false;
           }
@@ -596,6 +610,10 @@ public:
       boost::interprocess::ipcdetail::atomic_write32(&m_invoke_buf_ready, 0);
       CRITICAL_REGION_BEGIN(m_send_lock);
       CRITICAL_REGION_LOCAL1(m_invoke_response_handlers_lock);
+
+      if (command == m_connection_context.handshake_command())
+        m_max_packet_size = m_config.m_max_packet_size;
+
       if(!m_pservice_endpoint->do_send(&head, sizeof(head)))
       {
         LOG_ERROR_CC(m_connection_context, "Failed to do_send");
@@ -652,6 +670,10 @@ public:
     head.m_protocol_version = SWAP32LE(LEVIN_PROTOCOL_VER_1);
 
     boost::interprocess::ipcdetail::atomic_write32(&m_invoke_buf_ready, 0);
+
+    if (command == m_connection_context.handshake_command())
+      m_max_packet_size = m_config.m_max_packet_size;
+
     CRITICAL_REGION_BEGIN(m_send_lock);
     if(!m_pservice_endpoint->do_send(&head, sizeof(head)))
     {
