@@ -3654,9 +3654,7 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    if (req.enable_multisig_experimental)
-      m_wallet->enable_multisig(true);
-    CHECK_MULTISIG_ENABLED_IF(true);
+    CHECK_MULTISIG_ENABLED_IF(!req.enable_multisig_experimental);
     if (m_wallet->multisig())
     {
       er.code = WALLET_RPC_ERROR_CODE_ALREADY_MULTISIG;
@@ -3671,6 +3669,10 @@ namespace tools
     }
 
     res.multisig_info = m_wallet->get_multisig_info();
+    // only enable once the call succeeded; there is no password here to rewrite the
+    // keys file, it is saved with the flag by make_multisig, which takes the password
+    if (req.enable_multisig_experimental)
+      m_wallet->enable_multisig(true);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
