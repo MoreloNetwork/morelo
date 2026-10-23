@@ -82,9 +82,10 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   connection<t_protocol_handler>::connection( boost::asio::io_context& io_service,
                 boost::shared_ptr<shared_state> state,
                 t_connection_type connection_type,
-                ssl_support_t ssl_support
+                ssl_support_t ssl_support,
+                t_connection_context&& initial
         )
-        : connection(boost::asio::ip::tcp::socket{io_service}, std::move(state), connection_type, ssl_support)
+        : connection(boost::asio::ip::tcp::socket{io_service}, std::move(state), connection_type, ssl_support, std::move(initial))
   {
   }
 
@@ -92,10 +93,12 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   connection<t_protocol_handler>::connection( boost::asio::ip::tcp::socket&& sock,
                 boost::shared_ptr<shared_state> state,
                 t_connection_type connection_type,
-                ssl_support_t ssl_support
+                ssl_support_t ssl_support,
+                t_connection_context&& initial
         )
         :
                 connection_basic(std::move(sock), state, ssl_support),
+                context(std::move(initial)),
                 m_protocol_handler(this, check_and_get(state).config, context),
                 buffer_ssl_init_fill(0),
                 m_connection_type( connection_type ),
@@ -167,7 +170,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // create a random uuid, we don't need crypto strength here
     const boost::uuids::uuid random_uuid = boost::uuids::random_generator()();
 
-    context = t_connection_context{};
     bool ssl = m_ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_enabled;
     context.set_details(random_uuid, std::move(real_remote), is_income, ssl);
 
@@ -1412,10 +1414,10 @@ POP_WARNINGS
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler> template<class t_callback>
-  bool boosted_tcp_server<t_protocol_handler>::connect_async(const std::string& adr, const std::string& port, uint32_t conn_timeout, const t_callback &cb, const std::string& bind_ip, ssl_support_t ssl_support)
+  bool boosted_tcp_server<t_protocol_handler>::connect_async(const std::string& adr, const std::string& port, uint32_t conn_timeout, const t_callback &cb, const std::string& bind_ip, ssl_support_t ssl_support, t_connection_context&& initial)
   {
     TRY_ENTRY();
-    connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_state, m_connection_type, ssl_support) );
+    connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_state, m_connection_type, ssl_support, std::move(initial)) );
     connections_mutex.lock();
     connections_.insert(new_connection_l);
     MDEBUG("connections_ size now " << connections_.size());
