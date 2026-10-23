@@ -29,6 +29,7 @@
 
 #include "gtest/gtest.h"
 #include "net/http_auth.h"
+#include "net/http_client.h"
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -743,4 +744,203 @@ TEST(HTTP, Add_Field)
   epee::net_utils::http::add_field(str, {"moarbars", "moarfoo"});
 
   EXPECT_STREQ("leading textfoo: bar\r\nbar: foo\r\nmoarbars: moarfoo\r\n", str.c_str());
+}
+
+namespace
+{
+class dummy_client
+{
+public:
+  static constexpr size_t recv_size = 16384;
+
+  bool connect(const std::string&, int, std::chrono::milliseconds, bool = false, const std::string& = "0.0.0.0") { connected = true; return true; }
+  bool connect(const std::string&, const std::string&, std::chrono::milliseconds, bool = false, const std::string& = "0.0.0.0") { connected = true; return true; }
+  bool disconnect() { connected = false; return true; }
+  bool shutdown() { return true; }
+  bool send(const boost::string_ref, std::chrono::milliseconds) { return true; }
+  bool send(const void*, size_t) { return true; }
+  bool recv(std::string& buff, std::chrono::milliseconds)
+  {
+    buff.assign(data, 0, recv_size);
+    data.erase(0, buff.size());
+    return true;
+  }
+  void set_ssl(epee::net_utils::ssl_options_t) { }
+  bool is_connected(bool *ssl = NULL) { return connected; }
+  uint64_t get_bytes_sent() const { return 1; }
+  uint64_t get_bytes_received() const { return 1; }
+
+  void set_test_data(const std::string& s) { data = s; }
+
+private:
+  bool connected = true;
+  std::string data;
+};
+
+class test_http_client final : public http::http_simple_client_template<dummy_client>
+{
+public:
+  bool on_header(const http::http_response_info& headers) override
+  {
+    ++headers_seen;
+    last_headers = headers;
+    if (throw_on_header)
+    {
+      // only once, so a later call on the same client proves it recovered
+      throw_on_header = false;
+      throw std::runtime_error("simulated failure while processing response");
+    }
+    return true;
+  }
+
+  http::http_response_info last_headers;
+  unsigned headers_seen = 0;
+  bool throw_on_header = false;
+};
+}
+
+TEST(HTTP, Client_Keeps_Unknown_Header)
+{
+  test_http_client client;
+  const bool result = client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "X-Test: abc\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n",
+    std::chrono::milliseconds(1000)
+  );
+
+  ASSERT_TRUE(result);
+  EXPECT_EQ(1u, client.headers_seen);
+  ASSERT_EQ(1u, client.last_headers.m_header_info.m_etc_fields.size());
+  EXPECT_STREQ("X-Test", client.last_headers.m_header_info.m_etc_fields.front().first.c_str());
+  EXPECT_STREQ("abc", client.last_headers.m_header_info.m_etc_fields.front().second.c_str());
+}
+
+TEST(HTTP, Client_Rejects_Missing_Response_Status)
+{
+  test_http_client client;
+  const bool result = client.test(
+    "X-Test: abc\r\n"
+    "Content-Length: 3\r\n"
+    "\r\n"
+    "abc",
+    std::chrono::milliseconds(1000)
+  );
+
+  EXPECT_FALSE(result);
+  EXPECT_EQ(0u, client.headers_seen);
+  EXPECT_FALSE(client.is_connected());
+}
+
+TEST(HTTP, Client_Rejects_Oversized_Response_Header)
+{
+  test_http_client client;
+  std::string response = "HTTP/1.1 200 OK\r\nX-Test: ";
+  response.append(100000, 'a');
+  response += "\r\nContent-Length: 0\r\n\r\n";
+
+  EXPECT_FALSE(client.test(response, std::chrono::milliseconds(1000)));
+  EXPECT_EQ(0u, client.headers_seen);
+  EXPECT_FALSE(client.is_connected());
+}
+
+TEST(HTTP, Client_Accepts_Fragmented_Response_Header)
+{
+  test_http_client client;
+  std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-Test: ";
+  response.append(16384 - response.size() - 2, 'a');
+  response += "\r\n\r\n";
+
+  EXPECT_TRUE(client.test(response, std::chrono::milliseconds(1000)));
+  EXPECT_EQ(1u, client.headers_seen);
+  EXPECT_TRUE(client.is_connected());
+}
+
+TEST(HTTP, Client_Accepts_Large_Response_Body)
+{
+  test_http_client client;
+  const std::string body(100001, 'a');
+  const std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 100001\r\n\r\n" + body;
+
+  EXPECT_TRUE(client.test(response, std::chrono::milliseconds(1000)));
+  EXPECT_EQ(1u, client.headers_seen);
+  EXPECT_TRUE(client.is_connected());
+}
+
+TEST(HTTP, Client_Rejects_Body_Exceeding_Content_Length)
+{
+  test_http_client valid_client;
+  EXPECT_TRUE(valid_client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 3\r\n"
+    "\r\n"
+    "abc",
+    std::chrono::milliseconds(1000)
+  ));
+  EXPECT_TRUE(valid_client.is_connected());
+
+  test_http_client client;
+  EXPECT_FALSE(client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 3\r\n"
+    "\r\n"
+    "abcd",
+    std::chrono::milliseconds(1000)
+  ));
+  EXPECT_FALSE(client.is_connected());
+
+  test_http_client empty_client;
+  EXPECT_FALSE(empty_client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n"
+    "x",
+    std::chrono::milliseconds(1000)
+  ));
+  EXPECT_FALSE(empty_client.is_connected());
+}
+
+TEST(HTTP, Client_Recovers_From_Exception_During_Response_Processing)
+{
+  test_http_client client;
+  client.throw_on_header = true;
+
+  EXPECT_FALSE(client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n",
+    std::chrono::milliseconds(1000)
+  ));
+
+  ASSERT_TRUE(client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "X-Test: abc\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n",
+    std::chrono::milliseconds(1000)
+  ));
+  ASSERT_EQ(1u, client.last_headers.m_header_info.m_etc_fields.size());
+  EXPECT_STREQ("X-Test", client.last_headers.m_header_info.m_etc_fields.front().first.c_str());
+}
+
+TEST(HTTP, Client_Chunked)
+{
+  const std::string header = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+
+  test_http_client valid;
+  EXPECT_TRUE(valid.test(header + "1\r\na\r\n0\r\n\r\n", std::chrono::milliseconds(1000)));
+
+  test_http_client large_body;
+  EXPECT_TRUE(large_body.test(header + "186a1\r\n" + std::string(100001, 'a') + "\r\n0\r\n\r\n",
+    std::chrono::milliseconds(1000)));
+
+  test_http_client oversized_head;
+  EXPECT_FALSE(oversized_head.test(header + std::string(100001, '0') + std::string(100000, 'a'),
+    std::chrono::milliseconds(1000)));
+
+  test_http_client excessive_separators;
+  EXPECT_FALSE(excessive_separators.test(header + "1\r\na" + std::string(100000, '\r') + "1\r\nb\r\n0\r\n\r\n",
+    std::chrono::milliseconds(1000)));
+  EXPECT_FALSE(excessive_separators.is_connected());
 }
