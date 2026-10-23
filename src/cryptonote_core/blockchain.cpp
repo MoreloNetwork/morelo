@@ -1335,6 +1335,21 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
 
 if(version >= 16)
 {
+  // the governance checks below read vout.back() as a txout_to_key: without a
+  // second output there is no governance output at all, and any other output
+  // type is unspendable and refused by the db anyway, so reject both here
+  // instead of indexing an empty vector or letting boost::get throw
+  if(b.miner_tx.vout.size() < 2)
+  {
+    MERROR_VER("coinbase transaction has " << b.miner_tx.vout.size() << " outputs, a governance output is required");
+    return false;
+  }
+  if(b.miner_tx.vout.back().target.type() != typeid(txout_to_key))
+  {
+    MERROR_VER("governance output in coinbase transaction has the wrong type");
+    return false;
+  }
+
   uint64_t governance_reward = get_governance_reward(height, base_reward, version, hardfork_height);
 
   if(b.miner_tx.vout.back().amount != governance_reward)
