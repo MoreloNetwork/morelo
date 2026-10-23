@@ -143,6 +143,12 @@
 
 #define COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT						100
 #define MAX_RPC_CONTENT_LENGTH									1048576 // 1 MB
+// Generous RPC connection limits: protect against fd exhaustion / a single
+// abuser without breaking pools, explorers or reverse proxies that open many
+// concurrent connections. Operators can raise them with the matching options.
+#define DEFAULT_RPC_MAX_CONNECTIONS_PER_PUBLIC_IP				64
+#define DEFAULT_RPC_MAX_CONNECTIONS_PER_PRIVATE_IP				100
+#define DEFAULT_RPC_MAX_CONNECTIONS								1000
 
 #define P2P_LOCAL_WHITE_PEERLIST_LIMIT									1000
 #define P2P_LOCAL_GRAY_PEERLIST_LIMIT										5000

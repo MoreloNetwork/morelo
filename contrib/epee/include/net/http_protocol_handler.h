@@ -34,6 +34,7 @@
 #include <boost/utility/string_ref.hpp>
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include "net_utils_base.h"
 #include "to_nonconst_iterator.h"
 #include "http_auth.h"
@@ -56,8 +57,13 @@ namespace net_utils
 		struct http_server_config
 		{
 			std::vector<std::string> m_access_control_origins;
+			std::unordered_map<std::string, std::size_t> m_connections;
 			boost::optional<login> m_user;
 			size_t m_max_content_length{std::numeric_limits<size_t>::max()};
+			std::size_t m_connection_count{0};
+			std::size_t m_max_public_ip_connections{64};
+			std::size_t m_max_private_ip_connections{100};
+			std::size_t m_max_connections{1000};
 			critical_section m_lock;
 		};
 
@@ -72,7 +78,7 @@ namespace net_utils
 			typedef http_server_config config_type;
 
 			simple_http_connection_handler(i_service_endpoint* psnd_hndlr, config_type& config, t_connection_context& conn_context);
-			virtual ~simple_http_connection_handler(){}
+			virtual ~simple_http_connection_handler();
 
 			bool release_protocol()
 			{
@@ -88,10 +94,7 @@ namespace net_utils
 			{
 				return true;
 			}
-			bool after_init_connection()
-			{
-				return true;
-			}
+			bool after_init_connection();
 			virtual bool handle_recv(const void* ptr, size_t cb);
 			virtual bool handle_request(const http::http_request_info& query_info, http_response_info& response);
 
@@ -142,6 +145,7 @@ namespace net_utils
 		protected:
 			i_service_endpoint* m_psnd_hndlr;
 			t_connection_context& m_conn_context;
+			bool m_initialized;
 		};
 
 		template<class t_connection_context>
@@ -208,10 +212,6 @@ namespace net_utils
 			}
 			void handle_qued_callback()
 			{}
-			bool after_init_connection()
-			{
-				return true;
-			}
 
 		private:
 			//simple_http_connection_handler::config_type m_stub_config;
