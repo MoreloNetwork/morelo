@@ -1416,7 +1416,9 @@ namespace cryptonote
             {
               MERROR(context << "Found incorrect height for " << new_block.prev_id << " provided by " << span_connection_id);
               drop_connection(span_connection_id);
-              return 1;
+              if (span_connection_id == context.m_connection_id)
+                return 1;
+              goto skip; // somebody else's span, keep this peer busy
             }
 
             // it could be:
@@ -1478,13 +1480,16 @@ namespace cryptonote
             LOG_ERROR_CCONTEXT("Failure in prepare_handle_incoming_blocks");
             m_block_queue.flush_spans(span_connection_id, true);
             drop_connections(span_origin);
-            return 1;
+            if (span_origin.is_same_host(context.m_remote_address))
+              return 1;
+            goto skip; // somebody else's span, keep this peer busy
           }
           if(!pblocks.empty() && pblocks.size() != blocks.size())
           {
             m_core.cleanup_handle_incoming_blocks();
             LOG_ERROR_CCONTEXT("Internal error: blocks.size() != block_entry.txs.size()");
-            return 1;
+            m_block_queue.remove_spans(span_connection_id, start_height);
+            goto skip;
           }
 
           uint64_t block_process_time_full = 0, transactions_process_time_full = 0;
@@ -1544,7 +1549,9 @@ namespace cryptonote
                 }
                 // in case the peer had dropped beforehand, remove the span anyway so other threads can wake up and get it
                 m_block_queue.remove_spans(span_connection_id, start_height);
-                return 1;
+                if (span_origin.is_same_host(context.m_remote_address))
+                  return 1;
+                goto skip; // somebody else's span, keep this peer busy
               }
             }
             TIME_MEASURE_FINISH(transactions_process_time);
@@ -1575,7 +1582,9 @@ namespace cryptonote
 
               // in case the peer had dropped beforehand, remove the span anyway so other threads can wake up and get it
               m_block_queue.remove_spans(span_connection_id, start_height);
-              return 1;
+              if (span_origin.is_same_host(context.m_remote_address))
+                return 1;
+              goto skip; // somebody else's span, keep this peer busy
             }
             if(bvc.m_marked_as_orphaned)
             {
@@ -1595,7 +1604,9 @@ namespace cryptonote
 
               // in case the peer had dropped beforehand, remove the span anyway so other threads can wake up and get it
               m_block_queue.remove_spans(span_connection_id, start_height);
-              return 1;
+              if (span_origin.is_same_host(context.m_remote_address))
+                return 1;
+              goto skip; // somebody else's span, keep this peer busy
             }
 
             TIME_MEASURE_FINISH(block_process_time);
