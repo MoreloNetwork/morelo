@@ -777,6 +777,11 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // can race with an async handshake running on another worker thread. The
     // TCP shutdown below tears the socket down and aborts any pending handshake.
     socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+    // Cancel any pending async operation. On Windows shutdown() alone does not
+    // abort a pending async_receive, so against a peer that stops responding the
+    // read stays queued forever, its handler keeps the connection referenced and
+    // the object is never destroyed (no CLOSE CONNECTION, peer stays counted).
+    socket().cancel(ignored_ec);
     if(!m_host.empty())
     {
       try { host_count(m_host, -1); } catch (...) { /* ignore */ }
