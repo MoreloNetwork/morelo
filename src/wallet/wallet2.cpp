@@ -3604,6 +3604,19 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+// Derives the chacha key that encrypts the wallet cache from the keys file key
+static crypto::chacha_key derive_cache_key(const crypto::chacha_key& keys_data_key)
+{
+  static_assert(HASH_SIZE == sizeof(crypto::chacha_key), "Mismatched sizes of hash and chacha key");
+
+  crypto::chacha_key cache_key;
+  epee::mlocked<tools::scrubbed_arr<char, HASH_SIZE+1>> cache_key_data;
+  memcpy(cache_key_data.data(), &keys_data_key, HASH_SIZE);
+  cache_key_data[HASH_SIZE] = CACHE_KEY_TAIL;
+  cn_fast_hash(cache_key_data.data(), HASH_SIZE+1, (crypto::hash&)cache_key);
+  return cache_key;
+}
+//----------------------------------------------------------------------------------------------------
 void wallet2::setup_keys(const epee::wipeable_string &password)
 {
   crypto::chacha_key key;
@@ -3616,16 +3629,18 @@ void wallet2::setup_keys(const epee::wipeable_string &password)
     m_account.decrypt_viewkey(key);
   }
 
-  static_assert(HASH_SIZE == sizeof(crypto::chacha_key), "Mismatched sizes of hash and chacha key");
-  epee::mlocked<tools::scrubbed_arr<char, HASH_SIZE+1>> cache_key_data;
-  memcpy(cache_key_data.data(), &key, HASH_SIZE);
-  cache_key_data[HASH_SIZE] = CACHE_KEY_TAIL;
-  cn_fast_hash(cache_key_data.data(), HASH_SIZE+1, (crypto::hash&)m_cache_key);
+  m_cache_key = derive_cache_key(key);
   get_ringdb_key();
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::change_password(const std::string &filename, const epee::wipeable_string &original_password, const epee::wipeable_string &new_password)
 {
+  // m_cache_key is derived from the current password: a wrong original password
+  // would "decrypt" the spend key into garbage, which would then be saved
+  crypto::chacha_key original_key;
+  crypto::generate_chacha_key(original_password.data(), original_password.size(), original_key, m_kdf_rounds);
+  THROW_WALLET_EXCEPTION_IF(derive_cache_key(original_key) != m_cache_key, error::invalid_password);
+
   if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
     decrypt_keys(original_password);
   setup_keys(new_password);
