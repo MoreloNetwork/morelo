@@ -486,8 +486,9 @@ namespace nodetool
     std::map<std::string, time_t> m_blocked_hosts;
     std::map<epee::net_utils::ipv4_network_subnet, time_t> m_blocked_subnets;
 
+    struct host_fails { uint64_t score; time_t last; };
     epee::critical_section m_host_fails_score_lock;
-    std::map<std::string, uint64_t> m_host_fails_score;
+    std::map<std::string, host_fails> m_host_fails_score;
 
     boost::mutex m_used_stripe_peers_mutex;
     std::array<std::list<epee::net_utils::network_address>, 1 << CRYPTONOTE_PRUNING_LOG_STRIPES> m_used_stripe_peers;

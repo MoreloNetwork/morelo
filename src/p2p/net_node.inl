@@ -412,13 +412,22 @@ namespace nodetool
       return false;
 
     CRITICAL_REGION_LOCAL(m_host_fails_score_lock);
-    uint64_t fails = m_host_fails_score[address.host_str()] += score;
+    const time_t now = time(nullptr);
+    host_fails &entry = m_host_fails_score[address.host_str()];
+    // forgive one point per P2P_IP_FAILS_DECAY_SECONDS without a new fail, so that unrelated
+    // transient problems spread over days don't add up to a ban on a small network; bad PoW
+    // and invalid blocks score P2P_IP_FAILS_BEFORE_BLOCK at once and still ban immediately
+    if (entry.last && now > entry.last)
+    {
+      const uint64_t forgiven = (now - entry.last) / P2P_IP_FAILS_DECAY_SECONDS;
+      entry.score = forgiven >= entry.score ? 0 : entry.score - forgiven;
+    }
+    entry.last = now;
+    const uint64_t fails = entry.score += score;
     MDEBUG("Host " << address.host_str() << " fail score:" << fails);
     if(fails > P2P_IP_FAILS_BEFORE_BLOCK)
     {
-      auto it = m_host_fails_score.find(address.host_str());
-      CHECK_AND_ASSERT_MES(it != m_host_fails_score.end(), false, "internal error");
-      it->second = P2P_IP_FAILS_BEFORE_BLOCK/2;
+      entry.score = P2P_IP_FAILS_BEFORE_BLOCK/2;
       block_host(address);
     }
     return true;
