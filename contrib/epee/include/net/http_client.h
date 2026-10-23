@@ -274,6 +274,10 @@ namespace net_utils
 			reciev_machine_state m_state;
 			chunked_state m_chunked_state;
 			std::string m_chunked_cache;
+			size_t m_chunk_separator_count;
+			size_t m_chunk_head_scan_pos;
+			size_t m_chunk_head_scan_digits;
+			static constexpr size_t max_chunk_metadata_len = 100000;
 			bool m_auto_connect;
 			critical_section m_lock;
 
@@ -292,6 +296,9 @@ namespace net_utils
 				, m_state()
 				, m_chunked_state()
 				, m_chunked_cache()
+				, m_chunk_separator_count(0)
+				, m_chunk_head_scan_pos(0)
+				, m_chunk_head_scan_digits(0)
 				, m_auto_connect(true)
 				, m_lock()
 			{}
@@ -474,49 +481,65 @@ namespace net_utils
 				bool keep_handling = true;
 				bool need_more_data = true;
 				std::string recv_buffer;
-				while(keep_handling)
+				try
 				{
-					if(need_more_data)
+					while(keep_handling)
 					{
-						if(!m_net_client.recv(recv_buffer, timeout))
+						if(need_more_data)
 						{
-							MERROR("Unexpected recv fail");
-							m_state = reciev_machine_state_error;
-            }
-            if(!recv_buffer.size())
-            {
-              //connection is going to be closed
-              if(reciev_machine_state_body_connection_close != m_state)
-              {
-                m_state = reciev_machine_state_error;
-              }
-            }
-            need_more_data = false;
-					}
-					switch(m_state)
-					{
-					case reciev_machine_state_header:
-						keep_handling = handle_header(recv_buffer, need_more_data);
-						break;
-					case reciev_machine_state_body_content_len:
-						keep_handling = handle_body_content_len(recv_buffer, need_more_data);
-						break;
-					case reciev_machine_state_body_connection_close:
-						keep_handling = handle_body_connection_close(recv_buffer, need_more_data);
-						break;
-					case reciev_machine_state_body_chunked:
-						keep_handling = handle_body_body_chunked(recv_buffer, need_more_data);
-						break;
-					case reciev_machine_state_done:
-						keep_handling = false;
-						break;
-					case reciev_machine_state_error:
-						keep_handling = false;
-						break;
-					}
+							if(!m_net_client.recv(recv_buffer, timeout))
+							{
+								MERROR("Unexpected recv fail");
+								m_state = reciev_machine_state_error;
+							}
+							if(!recv_buffer.size())
+							{
+								//connection is going to be closed
+								if(reciev_machine_state_body_connection_close != m_state)
+								{
+									m_state = reciev_machine_state_error;
+								}
+							}
+							need_more_data = false;
+						}
+						switch(m_state)
+						{
+						case reciev_machine_state_header:
+							keep_handling = handle_header(recv_buffer, need_more_data);
+							break;
+						case reciev_machine_state_body_content_len:
+							keep_handling = handle_body_content_len(recv_buffer, need_more_data);
+							break;
+						case reciev_machine_state_body_connection_close:
+							keep_handling = handle_body_connection_close(recv_buffer, need_more_data);
+							break;
+						case reciev_machine_state_body_chunked:
+							keep_handling = handle_body_body_chunked(recv_buffer, need_more_data);
+							break;
+						case reciev_machine_state_done:
+							keep_handling = false;
+							break;
+						case reciev_machine_state_error:
+							keep_handling = false;
+							break;
+						}
 
+					}
+				}
+				catch (const std::exception& e)
+				{
+					LOG_ERROR("http_simple_client_template::handle_reciev(): exception while processing response, resetting connection: " << e.what());
+					reset_stream_state();
+					return false;
+				}
+				catch (...)
+				{
+					LOG_ERROR("http_simple_client_template::handle_reciev(): unknown exception while processing response, resetting connection");
+					reset_stream_state();
+					return false;
 				}
 				m_header_cache.clear();
+				m_chunked_cache.clear();
 				if(m_state != reciev_machine_state_error)
 				{
 					if(m_response_info.m_header_info.m_connection.size() && !string_tools::compare_no_case("close", m_response_info.m_header_info.m_connection))
@@ -527,8 +550,23 @@ namespace net_utils
 				else
                 {
                   LOG_PRINT_L3("Returning false because of wrong state machine. state: " << m_state);
+                  disconnect();
                   return false;
                 }
+			}
+			//---------------------------------------------------------------------------
+			// clears partially-received response state and drops the connection
+			inline void reset_stream_state()
+			{
+				std::string().swap(m_header_cache);
+				std::string().swap(m_chunked_cache);
+				m_chunk_separator_count = 0;
+				m_response_info.clear();
+				m_len_in_summary = 0;
+				m_len_in_remain = 0;
+				m_chunked_state = http_chunked_state_undefined;
+				m_state = reciev_machine_state_error;
+				disconnect();
 			}
 			//---------------------------------------------------------------------------
 			inline
@@ -543,21 +581,43 @@ namespace net_utils
           return false;
         }
 
+				const size_t old_size = m_header_cache.size();
 				m_header_cache += recv_buff;
 				recv_buff.clear();
-				std::string::size_type pos = m_header_cache.find("\r\n\r\n");
+				const std::string::size_type pos = m_header_cache.find("\r\n\r\n", old_size > 3 ? old_size - 3 : 0);
+				constexpr size_t max_header_len = 100000;
+				const size_t header_len = pos == std::string::npos ? m_header_cache.size() : pos + 4;
+				if (header_len > max_header_len)
+				{
+					LOG_ERROR("HTTP response header exceeds " << max_header_len << " bytes");
+					m_state = reciev_machine_state_error;
+					disconnect();
+					return false;
+				}
 				if(pos != std::string::npos)
 				{
 					recv_buff.assign(m_header_cache.begin()+pos+4, m_header_cache.end());
 					m_header_cache.erase(m_header_cache.begin()+pos+4, m_header_cache.end());
 
-					analize_cached_header_and_invoke_state();
+					if(!analize_cached_header_and_invoke_state())
+					{
+						m_state = reciev_machine_state_error;
+						return false;
+					}
           if (!on_header(m_response_info))
           {
             MDEBUG("Connection cancelled by on_header");
             m_state = reciev_machine_state_done;
             return false;
           }
+					if (m_state == reciev_machine_state_done &&
+						!m_response_info.m_header_info.m_content_length.empty() && !recv_buff.empty())
+					{
+						MERROR("HTTP response body exceeds Content-Length");
+						m_state = reciev_machine_state_error;
+						disconnect();
+						return false;
+					}
 					m_header_cache.clear();
 					if(!recv_buff.size() && (m_state != reciev_machine_state_error && m_state != reciev_machine_state_done))
 						need_more_data = true;
@@ -578,7 +638,13 @@ namespace net_utils
 					m_state = reciev_machine_state_done;
 					return true;
 				}
-				CHECK_AND_ASSERT_MES(m_len_in_remain >= recv_buff.size(), false, "m_len_in_remain >= recv_buff.size()");
+				if (recv_buff.size() > m_len_in_remain)
+				{
+					MERROR("HTTP response body exceeds Content-Length");
+					m_state = reciev_machine_state_error;
+					disconnect();
+					return false;
+				}
 				m_len_in_remain -= recv_buff.size();
 				if (!m_pcontent_encoding_handler->update_in(recv_buff))
 				{
@@ -634,9 +700,13 @@ namespace net_utils
 				bool get_chunk_head(std::string& buff, size_t& chunk_size, bool& is_matched)
 			{
 				is_matched = false;
-				size_t offset = 0;
-				for(std::string::iterator it = buff.begin(); it!= buff.end(); it++, offset++)
+				// resume from where the last call left off instead of rescanning from 0
+				size_t offset = m_chunk_head_scan_digits;
+				std::string::iterator it = buff.begin() + m_chunk_head_scan_pos;
+				for(; it!= buff.end(); it++, offset++)
 				{
+					if(static_cast<size_t>(it - buff.begin()) >= max_chunk_metadata_len)
+						return false;
 					if(!is_hex_symbol(*it))
 					{
 						if(*it == '\r' || *it == ' ' )
@@ -647,6 +717,8 @@ namespace net_utils
 						else if(*it == '\n')
 						{
 							std::string chunk_head = buff.substr(0, offset);
+							m_chunk_head_scan_pos = 0;
+							m_chunk_head_scan_digits = 0;
 							if(!get_len_from_chunk_head(chunk_head, chunk_size))
 								return false;
 
@@ -658,6 +730,8 @@ namespace net_utils
 
 								for(it++;it != buff.end(); it++)
 								{
+									if(static_cast<size_t>(it - buff.begin()) >= max_chunk_metadata_len)
+										return false;
 									if('\r' == *it)
 										continue;
 									else if('\n' == *it)
@@ -683,6 +757,8 @@ namespace net_utils
 					}
 				}
 
+				m_chunk_head_scan_pos = buff.size();
+				m_chunk_head_scan_digits = offset;
 				return true;
 			}
 			//---------------------------------------------------------------------------
@@ -713,17 +789,29 @@ namespace net_utils
 					case http_chunked_state_chunk_head:
 						if(m_chunked_cache[0] == '\n' || m_chunked_cache[0] == '\r')
 						{
-							//optimize a bit
-							if(m_chunked_cache[0] == '\r' && m_chunked_cache.size()>1 && m_chunked_cache[1] == '\n')
-								m_chunked_cache.erase(0, 2);
-							else
-								m_chunked_cache.erase(0, 1);
-							break;
+							const size_t prefix_len = m_chunked_cache.find_first_not_of("\r\n");
+							const size_t separator_len = prefix_len == std::string::npos ? m_chunked_cache.size() : prefix_len;
+							if(separator_len >= max_chunk_metadata_len - m_chunk_separator_count)
+							{
+								LOG_ERROR("http_stream_filter::handle_chunked(*) Chunk separator too long");
+								m_state = reciev_machine_state_error;
+								disconnect();
+								return false;
+							}
+							m_chunk_separator_count += separator_len;
+							m_chunked_cache.erase(0, separator_len);
+							if(m_chunked_cache.empty())
+							{
+								need_more_data = true;
+								return true;
+							}
 						}
+						m_chunk_separator_count = 0;
 						if(!get_chunk_head(m_chunked_cache, m_len_in_remain, is_matched))
 						{
-							LOG_ERROR("http_stream_filter::handle_chunked(*) Failed to get length from chunked head:" << m_chunked_cache);
+							LOG_ERROR("http_stream_filter::handle_chunked(*) Failed to get length from chunked head (" << m_chunked_cache.size() << " bytes)");
 							m_state = reciev_machine_state_error;
+							disconnect();
 							return false;
 						}
 
@@ -908,7 +996,8 @@ namespace net_utils
 				bool analize_cached_header_and_invoke_state()
 			{
 				m_response_info.clear();
-				analize_first_response_line();
+				if (!analize_first_response_line())
+					return false;
 				std::string fake_str; //gcc error workaround
 
 				bool res = parse_header(m_response_info.m_header_info, m_header_cache);
@@ -940,6 +1029,9 @@ namespace net_utils
 					}
 					m_state = reciev_machine_state_body_chunked;
 					m_chunked_state = http_chunked_state_chunk_head;
+					m_chunk_separator_count = 0;
+					m_chunk_head_scan_pos = 0;
+					m_chunk_head_scan_digits = 0;
 					return true;
 				}
 				else if(!m_response_info.m_header_info.m_content_length.empty())
