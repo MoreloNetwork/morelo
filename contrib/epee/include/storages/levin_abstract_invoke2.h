@@ -267,6 +267,7 @@ namespace epee
 #define BEGIN_INVOKE_MAP2(owner_type) \
   template <class t_context> int handle_invoke_map(bool is_notify, int command, const epee::span<const uint8_t> in_buff, std::string& buff_out, t_context& context, bool& handled) \
   { \
+  try { \
   typedef owner_type internal_owner_type_name;
 
 #define HANDLE_INVOKE2(command_id, func, type_name_in, typename_out) \
@@ -311,6 +312,11 @@ namespace epee
 #define END_INVOKE_MAP2() \
   LOG_ERROR("Unknown command:" << command); \
   return is_notify ? LEVIN_OK : LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED; \
+  } \
+  catch (const std::exception &e) { \
+    MERROR("Error in handle_invoke_map: " << e.what()); \
+    return LEVIN_ERROR_CONNECTION_TIMEDOUT; /* seems kinda appropriate */ \
+  } \
   }
   }
 }
