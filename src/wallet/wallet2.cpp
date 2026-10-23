@@ -4756,7 +4756,12 @@ bool wallet2::verify_extra_multisig_info(const std::string &data, std::unordered
     MERROR("Multisig info decoding error");
     return false;
   }
-  if (decoded.size() != sizeof(crypto::secret_key) + sizeof(crypto::public_key) + sizeof(crypto::signature))
+  if (decoded.size() < sizeof(crypto::public_key) + sizeof(crypto::signature))
+  {
+    MERROR("Multisig info is corrupt");
+    return false;
+  }
+  if ((decoded.size() - (sizeof(crypto::public_key) + sizeof(crypto::signature))) % sizeof(crypto::public_key))
   {
     MERROR("Multisig info is corrupt");
     return false;

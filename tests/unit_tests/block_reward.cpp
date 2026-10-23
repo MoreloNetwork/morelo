@@ -48,6 +48,8 @@ namespace
     uint64_t m_block_reward;
   };
 
+  #define TAIL_EMISSION_REWARD (FINAL_SUBSIDY_PER_MINUTE * (DIFFICULTY_TARGET_V2 / 60))
+
   #define TEST_ALREADY_GENERATED_COINS(already_generated_coins, expected_reward)                              \
     m_block_not_too_big = get_block_reward(0, current_block_size, already_generated_coins, m_block_reward,1); \
     ASSERT_TRUE(m_block_not_too_big);                                                                         \
@@ -55,24 +57,24 @@ namespace
 
   TEST_F(block_reward_and_already_generated_coins, handles_first_values)
   {
-  	// 17592186044415 from neozaru, confirmed by fluffypony
-    TEST_ALREADY_GENERATED_COINS(0, UINT64_C(17592186044415));
-    TEST_ALREADY_GENERATED_COINS(m_block_reward, UINT64_C(17592169267200));
-    TEST_ALREADY_GENERATED_COINS(UINT64_C(2756434948434199641), UINT64_C(14963444829249));
+    // (MONEY_SUPPLY - already_generated_coins) >> 20, the emission speed factor for a 4 minute target
+    TEST_ALREADY_GENERATED_COINS(0, UINT64_C(71525573730));
+    TEST_ALREADY_GENERATED_COINS(m_block_reward, UINT64_C(71525505518));
+    TEST_ALREADY_GENERATED_COINS(UINT64_C(37500000000000000), UINT64_C(35762786865));
   }
 
   TEST_F(block_reward_and_already_generated_coins, correctly_steps_from_2_to_1)
   {
-    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((2 << 20) + 1), FINAL_SUBSIDY_PER_MINUTE);
-    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY -  (2 << 20)     , FINAL_SUBSIDY_PER_MINUTE);
-    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((2 << 20) - 1), FINAL_SUBSIDY_PER_MINUTE);
+    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((2 << 20) + 1), TAIL_EMISSION_REWARD);
+    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY -  (2 << 20)     , TAIL_EMISSION_REWARD);
+    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((2 << 20) - 1), TAIL_EMISSION_REWARD);
   }
 
   TEST_F(block_reward_and_already_generated_coins, handles_max)
   {
-    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((1 << 20) + 1), FINAL_SUBSIDY_PER_MINUTE);
-    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY -  (1 << 20)     , FINAL_SUBSIDY_PER_MINUTE);
-    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((1 << 20) - 1), FINAL_SUBSIDY_PER_MINUTE);
+    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((1 << 20) + 1), TAIL_EMISSION_REWARD);
+    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY -  (1 << 20)     , TAIL_EMISSION_REWARD);
+    TEST_ALREADY_GENERATED_COINS(MONEY_SUPPLY - ((1 << 20) - 1), TAIL_EMISSION_REWARD);
   }
 
   //--------------------------------------------------------------------------------------------------------------------

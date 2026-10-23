@@ -63,7 +63,8 @@ public:
   bool test()
   {
     crypto::hash hash;
-    crypto::cn_slow_hash(&m_data, sizeof(m_data), hash);
+    // original CryptoNight parameters
+    crypto::cn_slow_hash(&m_data, sizeof(m_data), reinterpret_cast<char*>(&hash), 0, 0, 0, 1 << 21, 1 << 21, 1 << 20);
     return hash == m_expected_hash;
   }
 
