@@ -31,6 +31,8 @@
 
 #include <boost/uuid/uuid.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/address_v6.hpp>
+#include <boost/optional/optional.hpp>
 #include <typeinfo>
 #include <type_traits>
 #include "enums.h"
@@ -159,6 +161,112 @@ namespace net_utils
 	inline bool operator>=(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
 	{ return !lhs.less(rhs); }
 
+	class ipv6_network_address
+	{
+	protected:
+		boost::asio::ip::address_v6 m_address;
+		uint16_t m_port;
+
+	public:
+		ipv6_network_address()
+			: ipv6_network_address(boost::asio::ip::address_v6::loopback(), 0)
+		{}
+
+		ipv6_network_address(const boost::asio::ip::address_v6& ip, uint16_t port)
+			: m_address(ip), m_port(port)
+		{
+		}
+
+		bool equal(const ipv6_network_address& other) const noexcept;
+		bool less(const ipv6_network_address& other) const noexcept;
+		bool is_same_host(const ipv6_network_address& other) const noexcept
+		{ return m_address == other.m_address; }
+
+		boost::asio::ip::address_v6 ip() const noexcept { return m_address; }
+		uint16_t port() const noexcept { return m_port; }
+		std::string str() const;
+		std::string host_str() const;
+		bool is_loopback() const;
+		bool is_local() const;
+		static constexpr address_type get_type_id() noexcept { return address_type::ipv6; }
+		static constexpr zone get_zone() noexcept { return zone::public_; }
+		static constexpr bool is_blockable() noexcept { return true; }
+
+		BEGIN_KV_SERIALIZE_MAP()
+			boost::asio::ip::address_v6::bytes_type bytes = this_ref.m_address.to_bytes();
+			if (!epee::serialization::selector<is_store>::serialize_t_val_as_blob(bytes, stg, hparent_section, "addr"))
+				return false;
+			const_cast<boost::asio::ip::address_v6&>(this_ref.m_address) = boost::asio::ip::address_v6(bytes);
+			KV_SERIALIZE(m_port)
+		END_KV_SERIALIZE_MAP()
+	};
+
+	inline bool operator==(const ipv6_network_address& lhs, const ipv6_network_address& rhs) noexcept
+	{ return lhs.equal(rhs); }
+	inline bool operator!=(const ipv6_network_address& lhs, const ipv6_network_address& rhs) noexcept
+	{ return !lhs.equal(rhs); }
+	inline bool operator<(const ipv6_network_address& lhs, const ipv6_network_address& rhs) noexcept
+	{ return lhs.less(rhs); }
+	inline bool operator<=(const ipv6_network_address& lhs, const ipv6_network_address& rhs) noexcept
+	{ return !rhs.less(lhs); }
+	inline bool operator>(const ipv6_network_address& lhs, const ipv6_network_address& rhs) noexcept
+	{ return rhs.less(lhs); }
+	inline bool operator>=(const ipv6_network_address& lhs, const ipv6_network_address& rhs) noexcept
+	{ return !lhs.less(rhs); }
+
+	class ipv6_network_subnet
+	{
+		boost::asio::ip::address_v6 m_address;
+		uint8_t m_mask;
+
+	public:
+		ipv6_network_subnet() noexcept
+			: m_address(), m_mask(0)
+		{}
+
+		ipv6_network_subnet(const boost::asio::ip::address_v6& ip, uint8_t mask)
+			: m_address(ip), m_mask(mask)
+		{
+			CHECK_AND_ASSERT_THROW_MES(mask <= 128, "invalid IPv6 subnet mask");
+		}
+
+		bool equal(const ipv6_network_subnet& other) const noexcept;
+		bool less(const ipv6_network_subnet& other) const noexcept;
+		bool is_same_host(const ipv6_network_subnet& other) const noexcept
+		{ return subnet() == other.subnet(); }
+		bool matches(const ipv6_network_address &address) const;
+
+		uint8_t mask() const noexcept { return m_mask; }
+		boost::asio::ip::address_v6 subnet() const noexcept;
+		std::string str() const;
+		std::string host_str() const;
+		bool is_loopback() const;
+		bool is_local() const;
+		static constexpr address_type get_type_id() noexcept { return address_type::invalid; }
+		static constexpr zone get_zone() noexcept { return zone::public_; }
+		static constexpr bool is_blockable() noexcept { return true; }
+	};
+
+	inline bool operator==(const ipv6_network_subnet& lhs, const ipv6_network_subnet& rhs) noexcept
+	{ return lhs.equal(rhs); }
+	inline bool operator!=(const ipv6_network_subnet& lhs, const ipv6_network_subnet& rhs) noexcept
+	{ return !lhs.equal(rhs); }
+	inline bool operator<(const ipv6_network_subnet& lhs, const ipv6_network_subnet& rhs) noexcept
+	{ return lhs.less(rhs); }
+	inline bool operator<=(const ipv6_network_subnet& lhs, const ipv6_network_subnet& rhs) noexcept
+	{ return !rhs.less(lhs); }
+	inline bool operator>(const ipv6_network_subnet& lhs, const ipv6_network_subnet& rhs) noexcept
+	{ return rhs.less(lhs); }
+	inline bool operator>=(const ipv6_network_subnet& lhs, const ipv6_network_subnet& rhs) noexcept
+	{ return !lhs.less(rhs); }
+
+	//! \return The IPv4 address an IPv4-mapped IPv6 address (::ffff:a.b.c.d) stands for, if it is one
+	boost::optional<ipv4_network_address> get_ipv4_mapped_address(const ipv6_network_address& address);
+	//! \return Whether `ip` is a public unicast address, i.e. one that a host usually owns a whole /64 of
+	bool should_group_ipv6_by_prefix(const boost::asio::ip::address_v6& ip);
+	//! \return `ip` with all bits after the first `prefix_bits` cleared
+	boost::asio::ip::address_v6 get_ipv6_subnet_address(const boost::asio::ip::address_v6& ip, std::size_t prefix_bits);
+
 	class network_address
 	{
 		struct interface
@@ -266,6 +374,8 @@ namespace net_utils
 			{
 				case address_type::ipv4:
 				  return this_ref.template serialize_addr<ipv4_network_address>(is_store_, stg, hparent_section);
+				case address_type::ipv6:
+				  return this_ref.template serialize_addr<ipv6_network_address>(is_store_, stg, hparent_section);
 				case address_type::tor:
 				  return this_ref.template serialize_addr<net::tor_address>(is_store_, stg, hparent_section);
 				case address_type::i2p:
@@ -292,6 +402,13 @@ namespace net_utils
 	{ return rhs.less(lhs); }
 	inline bool operator>=(const network_address& lhs, const network_address& rhs)
 	{ return !lhs.less(rhs); }
+
+	boost::optional<ipv4_network_address> get_ipv4_mapped_address(const network_address& address);
+
+	/*! Key under which a remote host is counted for per-host limits, bans and fail scores.
+	    Public IPv6 hosts own a whole /64 as a rule, so they are grouped by it ("prefix::/64"),
+	    everything else is keyed by its host string. */
+	std::string get_host_limit_key(const network_address& address);
 
 	/************************************************************************/
 	/*                                                                      */
