@@ -2292,14 +2292,24 @@ namespace nodetool
       return 1;
     }
 
-    if(context.peer_id)
+    if(context.handshake_complete())
     {
-      LOG_WARNING_CC(context, "COMMAND_HANDSHAKE came, but seems that connection already have associated peer_id (double COMMAND_HANDSHAKE?)");
+      LOG_WARNING_CC(context, "COMMAND_HANDSHAKE came, but connection already completed a handshake (double COMMAND_HANDSHAKE?)");
       drop_connection(context);
       return 1;
     }
 
-    network_zone& zone = m_network_zones.at(context.m_remote_address.get_zone());
+    const auto azone = context.m_remote_address.get_zone();
+    network_zone& zone = m_network_zones.at(azone);
+
+    // test only the remote end's zone, otherwise an attacker could connect to you on clearnet
+    // and pass in a tor connection's peer id, and deduce the two are the same if you reject it
+    if(azone == epee::net_utils::zone::public_ && arg.node_data.peer_id == zone.m_config.m_peer_id)
+    {
+      LOG_DEBUG_CC(context, "Connection to self detected, dropping connection");
+      drop_connection(context);
+      return 1;
+    }
 
     if(!m_payload_handler.process_payload_sync_data(arg.payload_data, context, true))
     {
