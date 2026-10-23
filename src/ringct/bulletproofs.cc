@@ -809,7 +809,7 @@ bool bulletproof_VERIFY(const std::vector<const Bulletproof*> &proofs)
   proof_data.reserve(proofs.size());
   size_t inv_offset = 0;
   std::vector<rct::key> to_invert;
-  to_invert.reserve(11 * sizeof(proofs));
+  to_invert.reserve(11 * proofs.size());
   for (const Bulletproof *p: proofs)
   {
     const Bulletproof &proof = *p;
@@ -822,6 +822,7 @@ bool bulletproof_VERIFY(const std::vector<const Bulletproof*> &proofs)
     CHECK_AND_ASSERT_MES(is_reduced(proof.t), false, "Input scalar not in range");
 
     CHECK_AND_ASSERT_MES(proof.V.size() >= 1, false, "V does not have at least one element");
+    CHECK_AND_ASSERT_MES(proof.V.size() <= maxM, false, "V has too many elements");
     CHECK_AND_ASSERT_MES(proof.L.size() == proof.R.size(), false, "Mismatched L and R sizes");
     CHECK_AND_ASSERT_MES(proof.L.size() > 0, false, "Empty proof");
 
