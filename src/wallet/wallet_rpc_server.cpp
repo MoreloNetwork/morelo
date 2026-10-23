@@ -248,7 +248,9 @@ namespace tools
     m_net_server.set_threads_prefix("RPC");
     m_net_server.get_config_object().m_max_content_length = MAX_RPC_CONTENT_LENGTH * 100;
     auto rng = [](size_t len, uint8_t *ptr) { return crypto::rand(len, ptr); };
-    return epee::http_server_impl_base<wallet_rpc_server, connection_context>::init(rng, std::move(bind_port), std::move(rpc_config->bind_ip), std::move(rpc_config->access_control_origins), std::move(http_login), std::move(rpc_config->ssl_options));
+    return epee::http_server_impl_base<wallet_rpc_server, connection_context>::init(rng, std::move(bind_port), std::move(rpc_config->bind_ip), std::move(rpc_config->access_control_origins), std::move(http_login), std::move(rpc_config->ssl_options),
+      DEFAULT_RPC_MAX_CONNECTIONS_PER_PUBLIC_IP, DEFAULT_RPC_MAX_CONNECTIONS_PER_PRIVATE_IP, DEFAULT_RPC_MAX_CONNECTIONS,
+      std::move(rpc_config->bind_ipv6_address), rpc_config->use_ipv6, rpc_config->require_ipv4);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::not_open(epee::json_rpc::error& er)

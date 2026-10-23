@@ -202,9 +202,10 @@ namespace cryptonote
 
     if (!m_rpc_payment)
     {
-      uint32_t bind_ip;
-      bool ok = epee::string_tools::get_ip_int32_from_string(bind_ip, rpc_config->bind_ip);
-      if (ok & !epee::net_utils::is_ip_loopback(bind_ip))
+      boost::system::error_code ec4, ec6;
+      const auto bind_ip = boost::asio::ip::make_address(rpc_config->bind_ip, ec4);
+      const auto bind_ipv6 = boost::asio::ip::make_address(rpc_config->bind_ipv6_address, ec6);
+      if ((!ec4 && !bind_ip.is_loopback()) || (rpc_config->use_ipv6 && !ec6 && !bind_ipv6.is_loopback()))
         MWARNING("The RPC server is accessible from the outside, but no RPC payment was setup. RPC access will be free for all.");
     }
 
@@ -262,7 +263,8 @@ namespace cryptonote
 
     auto rng = [](size_t len, uint8_t *ptr){ return crypto::rand(len, ptr); };
     return epee::http_server_impl_base<core_rpc_server, connection_context>::init(rng, std::move(port), std::move(rpc_config->bind_ip), std::move(rpc_config->access_control_origins), std::move(http_login), std::move(rpc_config->ssl_options),
-      max_connections_public, max_connections_private, max_connections);
+      max_connections_public, max_connections_private, max_connections,
+      std::move(rpc_config->bind_ipv6_address), rpc_config->use_ipv6, rpc_config->require_ipv4);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::check_payment(const std::string &client_message, uint64_t payment, const std::string &rpc, bool same_ts, std::string &message, uint64_t &credits, std::string &top_hash)

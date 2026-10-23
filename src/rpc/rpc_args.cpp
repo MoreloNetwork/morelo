@@ -90,9 +90,12 @@ namespace cryptonote
   } // anonymous
 
   rpc_args::descriptors::descriptors()
-     : rpc_bind_ip({"rpc-bind-ip", rpc_args::tr("Specify IP to bind RPC server"), "127.0.0.1"})
+     : rpc_bind_ip({"rpc-bind-ip", rpc_args::tr("Specify IPv4 address to bind RPC server"), "127.0.0.1"})
+     , rpc_bind_ipv6_address({"rpc-bind-ipv6-address", rpc_args::tr("Specify IPv6 address to bind RPC server"), "::1"})
+     , rpc_use_ipv6({"rpc-use-ipv6", rpc_args::tr("Allow IPv6 for RPC"), false})
+     , rpc_ignore_ipv4({"rpc-ignore-ipv4", rpc_args::tr("Ignore unsuccessful IPv4 bind for RPC"), false})
      , rpc_login({"rpc-login", rpc_args::tr("Specify username[:password] required for RPC server"), "", true})
-     , confirm_external_bind({"confirm-external-bind", rpc_args::tr("Confirm rpc-bind-ip value is NOT a loopback (local) IP")})
+     , confirm_external_bind({"confirm-external-bind", rpc_args::tr("Confirm rpc-bind-ip/rpc-bind-ipv6-address value is NOT a loopback (local) IP")})
      , rpc_access_control_origins({"rpc-access-control-origins", rpc_args::tr("Specify a comma separated list of origins to allow cross origin resource sharing"), ""})
      , rpc_ssl({"rpc-ssl", rpc_args::tr("Enable SSL on RPC connections: enabled|disabled|autodetect"), "autodetect"})
      , rpc_ssl_private_key({"rpc-ssl-private-key", rpc_args::tr("Path to a PEM format private key"), ""})
@@ -109,6 +112,9 @@ namespace cryptonote
   {
     const descriptors arg{};
     command_line::add_arg(desc, arg.rpc_bind_ip);
+    command_line::add_arg(desc, arg.rpc_bind_ipv6_address);
+    command_line::add_arg(desc, arg.rpc_use_ipv6);
+    command_line::add_arg(desc, arg.rpc_ignore_ipv4);
     command_line::add_arg(desc, arg.rpc_login);
     command_line::add_arg(desc, arg.confirm_external_bind);
     command_line::add_arg(desc, arg.rpc_access_control_origins);
@@ -128,21 +134,32 @@ namespace cryptonote
     rpc_args config{};
 
     config.bind_ip = command_line::get_arg(vm, arg.rpc_bind_ip);
-    if (!config.bind_ip.empty())
+    config.bind_ipv6_address = command_line::get_arg(vm, arg.rpc_bind_ipv6_address);
+    config.use_ipv6 = command_line::get_arg(vm, arg.rpc_use_ipv6);
+    config.require_ipv4 = !command_line::get_arg(vm, arg.rpc_ignore_ipv4);
+    // "[::1]" is accepted for symmetry with the [host]:port notation used elsewhere
+    if (config.bind_ipv6_address.size() > 2 && config.bind_ipv6_address.front() == '[' && config.bind_ipv6_address.back() == ']')
+      config.bind_ipv6_address = config.bind_ipv6_address.substr(1, config.bind_ipv6_address.size() - 2);
+
+    // the IPv6 address is only checked when it will be bound, so a default "::1" never complains
+    for (const auto& bind : {std::make_pair(&arg.rpc_bind_ip, &config.bind_ip), std::make_pair(&arg.rpc_bind_ipv6_address, &config.bind_ipv6_address)})
     {
+      if (bind.second->empty() || (bind.first == &arg.rpc_bind_ipv6_address && !config.use_ipv6))
+        continue;
+
       // always parse IP here for error consistency
       boost::system::error_code ec{};
-      const auto parsed_ip = boost::asio::ip::make_address(config.bind_ip, ec);
+      const auto parsed_ip = boost::asio::ip::make_address(*bind.second, ec);
       if (ec)
       {
-        LOG_ERROR(tr("Invalid IP address given for --") << arg.rpc_bind_ip.name);
+        LOG_ERROR(tr("Invalid IP address given for --") << bind.first->name);
         return boost::none;
       }
 
       if (!parsed_ip.is_loopback() && !command_line::get_arg(vm, arg.confirm_external_bind))
       {
         LOG_ERROR(
-          "--" << arg.rpc_bind_ip.name <<
+          "--" << bind.first->name <<
           tr(" permits inbound unencrypted external connections. Consider SSH tunnel or SSL proxy instead. Override with --") <<
           arg.confirm_external_bind.name
         );
