@@ -145,6 +145,7 @@ namespace arqmaMQ
         subscriber.connect("inproc://backend");
         listener.setsockopt<int>(ZMQ_ROUTER_HANDOVER, 1);
         listener.setsockopt<int>(ZMQ_ROUTER_MANDATORY, 1);
+        listener.setsockopt<int64_t>(ZMQ_MAXMSGSIZE, 10 * 1024 * 1024); // 10 MiB per frame, requests are small JSON
         listener.bind(bind_address);
         zmq::pollitem_t items[2];
         items[0].socket = (void*)subscriber;
@@ -165,11 +166,21 @@ namespace arqmaMQ
        	        zmq::message_t envelope1;
            	    listener.recv(&envelope1);
            	 	std::string remote_identifier = std::string(static_cast<char*>(envelope1.data()), envelope1.size());
-				if (remote_identifier.compare("block") == 0)
+				// read the whole multipart message; anything but [identity, empty, body] is dropped
+				std::vector<std::string> frames;
+				while (envelope1.more())
 				{
-               		listener.recv(&envelope1);
-               		listener.recv(&envelope1);
-               		block_hash = std::string(static_cast<char*>(envelope1.data()), envelope1.size());
+					listener.recv(&envelope1);
+					frames.emplace_back(static_cast<char*>(envelope1.data()), envelope1.size());
+				}
+				if (frames.size() != 2 || !frames[0].empty())
+				{
+					LOG_PRINT_L1("dropping malformed message from client");
+					continue;
+				}
+				if (remote_identifier == cryptonote::Blockchain::zmq_notifier_identity())
+				{
+               		block_hash = std::move(frames[1]);
                 	LOG_PRINT_L1("received from blockchain " <<  block_hash);
                     for (auto iterator = remotes.cbegin(); iterator != remotes.cend();)
                     {
@@ -194,9 +205,7 @@ namespace arqmaMQ
 				}
 				else 
 				{
-               		listener.recv(&envelope1);
-               		listener.recv(&envelope1);
-               		std::string request = std::string(static_cast<char*>(envelope1.data()), envelope1.size());
+               		std::string request = std::move(frames[1]);
                 	LOG_PRINT_L1("received from client " <<  request);
                     if (request.compare(EVICT) == 0)
                     {

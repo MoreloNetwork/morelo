@@ -478,7 +478,8 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   {
     try
     {
-      producer.setsockopt(ZMQ_IDENTITY, "block", 5);
+      const std::string &identity = zmq_notifier_identity();
+      producer.setsockopt(ZMQ_IDENTITY, identity.data(), identity.size());
       std::string bind_address = "tcp://";
       bind_address.append(zmq_ip).append(":").append(zmq_port);
       LOG_PRINT_L1("Blockchain::" << bind_address);
@@ -492,6 +493,12 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
  }
 
   return true;
+}
+//------------------------------------------------------------------
+const std::string& Blockchain::zmq_notifier_identity()
+{
+  static const std::string identity = "block-" + epee::string_tools::pod_to_hex(crypto::rand<crypto::hash>());
+  return identity;
 }
 //------------------------------------------------------------------
 bool Blockchain::init(BlockchainDB* db, HardFork*& hf, const network_type nettype, bool offline)

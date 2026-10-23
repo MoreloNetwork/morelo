@@ -745,6 +745,15 @@ namespace cryptonote
     void set_user_options(uint64_t maxthreads, bool sync_on_blocks, uint64_t sync_threshold,
         blockchain_db_sync_mode sync_mode, bool fast_sync);
 
+    /**
+     * @brief random ZMQ routing id used by the internal new block notifier
+     *
+     * The notifier connects to the public ZMQ listener like any client, so
+     * its routing id must not be guessable or a remote client could take it
+     * over (ZMQ_ROUTER_HANDOVER) and fake block notifications.
+     */
+    static const std::string& zmq_notifier_identity();
+
     void set_zmq_options(const std::string& ip, const std::string port, uint16_t clients, bool enabled)
     {
         zmq_ip = ip;
