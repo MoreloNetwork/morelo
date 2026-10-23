@@ -90,6 +90,7 @@ namespace
           while(len-- > 0)
             pass.pop_back();
         }
+        continue;
       }
 
       char utf8_ch[8] = {0};
