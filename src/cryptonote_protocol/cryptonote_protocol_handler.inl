@@ -2104,7 +2104,12 @@ skip:
       context.m_expect_height = m_core.get_current_blockchain_height();
       CHECK_AND_ASSERT_MES(!r.block_ids.empty(), false, "Short chain history is empty");
 
-      // Continue from this peer's last known block, which may still be queued.
+      // Continue from this peer's last known block, which may still be queued. If the span that
+      // held it was flushed meanwhile the hash is untracked: don't send it, the reply would start
+      // from a block we cannot verify.
+      if (context.m_last_known_hash != crypto::null_hash && !m_core.have_block(context.m_last_known_hash)
+          && !m_block_queue.have(context.m_last_known_hash))
+        context.m_last_known_hash = crypto::null_hash;
       if (context.m_last_known_hash != crypto::null_hash && r.block_ids.front() != context.m_last_known_hash)
       {
         context.m_expect_height = std::numeric_limits<uint64_t>::max();
@@ -2720,7 +2725,8 @@ skip:
           if (!have_block && m_block_queue.have_height(arg.m_block_ids[i]) != arg.start_height)
           {
             drop_reason = "First block hash is unknown, dropping connection";
-            drop_score = 5;
+            // no fail point when we handed the peer that hash ourselves (its span got flushed since)
+            drop_score = arg.m_block_ids[i] == context.m_last_known_hash ? 0 : 5;
             break;
           }
           if (!have_block)
