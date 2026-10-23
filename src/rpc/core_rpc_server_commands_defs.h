@@ -89,7 +89,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 3
+#define CORE_RPC_VERSION_MINOR 4
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -1162,6 +1162,10 @@ namespace cryptonote
 
     peer(uint64_t id, const std::string &host, uint64_t last_seen, uint32_t pruning_seed, uint16_t rpc_port, uint32_t rpc_credits_per_hash)
       : id(id), host(host), ip(0), port(0), rpc_port(rpc_port), rpc_credits_per_hash(rpc_credits_per_hash), last_seen(last_seen), pruning_seed(pruning_seed)
+    {}
+    // IPv6: the host without brackets, ip stays 0
+    peer(uint64_t id, const std::string &host, uint16_t port, uint64_t last_seen, uint32_t pruning_seed, uint16_t rpc_port, uint32_t rpc_credits_per_hash)
+      : id(id), host(host), ip(0), port(port), rpc_port(rpc_port), rpc_credits_per_hash(rpc_credits_per_hash), last_seen(last_seen), pruning_seed(pruning_seed)
     {}
     peer(uint64_t id, uint32_t ip, uint16_t port, uint64_t last_seen, uint32_t pruning_seed, uint16_t rpc_port, uint32_t rpc_credits_per_hash)
       : id(id), host(epee::string_tools::get_ip_string_from_int32(ip)), ip(ip), port(port), rpc_port(rpc_port), rpc_credits_per_hash(rpc_credits_per_hash), last_seen(last_seen), pruning_seed(pruning_seed)

@@ -1173,25 +1173,24 @@ namespace cryptonote
     std::vector<nodetool::peerlist_entry> gray_list;
     m_p2p.get_public_peerlist(gray_list, white_list);
 
-    res.white_list.reserve(white_list.size());
-    for (auto & entry : white_list)
+    // IPv4 peers fill ip/port, IPv6 ones host/port, anything else only host (as "address:port")
+    const auto convert = [](const std::vector<nodetool::peerlist_entry>& in, std::vector<peer>& out)
     {
-      if (entry.adr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id())
-        res.white_list.emplace_back(entry.id, entry.adr.as<epee::net_utils::ipv4_network_address>().ip(),
-            entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-      else
-        res.white_list.emplace_back(entry.id, entry.adr.str(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-    }
-
-    res.gray_list.reserve(gray_list.size());
-    for (auto & entry : gray_list)
-    {
-      if (entry.adr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id())
-        res.gray_list.emplace_back(entry.id, entry.adr.as<epee::net_utils::ipv4_network_address>().ip(),
-            entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-      else
-        res.gray_list.emplace_back(entry.id, entry.adr.str(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-    }
+      out.reserve(in.size());
+      for (const auto & entry : in)
+      {
+        if (entry.adr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id())
+          out.emplace_back(entry.id, entry.adr.as<epee::net_utils::ipv4_network_address>().ip(),
+              entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
+        else if (entry.adr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id())
+          out.emplace_back(entry.id, entry.adr.host_str(), entry.adr.as<epee::net_utils::ipv6_network_address>().port(),
+              entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
+        else
+          out.emplace_back(entry.id, entry.adr.str(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
+      }
+    };
+    convert(white_list, res.white_list);
+    convert(gray_list, res.gray_list);
 
     res.status = CORE_RPC_STATUS_OK;
     return true;
