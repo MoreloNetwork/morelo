@@ -62,6 +62,19 @@ using namespace epee;
 
 #define DEFAULT_AUTO_REFRESH_PERIOD 20 // seconds
 
+// Multisig (the old, unpatched scheme) is only usable once explicitly enabled
+#define CHECK_MULTISIG_ENABLED_IF(cond) \
+  do \
+  { \
+    if ((cond) && !m_wallet->is_multisig_enabled()) \
+    { \
+      er.code = WALLET_RPC_ERROR_CODE_DISABLED; \
+      er.message = "Multisig is disabled. Multisig is an experimental feature and may have bugs. Things that could go wrong include: funds sent to a multisig wallet can't be spent at all, can only be spent with the participation of a malicious group member, or can be stolen by a malicious group member. You can enable it by running this once in morelo-wallet-cli: set enable-multisig-experimental 1, or by passing enable_multisig_experimental to prepare_multisig"; \
+      return false; \
+    } \
+  } while(0)
+#define CHECK_MULTISIG_ENABLED() CHECK_MULTISIG_ENABLED_IF(m_wallet->multisig())
+
 namespace
 {
   const command_line::arg_descriptor<std::string, true> arg_rpc_bind_port = {"rpc-bind-port", "Sets bind port for server"};
@@ -856,6 +869,7 @@ namespace tools
 
     LOG_PRINT_L3("on_transfer starts");
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -916,6 +930,7 @@ namespace tools
     std::vector<uint8_t> extra;
 
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -959,6 +974,7 @@ namespace tools
   bool wallet_rpc_server::on_sign_transfer(const wallet_rpc::COMMAND_RPC_SIGN_TRANSFER::request& req, wallet_rpc::COMMAND_RPC_SIGN_TRANSFER::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1305,6 +1321,7 @@ namespace tools
   bool wallet_rpc_server::on_sweep_dust(const wallet_rpc::COMMAND_RPC_SWEEP_DUST::request& req, wallet_rpc::COMMAND_RPC_SWEEP_DUST::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1333,6 +1350,7 @@ namespace tools
     std::vector<uint8_t> extra;
 
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1388,6 +1406,7 @@ namespace tools
     std::vector<uint8_t> extra;
 
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3593,6 +3612,9 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
+    if (req.enable_multisig_experimental)
+      m_wallet->enable_multisig(true);
+    CHECK_MULTISIG_ENABLED_IF(true);
     if (m_wallet->multisig())
     {
       er.code = WALLET_RPC_ERROR_CODE_ALREADY_MULTISIG;
@@ -3613,6 +3635,7 @@ namespace tools
   bool wallet_rpc_server::on_make_multisig(const wallet_rpc::COMMAND_RPC_MAKE_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_MAKE_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED_IF(true);
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3650,6 +3673,7 @@ namespace tools
   bool wallet_rpc_server::on_export_multisig(const wallet_rpc::COMMAND_RPC_EXPORT_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_EXPORT_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3690,6 +3714,7 @@ namespace tools
   bool wallet_rpc_server::on_import_multisig(const wallet_rpc::COMMAND_RPC_IMPORT_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_IMPORT_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3763,6 +3788,7 @@ namespace tools
   bool wallet_rpc_server::on_finalize_multisig(const wallet_rpc::COMMAND_RPC_FINALIZE_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_FINALIZE_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3814,6 +3840,7 @@ namespace tools
   bool wallet_rpc_server::on_exchange_multisig_keys(const wallet_rpc::COMMAND_RPC_EXCHANGE_MULTISIG_KEYS::request& req, wallet_rpc::COMMAND_RPC_EXCHANGE_MULTISIG_KEYS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3863,6 +3890,7 @@ namespace tools
   bool wallet_rpc_server::on_sign_multisig(const wallet_rpc::COMMAND_RPC_SIGN_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_SIGN_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3932,6 +3960,7 @@ namespace tools
   bool wallet_rpc_server::on_submit_multisig(const wallet_rpc::COMMAND_RPC_SUBMIT_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_SUBMIT_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;

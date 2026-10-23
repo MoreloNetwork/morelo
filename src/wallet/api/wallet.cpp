@@ -84,10 +84,17 @@ namespace {
       return dir.string();
     }
 
+    void checkMultisigEnabled(const tools::wallet2* wallet) {
+        if (!wallet->is_multisig_enabled()) {
+            throw runtime_error("Multisig is disabled. It is an experimental feature that may be exploited by a malicious group member; enable it once with: morelo-wallet-cli set enable-multisig-experimental 1");
+        }
+    }
+
     void checkMultisigWalletReady(const tools::wallet2* wallet) {
         if (!wallet) {
             throw runtime_error("Wallet is not initialized yet");
         }
+        checkMultisigEnabled(wallet);
 
         bool ready;
         if (!wallet->multisig(&ready)) {
@@ -106,6 +113,7 @@ namespace {
         if (!wallet) {
             throw runtime_error("Wallet is not initialized yet");
         }
+        checkMultisigEnabled(wallet);
 
         bool ready;
         if (!wallet->multisig(&ready)) {
@@ -1177,6 +1185,7 @@ MultisigState WalletImpl::multisig() const {
 string WalletImpl::getMultisigInfo() const {
     try {
         clearStatus();
+        checkMultisigEnabled(m_wallet.get());
         return m_wallet->get_multisig_info();
     } catch (const exception& e) {
         LOG_ERROR("Error on generating multisig info: " << e.what());
@@ -1190,6 +1199,7 @@ string WalletImpl::makeMultisig(const vector<string>& info, uint32_t threshold) 
     try {
         clearStatus();
 
+        checkMultisigEnabled(m_wallet.get());
         if (m_wallet->multisig()) {
             throw runtime_error("Wallet is already multisig");
         }
