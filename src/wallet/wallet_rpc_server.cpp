@@ -62,6 +62,17 @@ using namespace epee;
 
 #define DEFAULT_AUTO_REFRESH_PERIOD 20 // seconds
 
+#define CHECK_IF_RESTRICTED() \
+  do \
+  { \
+    if (m_restricted) \
+    { \
+      er.code = WALLET_RPC_ERROR_CODE_DENIED; \
+      er.message = "Command unavailable in restricted mode."; \
+      return false; \
+    } \
+  } while(0)
+
 // Multisig (the old, unpatched scheme) is only usable once explicitly enabled
 #define CHECK_MULTISIG_ENABLED_IF(cond) \
   do \
@@ -1492,6 +1503,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_relay_tx(const wallet_rpc::COMMAND_RPC_RELAY_TX::request& req, wallet_rpc::COMMAND_RPC_RELAY_TX::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
 
     cryptonote::blobdata blob;
@@ -2588,6 +2600,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_export_key_images(const wallet_rpc::COMMAND_RPC_EXPORT_KEY_IMAGES::request& req, wallet_rpc::COMMAND_RPC_EXPORT_KEY_IMAGES::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
