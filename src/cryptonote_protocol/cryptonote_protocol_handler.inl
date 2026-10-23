@@ -60,7 +60,8 @@
 #define BLOCK_QUEUE_FORCE_DOWNLOAD_NEAR_BLOCKS 2000
 #define REQUEST_NEXT_SCHEDULED_SPAN_THRESHOLD_STANDBY (5 * 1000000) // microseconds
 #define REQUEST_NEXT_SCHEDULED_SPAN_THRESHOLD (30 * 1000000) // microseconds
-#define IDLE_PEER_KICK_TIME (600 * 1000000) // microseconds
+#define IDLE_PEER_KICK_TIME (240 * 1000000) // microseconds
+#define NON_RESPONSIVE_PEER_KICK_TIME (20 * 1000000) // microseconds
 #define PASSIVE_PEER_KICK_TIME (60 * 1000000) // microseconds
 #define DROP_ON_SYNC_WEDGE_THRESHOLD (30 * 1000000000ull) // nanoseconds
 #define LAST_ACTIVITY_STALL_THRESHOLD (2.0f) // seconds
@@ -126,7 +127,43 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES_CC( context.m_callback_request_count > 0, false, "false callback fired, but context.m_callback_request_count=" << context.m_callback_request_count);
     --context.m_callback_request_count;
 
-    if(context.m_state == cryptonote_connection_context::state_synchronizing)
+    uint32_t notified = true;
+    if (context.m_idle_peer_notification.compare_exchange_strong(notified, not notified))
+    {
+      if (context.m_state == cryptonote_connection_context::state_synchronizing && context.m_last_request_time != boost::date_time::not_a_date_time)
+      {
+        const boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
+        const boost::posix_time::time_duration dt = now - context.m_last_request_time;
+        const auto ms = dt.total_microseconds();
+        if (ms > IDLE_PEER_KICK_TIME || (context.m_expect_response && ms > NON_RESPONSIVE_PEER_KICK_TIME))
+        {
+          if (context.m_score-- >= 0)
+          {
+            MINFO(context << " kicking idle peer, last update " << (dt.total_microseconds() / 1.e6) << " seconds ago, expecting " << (int)context.m_expect_response);
+            context.m_last_request_time = boost::date_time::not_a_date_time;
+            context.m_expect_response = 0;
+            context.m_expect_height = 0;
+            context.m_requested_objects.clear();
+            context.m_state = cryptonote_connection_context::state_standby; // we'll go back to adding, then (if we can't), download
+          }
+          else
+          {
+            MINFO(context << "dropping idle peer with negative score");
+            drop_connection_with_score(context, context.m_expect_response == 0 ? 1 : 5, false);
+            return false;
+          }
+        }
+      }
+    }
+
+    notified = true;
+    if (context.m_new_stripe_notification.compare_exchange_strong(notified, not notified))
+    {
+      if (context.m_state == cryptonote_connection_context::state_normal)
+        context.m_state = cryptonote_connection_context::state_synchronizing;
+    }
+
+    if(context.m_state == cryptonote_connection_context::state_synchronizing && context.m_last_request_time == boost::posix_time::not_a_date_time)
     {
       NOTIFY_REQUEST_CHAIN::request r = {};
       context.m_needed_objects.clear();
@@ -1629,7 +1666,7 @@ skip:
         const uint32_t peer_stripe = tools::get_pruning_stripe(context.m_pruning_seed);
         if (stripe && peer_stripe && peer_stripe != stripe)
           return true;
-        context.m_state = cryptonote_connection_context::state_synchronizing;
+        context.m_new_stripe_notification = true;
         LOG_PRINT_CCONTEXT_L2("requesting callback");
         ++context.m_callback_request_count;
         m_p2p->request_callback(context);
@@ -1658,14 +1695,14 @@ skip:
       {
         const boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
         const boost::posix_time::time_duration dt = now - context.m_last_request_time;
-        if (dt.total_microseconds() > IDLE_PEER_KICK_TIME)
+        const auto ms = dt.total_microseconds();
+        if (ms > IDLE_PEER_KICK_TIME || (context.m_expect_response && ms > NON_RESPONSIVE_PEER_KICK_TIME))
         {
-          MINFO(context << " kicking idle peer, last update " << (dt.total_microseconds() / 1.e6) << " seconds ago");
+          context.m_idle_peer_notification = true;
           LOG_PRINT_CCONTEXT_L2("requesting callback");
-          context.m_last_request_time = boost::date_time::not_a_date_time;
-          context.m_state = cryptonote_connection_context::state_standby; // we'll go back to adding, then (if we can't), download
           ++context.m_callback_request_count;
           m_p2p->request_callback(context);
+          MLOG_PEER_STATE("requesting callback");
         }
       }
       return true;
