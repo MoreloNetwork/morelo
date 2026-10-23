@@ -96,3 +96,27 @@ TEST(epee_binary, limits)
   const epee::serialization::portable_storage::limits_t no_fields = {16, 0, 16};
   EXPECT_FALSE(storage.load_from_binary(data, &no_fields));
 }
+
+TEST(epee_json, escape_control_characters)
+{
+  using epee::misc_utils::parse::transform_to_escape_sequence;
+
+  // control characters must be escaped (RFC 8259): the short escapes are used
+  // where JSON defines them and \u00xx otherwise. \v is not a valid JSON escape.
+  EXPECT_EQ(transform_to_escape_sequence(std::string("\x01")), "\\u0001");
+  EXPECT_EQ(transform_to_escape_sequence(std::string("\x07")), "\\u0007");
+  EXPECT_EQ(transform_to_escape_sequence(std::string("\x0b")), "\\u000b");
+  EXPECT_EQ(transform_to_escape_sequence(std::string("\x1f")), "\\u001f");
+  EXPECT_EQ(transform_to_escape_sequence(std::string("a\x00" "b", 3)), "a\\u0000b");
+
+  // short escapes and printable text are unchanged
+  EXPECT_EQ(transform_to_escape_sequence(std::string("a\tb\n\r\f\b")), "a\\tb\\n\\r\\f\\b");
+  EXPECT_EQ(transform_to_escape_sequence(std::string("plain text")), "plain text");
+}
+
+TEST(epee_json, truncated_unicode_escape)
+{
+  // "\u123 at the very end of the buffer must not read past it
+  epee::serialization::portable_storage storage{};
+  EXPECT_FALSE(storage.load_from_json(std::string("{\"a\":\"\\u123")));
+}
