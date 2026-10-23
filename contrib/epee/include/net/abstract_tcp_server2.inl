@@ -617,17 +617,18 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
     // No sleeping here; sleeping is done once and for all in "handle_write"
 
-    m_send_que_lock.lock(); // *** critical ***
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){m_send_que_lock.unlock();});
+    epee::critical_region_t<decltype(m_send_que_lock)> send_guard(m_send_que_lock); // *** critical ***
 
     if (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
     {
         // Do not sleep on a worker thread waiting for the queue to drain: under
         // load every worker could be blocked here, leaving none to complete the
         // writes, and a peer that stops reading would park a worker for seconds.
-        // Drop the connection instead (Monero #8426 approach). shutdown() does
-        // not take m_send_que_lock; the scope handler unlocks it on return.
+        // Drop the connection instead (Monero #8426 approach).
         MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
+        // shutdown() runs the protocol's release callbacks (levin cancels invoke
+        // handlers under its own locks); never call it with m_send_que_lock held
+        send_guard.unlock();
         shutdown();
         return false;
     }
@@ -810,7 +811,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     {
       shutdown();
     }
-    else if(!m_was_shutdown)
+    else if(!m_was_shutdown && m_connection_type != e_connection_type_RPC)
     {
       // The send queue hasn't drained. If the peer stops reading (e.g. it
       // accepts the TCP connection but never answers the handshake), the write
@@ -818,18 +819,17 @@ PRAGMA_WARNING_DISABLE_VS(4355)
       // connection leaks - it stays counted as a peer and is_addr_connected()
       // keeps returning true, so the node never reconnects. Force a teardown
       // after a short grace period; the resulting FIN also unblocks the peer.
-      auto self = safe_shared_from_this();
-      if(self)
+      // RPC is excluded: a single unsplit response body may legitimately take
+      // longer than the grace to reach a slow half-closed client, and the write
+      // timeout armed by do_send_chunk() already bounds that path.
+      m_timer.expires_from_now(boost::posix_time::milliseconds(CONNECTION_CLEANUP_GRACE_MS));
+      m_timer.async_wait([self](const boost::system::error_code& ec)
       {
-        m_timer.expires_from_now(boost::posix_time::milliseconds(CONNECTION_CLEANUP_GRACE_MS));
-        m_timer.async_wait([self](const boost::system::error_code& ec)
-        {
-          if(ec == boost::asio::error::operation_aborted)
-            return;
-          MDEBUG(self->context << "close: send queue did not drain, forcing shutdown");
-          self->shutdown();
-        });
-      }
+        if(ec == boost::asio::error::operation_aborted)
+          return;
+        MDEBUG(self->context << "close: send queue did not drain, forcing shutdown");
+        self->shutdown();
+      });
     }
 
     return true;
@@ -890,7 +890,9 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     else
     {
     //have more data to send
-    reset_timer(get_default_timeout(), false);
+    // once close() asked for teardown its grace timer owns m_timer; don't re-arm the long timeout over it
+    if(!boost::interprocess::ipcdetail::atomic_read32(&m_want_close_connection))
+      reset_timer(get_default_timeout(), false);
     auto size_now = m_send_que.front().size();
     MDEBUG("handle_write() NOW SENDS: packet=" << size_now << " B" << ", from  queue size=" << m_send_que.size());
     if (rpc_speed_limit_is_enabled())
