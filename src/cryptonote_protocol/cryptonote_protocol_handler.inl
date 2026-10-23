@@ -409,72 +409,12 @@ namespace cryptonote
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_BLOCK (" << arg.b.txs.size() << " txes)");
 
-    if(context.m_state != cryptonote_connection_context::state_normal)
-      return 1;
-    if(!is_synchronized()) // can happen if a peer connection goes to normal but another thread still hasn't finished adding queued blocks
-    {
-      LOG_DEBUG_CC(context, "Received new block while syncing, ignored");
-      return 1;
-    }
-    m_core.pause_mine();
-    std::vector<block_complete_entry> blocks;
-    blocks.push_back(arg.b);
-    std::vector<block> pblocks;
-    if(!m_core.prepare_handle_incoming_blocks(blocks, pblocks))
-    {
-      LOG_PRINT_CCONTEXT_L1("Block verification failed, dropping connection");
-      drop_connection(context, false, false);
-      m_core.resume_mine();
-      return LEVIN_ERROR_CONNECTION;
-    }
-    for(auto tx_blob_it = arg.b.txs.begin(); tx_blob_it!=arg.b.txs.end();tx_blob_it++)
-    {
-      cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-      m_core.handle_incoming_tx(*tx_blob_it, tvc, true, true, false);
-      if(tvc.m_verifivation_failed)
-      {
-        LOG_PRINT_CCONTEXT_L1("Block verification failed: transaction verification failed, dropping connection");
-        drop_connection(context, false, false);
-        m_core.cleanup_handle_incoming_blocks();
-        m_core.resume_mine();
-        return LEVIN_ERROR_CONNECTION;
-      }
-    }
-
-    block_verification_context bvc = {};
-    m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc); // got block from handle_notify_new_block
-    if (!m_core.cleanup_handle_incoming_blocks(true))
-    {
-      LOG_PRINT_CCONTEXT_L0("Failure in cleanup_handle_incoming_blocks");
-      m_core.resume_mine();
-      return 1;
-    }
-    m_core.resume_mine();
-    if(bvc.m_verifivation_failed)
-    {
-      LOG_PRINT_CCONTEXT_L0("Block verification failed, dropping connection");
-      drop_connection(context, true, false);
-      return LEVIN_ERROR_CONNECTION;
-    }
-    if(bvc.m_added_to_main_chain)
-    {
-      //TODO: Add here announce protocol usage
-      relay_block(arg, context);
-    }
-    else if(bvc.m_marked_as_orphaned)
-    {
-      context.m_needed_objects.clear();
-      context.m_state = cryptonote_connection_context::state_synchronizing;
-      NOTIFY_REQUEST_CHAIN::request r = {};
-      m_core.get_short_chain_history(r.block_ids);
-      r.prune = m_sync_pruned_blocks;
-      handler_request_blocks_history( r.block_ids ); // change the limit(?), sleep(?)
-      MLOG_P2P_MESSAGE("-->>NOTIFY_REQUEST_CHAIN: m_block_ids.size()= " << r.block_ids.size() );
-      post_notify<NOTIFY_REQUEST_CHAIN>(r, context);
-      MLOG_PEER_STATE("requesting chain");
-    }
-
-    return 1;
+    // a full block is a fluffy block that already carries all of its txs,
+    // handle it through the same path so the same checks apply
+    NOTIFY_NEW_FLUFFY_BLOCK::request fluffy_arg = AUTO_VAL_INIT(fluffy_arg);
+    fluffy_arg.b = std::move(arg.b);
+    fluffy_arg.current_blockchain_height = arg.current_blockchain_height;
+    return handle_notify_new_fluffy_block(command, fluffy_arg, context);
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
@@ -490,12 +430,41 @@ namespace cryptonote
       return 1;
     }
 
+    // sanity check block blob size
+    if (!m_core.check_incoming_block_size(arg.b.block))
+    {
+      LOG_ERROR_CCONTEXT("sent oversized block, dropping connection");
+      drop_connection(context, false, false);
+      return LEVIN_ERROR_CONNECTION;
+    }
+
     m_core.pause_mine();
 
     block new_block;
     transaction miner_tx;
     if(parse_and_validate_block_from_blob(arg.b.block, new_block))
     {
+      // The block binds the set of transactions it may carry. Reject duplicate
+      // tx hashes in the block itself, and below any tx which is not part of it,
+      // so that a peer can't use a new block to stow unrelated txs into our
+      // pool as "kept by block" before the block was verified.
+      std::unordered_set<crypto::hash> blk_txids_set(new_block.tx_hashes.begin(), new_block.tx_hashes.end());
+      if (blk_txids_set.size() != new_block.tx_hashes.size())
+      {
+        LOG_ERROR_CCONTEXT("sent bad block entry: there are duplicate tx hashes in parsed block, dropping connection");
+        drop_connection(context, false, false);
+        m_core.resume_mine();
+        return LEVIN_ERROR_CONNECTION;
+      }
+      if (arg.b.txs.size() > new_block.tx_hashes.size())
+      {
+        LOG_ERROR_CCONTEXT("sent bad block entry: " << arg.b.txs.size() << " txs for a block with "
+          << new_block.tx_hashes.size() << " txs, dropping connection");
+        drop_connection(context, false, false);
+        m_core.resume_mine();
+        return LEVIN_ERROR_CONNECTION;
+      }
+
       // This is a second notification, we must have asked for some missing tx
       if(!context.m_requested_objects.empty())
       {
@@ -555,6 +524,21 @@ namespace cryptonote
                 "NOTIFY_NEW_FLUFFY_BLOCK: get_transaction_hash failed"
                 << ", exception thrown"
                 << ", dropping connection"
+            );
+
+            drop_connection(context, false, false);
+            m_core.resume_mine();
+            return LEVIN_ERROR_CONNECTION;
+          }
+
+          // every tx must be one of the block's, and may only be sent once
+          if (!blk_txids_set.erase(tx_hash))
+          {
+            LOG_ERROR_CCONTEXT
+            (
+              "Peer sent wrong transaction (NOTIFY_NEW_FLUFFY_BLOCK): "
+              << "transaction with id = " << tx_hash << " is not in the block or was sent twice, "
+              << "dropping connection"
             );
 
             drop_connection(context, false, false);
