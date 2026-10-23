@@ -10300,12 +10300,23 @@ void wallet2::check_tx_key_helper(const cryptonote::transaction &tx, const crypt
     if (!out_key)
       continue;
 
+    // a null derivation stands for a tx pubkey the proof did not cover
+    const auto is_null_derivation = [](const crypto::key_derivation &d) {
+      static const crypto::key_derivation null_derivation{};
+      return memcmp(&d, &null_derivation, sizeof(d)) == 0;
+    };
+
     crypto::public_key derived_out_key;
-    bool r = hwdev.derive_public_key(derivation, n, address.m_spend_public_key, derived_out_key);
-    THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "Failed to derive public key");
-    bool found = out_key->key == derived_out_key;
+    bool r;
+    bool found = false;
     crypto::key_derivation found_derivation = derivation;
-    if (!found && !additional_derivations.empty())
+    if (!is_null_derivation(derivation))
+    {
+      r = hwdev.derive_public_key(derivation, n, address.m_spend_public_key, derived_out_key);
+      THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "Failed to derive public key");
+      found = out_key->key == derived_out_key;
+    }
+    if (!found && n < additional_derivations.size() && !is_null_derivation(additional_derivations[n]))
     {
       r = hwdev.derive_public_key(additional_derivations[n], n, address.m_spend_public_key, derived_out_key);
       THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "Failed to derive public key");
@@ -10657,7 +10668,7 @@ bool wallet2::check_tx_proof(const cryptonote::transaction &tx, const cryptonote
   if (std::any_of(good_signature.begin(), good_signature.end(), [](int i) { return i > 0; }))
   {
     // obtain key derivation by multiplying scalar 1 to the shared secret
-    crypto::key_derivation derivation;
+    crypto::key_derivation derivation{};
     if (good_signature[0])
       THROW_WALLET_EXCEPTION_IF(!crypto::generate_key_derivation(shared_secret[0], rct::rct2sk(rct::I), derivation), error::wallet_internal_error, "Failed to generate key derivation");
 
