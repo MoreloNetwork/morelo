@@ -971,6 +971,14 @@ namespace cryptonote
     boost::posix_time::ptime request_time = context.m_last_request_time;
     context.m_last_request_time = boost::date_time::not_a_date_time;
 
+    if (context.m_expect_response != NOTIFY_RESPONSE_GET_OBJECTS::ID)
+    {
+      LOG_ERROR_CCONTEXT("Got NOTIFY_RESPONSE_GET_OBJECTS out of the blue, dropping connection");
+      drop_connection(context, true, false);
+      return LEVIN_ERROR_CONNECTION;
+    }
+    context.m_expect_response = 0;
+
     // calculate size of request
     size_t size = 0;
     size_t blocks_size = 0;
@@ -1000,6 +1008,13 @@ namespace cryptonote
 
     //epee::net_utils::network_throttle_manager::get_global_throttle_inreq().logger_handle_net("log/dr-morelo/net/req-all.data", sec, get_avg_block_size());
 
+    if(arg.blocks.empty())
+    {
+      LOG_ERROR_CCONTEXT("sent wrong NOTIFY_HAVE_OBJECTS: no blocks");
+      drop_connection(context, true, false);
+      ++m_sync_bad_spans_downloaded;
+      return LEVIN_ERROR_CONNECTION;
+    }
     if(context.m_last_response_height > arg.current_blockchain_height)
     {
       LOG_ERROR_CCONTEXT("sent wrong NOTIFY_HAVE_OBJECTS: arg.m_current_blockchain_height=" << arg.current_blockchain_height
@@ -1009,6 +1024,13 @@ namespace cryptonote
       return LEVIN_ERROR_CONNECTION;
     }
 
+    if (arg.current_blockchain_height < context.m_remote_blockchain_height)
+    {
+      MINFO(context << "Claims " << arg.current_blockchain_height << ", claimed " << context.m_remote_blockchain_height << " before");
+      hit_score(context, 1);
+      if (context.m_score <= DROP_PEERS_ON_SCORE)
+        return LEVIN_ERROR_CONNECTION;
+    }
     context.m_remote_blockchain_height = arg.current_blockchain_height;
     if (context.m_remote_blockchain_height > m_core.get_target_blockchain_height())
       m_core.set_target_blockchain_height(context.m_remote_blockchain_height);
@@ -1017,15 +1039,18 @@ namespace cryptonote
     block_hashes.reserve(arg.blocks.size());
     const boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
     uint64_t start_height = std::numeric_limits<uint64_t>::max();
+    crypto::hash previous{};
     cryptonote::block b;
-    for(const block_complete_entry& block_entry: arg.blocks)
+    for(std::size_t i = 0; i < arg.blocks.size(); ++i)
     {
+      const block_complete_entry& block_entry = arg.blocks[i];
       if (m_stopping)
       {
         return 1;
       }
 
-      if(!parse_and_validate_block_from_blob(block_entry.block, b))
+      crypto::hash block_hash;
+      if(!parse_and_validate_block_from_blob(block_entry.block, b, block_hash))
       {
         LOG_ERROR_CCONTEXT("sent wrong block: failed to parse and validate block: "
           << epee::string_tools::buff_to_hex_nodelimer(block_entry.block) << ", dropping connection");
@@ -1041,10 +1066,55 @@ namespace cryptonote
         ++m_sync_bad_spans_downloaded;
         return LEVIN_ERROR_CONNECTION;
       }
-      if (start_height == std::numeric_limits<uint64_t>::max())
-        start_height = boost::get<txin_gen>(b.miner_tx.vin[0]).height;
 
-      const crypto::hash block_hash = get_block_hash(b);
+      // the block must be the one the peer's chain entry announced for its height,
+      // and the span must be a contiguous chain starting where we expect it
+      const auto this_height = boost::get<txin_gen>(b.miner_tx.vin[0]).height;
+      if (context.get_expected_hash(this_height) != block_hash)
+      {
+        LOG_ERROR_CCONTEXT("Sent invalid chain");
+        drop_connection(context, false, false);
+        ++m_sync_bad_spans_downloaded;
+        return LEVIN_ERROR_CONNECTION;
+      }
+
+      // if first block
+      if (start_height == std::numeric_limits<uint64_t>::max())
+      {
+        start_height = this_height;
+        if (start_height > context.m_expect_height)
+        {
+          LOG_ERROR_CCONTEXT("sent block ahead of expected height, dropping connection");
+          drop_connection(context, false, false);
+          ++m_sync_bad_spans_downloaded;
+          return LEVIN_ERROR_CONNECTION;
+        }
+
+        if (this_height == 0 || context.get_expected_hash(this_height - 1) != b.prev_id)
+        {
+          LOG_ERROR_CCONTEXT("Sent invalid chain");
+          drop_connection(context, false, false);
+          ++m_sync_bad_spans_downloaded;
+          return LEVIN_ERROR_CONNECTION;
+        }
+      }
+      else if (b.prev_id != previous)
+      {
+        LOG_ERROR_CCONTEXT("Sent invalid chain");
+        drop_connection(context, false, false);
+        ++m_sync_bad_spans_downloaded;
+        return LEVIN_ERROR_CONNECTION;
+      }
+      previous = block_hash;
+
+      if (start_height + i != this_height)
+      {
+        LOG_ERROR_CCONTEXT("Sent invalid chain");
+        drop_connection(context, false, false);
+        ++m_sync_bad_spans_downloaded;
+        return LEVIN_ERROR_CONNECTION;
+      }
+
       auto req_it = context.m_requested_objects.find(block_hash);
       if(req_it == context.m_requested_objects.end())
       {
