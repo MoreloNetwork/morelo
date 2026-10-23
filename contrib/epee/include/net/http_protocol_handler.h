@@ -31,6 +31,7 @@
 #define _HTTP_SERVER_H_
 
 #include <boost/optional/optional.hpp>
+#include <boost/utility/string_ref.hpp>
 #include <limits>
 #include <string>
 #include "net_utils_base.h"
@@ -118,9 +119,9 @@ namespace net_utils
 			bool analize_cached_request_header_and_invoke_state(size_t pos);
 
 			bool handle_invoke_query_line();
-			bool parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos);
+			bool parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos, size_t& content_length);
 			std::string::size_type match_end_of_header(const std::string& buf);
-			bool get_len_from_content_lenght(const std::string& str, size_t& len);
+			bool get_len_from_content_lenght(boost::string_ref str, size_t& len);
 			bool handle_retriving_query_body();
 			bool handle_query_measure();
 			bool set_ready_state();

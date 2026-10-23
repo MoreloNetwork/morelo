@@ -424,7 +424,7 @@ namespace net_utils
 		m_query_info.m_full_request_buf_size = pos;
     m_query_info.m_request_head.assign(m_cache.begin(), m_cache.begin()+pos);
 
-		if(!parse_cached_header(m_query_info.m_header_info, m_cache, pos))
+		if(!parse_cached_header(m_query_info.m_header_info, m_cache, pos, m_len_summary))
 		{
 			LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::analize_cached_request_header_and_invoke_state(): failed to anilize request header (" << pos << " bytes)");
 			m_state = http_state_error;
@@ -440,12 +440,6 @@ namespace net_utils
 		{
 			m_state = http_state_retriving_body;
 			m_body_transfer_type = http_body_transfer_measure;
-			if(!get_len_from_content_lenght(m_query_info.m_header_info.m_content_length, m_len_summary))
-			{
-				LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::analize_cached_request_header_and_invoke_state(): Failed to get_len_from_content_lenght() (" << m_query_info.m_header_info.m_content_length.size() << " bytes)");
-				m_state = http_state_error;
-				return false;
-			}
 			if(0 == m_len_summary)
 			{	//current query finished, next will be next query
 				if(handle_request_and_send_response(m_query_info))
@@ -510,7 +504,7 @@ namespace net_utils
 	}
 	//--------------------------------------------------------------------------------------------
   template<class t_connection_context>
-	bool simple_http_connection_handler<t_connection_context>::parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos)
+	bool simple_http_connection_handler<t_connection_context>::parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos, size_t& content_length)
 	{
 		STATIC_REGEXP_EXPR_1(rexp_mach_field,
 			"\n?((Connection)|(Referer)|(Content-Length)|(Content-Type)|(Transfer-Encoding)|(Content-Encoding)|(Host)|(Cookie)|(User-Agent)|(Origin)"
@@ -524,6 +518,8 @@ namespace net_utils
 		std::string::const_iterator it_end_bound = m_cache_to_process.begin()+pos;
 
 		body_info.clear();
+		content_length = 0;
+		bool has_content_length = false;
 
 		//lookup all fields and fill well-known fields
 		while( boost::regex_search( it_current_bound, it_end_bound, result, rexp_mach_field, boost::match_default) && result[0].matched)
@@ -537,11 +533,22 @@ namespace net_utils
 			else if(result[i++].matched)//"Referer"
 				body_info.m_referer = result[field_val];
 			else if(result[i++].matched)//"Content-Length"
-				body_info.m_content_length = result[field_val];
+			{
+				// conflicting or malformed lengths make the request framing ambiguous
+				size_t parsed_length = 0;
+				const std::string value = result[field_val];
+				if(!get_len_from_content_lenght(value, parsed_length) ||
+					(has_content_length && parsed_length != content_length))
+					return false;
+				if(!has_content_length)
+					body_info.m_content_length = value;
+				has_content_length = true;
+				content_length = parsed_length;
+			}
 			else if(result[i++].matched)//"Content-Type"
 				body_info.m_content_type = result[field_val];
 			else if(result[i++].matched)//"Transfer-Encoding"
-				body_info.m_transfer_encoding = result[field_val];
+				return false; // not supported: ignoring it would desync request framing with proxies
 			else if(result[i++].matched)//"Content-Encoding"
 				body_info.m_content_encoding = result[field_val];
 			else if(result[i++].matched)//"Host"
@@ -565,17 +572,44 @@ namespace net_utils
 	}
 	//-----------------------------------------------------------------------------------
   template<class t_connection_context>
-	bool simple_http_connection_handler<t_connection_context>::get_len_from_content_lenght(const std::string& str, size_t& OUT len)
+	bool simple_http_connection_handler<t_connection_context>::get_len_from_content_lenght(boost::string_ref str, size_t& OUT len)
 	{
-		STATIC_REGEXP_EXPR_1(rexp_mach_field, "\\d+", boost::regex::normal);
-		std::string res;
-		boost::smatch result;
-		if(!(boost::regex_search( str, result, rexp_mach_field, boost::match_default) && result[0].matched))
-			return false;
+		// Content-Length must be 1*DIGIT (RFC 7230 3.3.2); duplicate fields can be
+		// combined into a comma-separated list, accepted only when every value is
+		// valid and identical.
+		bool has_length = false;
+		while(true)
+		{
+			const size_t comma = str.find(',');
+			boost::string_ref value = str.substr(0, comma);
+			while(!value.empty() && (value.front() == ' ' || value.front() == '\t'))
+				value.remove_prefix(1);
+			while(!value.empty() && (value.back() == ' ' || value.back() == '\t'))
+				value.remove_suffix(1);
 
-		try { len = boost::lexical_cast<size_t>(result[0]); }
-		catch(...) { return false; }
-		return true;
+			if(value.empty())
+				return false;
+
+			size_t parsed_length = 0;
+			for(const char c : value)
+			{
+				if(c < '0' || c > '9')
+					return false;
+				const size_t digit = c - '0';
+				if(parsed_length > (std::numeric_limits<size_t>::max() - digit) / 10)
+					return false;
+				parsed_length = parsed_length * 10 + digit;
+			}
+			if(has_length && parsed_length != len)
+				return false;
+			has_length = true;
+			len = parsed_length;
+
+			if(comma == boost::string_ref::npos)
+				break;
+			str.remove_prefix(comma + 1);
+		}
+		return has_length;
 	}
 	//-----------------------------------------------------------------------------------
   template<class t_connection_context>
