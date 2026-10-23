@@ -232,7 +232,9 @@ namespace nodetool
         m_offline(false),
         m_save_graph(false),
         is_closing(false),
-        m_network_id()
+        m_network_id(),
+        max_connections(1),
+        m_enable_dns_blocklist(false)
     {}
     virtual ~node_server();
 
