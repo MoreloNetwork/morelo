@@ -917,7 +917,9 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   top_hash = get_tail_id(height); // get it again now that we have the lock
   ++height; // top block height to blockchain height
 
-  uint8_t version = get_current_hard_fork_version();
+  // version of the block that would be added on top of the viewed height,
+  // not whatever the hard fork object currently thinks
+  uint8_t version = m_hardfork->get(height);
   size_t difficulty_blocks_count = get_difficulty_blocks_count(version);
 
   if (m_reset_timestamps_and_difficulties_height)
