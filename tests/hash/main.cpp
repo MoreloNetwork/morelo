@@ -52,11 +52,13 @@ extern "C" {
     }
     tree_hash((const char (*)[crypto::HASH_SIZE]) data, length >> 5, hash);
   }
+  // original CryptoNight parameters, which tests-slow*.txt were generated with
+  const uint32_t CN_PAGE_SIZE = 1 << 21, CN_SCRATCHPAD = 1 << 21, CN_ITERATIONS = 1 << 20;
   static void cn_slow_hash_0(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/);
+    return cn_slow_hash(data, length, hash, 0/*light*/, 0/*variant*/, 0/*prehashed*/, CN_PAGE_SIZE, CN_SCRATCHPAD, CN_ITERATIONS);
   }
   static void cn_slow_hash_1(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/);
+    return cn_slow_hash(data, length, hash, 0/*light*/, 1/*variant*/, 0/*prehashed*/, CN_PAGE_SIZE, CN_SCRATCHPAD, CN_ITERATIONS);
   }
 }
 POP_WARNINGS

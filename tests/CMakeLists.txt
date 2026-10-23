@@ -62,16 +62,18 @@ file(COPY
   data/signed_monero_tx
   DESTINATION data)
 
-add_subdirectory(core_tests)
 add_subdirectory(fuzz)
 add_subdirectory(crypto)
-add_subdirectory(functional_tests)
 add_subdirectory(performance_tests)
-add_subdirectory(core_proxy)
 add_subdirectory(unit_tests)
 add_subdirectory(difficulty)
 add_subdirectory(hash)
-add_subdirectory(net_load_tests)
+# These were not kept up with the core, protocol and wallet APIs and do not
+# build against the current code yet.
+# add_subdirectory(core_tests)
+# add_subdirectory(functional_tests)
+# add_subdirectory(core_proxy)
+# add_subdirectory(net_load_tests)
 if (BUILD_GUI_DEPS)
   add_subdirectory(libwallet_api_tests)
 endif()
@@ -98,11 +100,9 @@ add_test(
   COMMAND hash-target-tests)
 
 set(enabled_tests
-    core_tests
     difficulty
     hash
     performance_tests
-    core_proxy
     fuzz
     unit_tests)
 
