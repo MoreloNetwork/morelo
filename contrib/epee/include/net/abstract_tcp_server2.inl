@@ -336,9 +336,9 @@ PRAGMA_WARNING_DISABLE_VS(4355)
           }
 
           delay *= 0.5;
-          if(delay > 0)
+          long int ms = (long int)(delay * 100);
+          if(ms > 0)
           {
-            long int ms = (long int)(delay * 100);
             reset_timer(boost::posix_time::milliseconds(ms + 1), true);
             boost::this_thread::sleep_for(boost::chrono::milliseconds(ms));
           }
@@ -685,7 +685,9 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   boost::posix_time::milliseconds connection<t_protocol_handler>::get_timeout_from_bytes_read(size_t bytes)
   {
     boost::posix_time::milliseconds ms = (boost::posix_time::milliseconds)(unsigned)(bytes * TIMEOUT_EXTRA_MS_PER_BYTE);
-    ms += m_timer.expires_from_now();
+    const auto cur = m_timer.expires_from_now().total_milliseconds();
+    if(cur > 0)
+      ms += (boost::posix_time::milliseconds)cur;
     if(ms > get_default_timeout())
       ms = get_default_timeout();
     return ms;
@@ -697,7 +699,8 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     static boost::mutex hosts_mutex;
     CRITICAL_REGION_LOCAL(hosts_mutex);
     static std::map<std::string, unsigned int> hosts;
-    unsigned int &val = hosts[host];
+    auto it = hosts.emplace(host, 0).first;
+    unsigned int &val = it->second;
     if(delta > 0)
       MTRACE("New connection from host " << host << ": " << val);
     else if(delta < 0)
@@ -705,21 +708,39 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     CHECK_AND_ASSERT_THROW_MES(delta >= 0 || val >= (unsigned)-delta, "Count would go negative");
     CHECK_AND_ASSERT_THROW_MES(delta <= 0 || val <= std::numeric_limits<unsigned int>::max() - (unsigned)delta, "Count would wrap");
     val += delta;
-    return val;
+    const unsigned int ret = val;
+    if(ret == 0)
+      hosts.erase(it);
+    return ret;
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
   void connection<t_protocol_handler>::reset_timer(boost::posix_time::milliseconds ms, bool add)
   {
-    MTRACE("Setting " << ms << " expiry");
+    if(ms.total_milliseconds() < 0)
+    {
+      MWARNING("Ignoring negative timeout " << ms);
+      return;
+    }
+    MTRACE((add ? "Adding" : "Setting") << " " << ms << " expiry");
     auto self = safe_shared_from_this();
     if(!self)
     {
       MERROR("Resetting timer on a dead object");
       return;
     }
+    // 1b91bebd2: a timer armed after shutdown keeps the connection alive until it fires
+    if(m_was_shutdown)
+    {
+      MERROR("Setting timer on a shut down object");
+      return;
+    }
     if(add)
-      ms += m_timer.expires_from_now();
+    {
+      const auto cur = m_timer.expires_from_now().total_milliseconds();
+      if(cur > 0)
+        ms += (boost::posix_time::milliseconds)cur;
+    }
     m_timer.expires_from_now(ms);
     m_timer.async_wait([=](const boost::system::error_code& ec)
     {
@@ -1142,6 +1163,7 @@ POP_WARNINGS
   void boosted_tcp_server<t_protocol_handler>::handle_accept(const boost::system::error_code& e)
   {
     MDEBUG("handle_accept");
+    bool accept_started = false;
     try
     {
     if(!e)
@@ -1161,6 +1183,7 @@ POP_WARNINGS
       connection_ptr conn(std::move(new_connection_));
       new_connection_.reset(new connection<t_protocol_handler>(io_service_, m_state, m_connection_type, conn->get_ssl_support()));
       acceptor_.async_accept(new_connection_->socket(), boost::bind(&boosted_tcp_server<t_protocol_handler>::handle_accept, this, boost::asio::placeholders::error));
+      accept_started = true;
 
       boost::asio::socket_base::keep_alive opt(true);
       conn->socket().set_option(opt);
@@ -1186,6 +1209,8 @@ POP_WARNINGS
     catch (const std::exception& e)
     {
       MERROR("Exception in boosted_tcp_server<t_protocol_handler>::handle_accept: " << e.what());
+      if(accept_started)
+        return;
     }
 
     // error path, if e or exception
