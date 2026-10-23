@@ -310,7 +310,7 @@ namespace epee
 
 #define END_INVOKE_MAP2() \
   LOG_ERROR("Unknown command:" << command); \
-  return LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED; \
+  return is_notify ? LEVIN_OK : LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED; \
   }
   }
 }

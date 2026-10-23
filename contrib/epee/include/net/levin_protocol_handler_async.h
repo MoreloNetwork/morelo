@@ -504,10 +504,17 @@ public:
                 << ", ver=" << m_current_head.m_protocol_version);
             }
             else
-              m_config.m_pcommands_handler->notify(m_current_head.m_command, buff_to_invoke, m_connection_context);
+            {
+              const int notify_result = m_config.m_pcommands_handler->notify(m_current_head.m_command, buff_to_invoke, m_connection_context);
+              if(notify_result < 0)
+                return false;
+            }
           }
         }
         m_state = stream_state_head;
+        // a handler may have dropped the connection, do not dispatch anything buffered after it
+        if(boost::interprocess::ipcdetail::atomic_read32(&m_close_called))
+          return false;
         break;
       case stream_state_head:
         {
