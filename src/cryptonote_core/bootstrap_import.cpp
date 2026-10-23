@@ -107,7 +107,6 @@ namespace cryptonote
       {
         MERROR("Failed to parse block: "
             << epee::string_tools::pod_to_hex(get_blob_hash(b.block)));
-        core.cleanup_handle_incoming_blocks();
         return false;
       }
       hashes.push_back(cryptonote::get_block_hash(block));
