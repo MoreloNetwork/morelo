@@ -1167,7 +1167,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------------------------
   //TODO: investigate whether boolean return is appropriate
-  bool tx_memory_pool::fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version)
+  bool tx_memory_pool::fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version, bool include_sensitive)
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
@@ -1203,6 +1203,13 @@ namespace cryptonote
       if(meta.pruned)
       {
         LOG_PRINT_L2(" tx is pruned");
+        continue;
+      }
+
+      // unrelayed and do_not_relay txes must not leak through restricted RPC templates
+      if (!include_sensitive && !meta.relayed)
+      {
+        LOG_PRINT_L2("  tx not relayed yet");
         continue;
       }
 
