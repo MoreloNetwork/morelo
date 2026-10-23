@@ -29,6 +29,7 @@
 #pragma once
 
 #include "misc_language.h"
+#include "misc_log_ex.h"
 #include "portable_storage_base.h"
 #include "portable_storage_bin_utils.h"
 
@@ -42,6 +43,26 @@ namespace epee
 {
   namespace serialization
   {
+    // minimum number of serialized bytes per array element, used to reject
+    // array sizes that cannot possibly fit in the remaining data
+    template<typename T>
+    struct ps_min_bytes {
+      static constexpr const size_t strict = 4096; // actual low bound
+    };
+    template<> struct ps_min_bytes<uint64_t> { static constexpr const size_t strict = 8; };
+    template<> struct ps_min_bytes<int64_t> { static constexpr const size_t strict = 8; };
+    template<> struct ps_min_bytes<uint32_t> { static constexpr const size_t strict = 4; };
+    template<> struct ps_min_bytes<int32_t> { static constexpr const size_t strict = 4; };
+    template<> struct ps_min_bytes<uint16_t> { static constexpr const size_t strict = 2; };
+    template<> struct ps_min_bytes<int16_t> { static constexpr const size_t strict = 2; };
+    template<> struct ps_min_bytes<uint8_t> { static constexpr const size_t strict = 1; };
+    template<> struct ps_min_bytes<int8_t> { static constexpr const size_t strict = 1; };
+    template<> struct ps_min_bytes<double> { static constexpr const size_t strict = 8; };
+    template<> struct ps_min_bytes<bool> { static constexpr const size_t strict = 1; };
+    template<> struct ps_min_bytes<std::string> { static constexpr const size_t strict = 1; }; // empty string: 1 byte varint
+    template<> struct ps_min_bytes<section> { static constexpr const size_t strict = 1; };
+    template<> struct ps_min_bytes<array_entry> { static constexpr const size_t strict = 1; };
+
     struct throwable_buffer_reader
     {
       throwable_buffer_reader(const void* ptr, size_t sz);
@@ -108,6 +129,7 @@ namespace epee
       RECURSION_LIMITATION();
       uint8_t name_len = 0;
       read(name_len);
+      CHECK_AND_ASSERT_THROW_MES(name_len > 0, "Section name is missing");
       sce_name.resize(name_len);
       read((void*)sce_name.data(), name_len);
     }
@@ -138,11 +160,12 @@ namespace epee
       //for pod types
       array_entry_t<type_name> sa;
       size_t size = read_varint();
+      CHECK_AND_ASSERT_THROW_MES(size <= m_count / ps_min_bytes<type_name>::strict, "Size sanity check failed");
       sa.reserve(size);
       //TODO: add some optimization here later
       while(size--)
         sa.m_array.push_back(read<type_name>());
-      return storage_entry(array_entry(sa));
+      return storage_entry(array_entry(std::move(sa)));
     }
 
     inline
@@ -267,7 +290,9 @@ namespace epee
         //read section name string
         std::string sec_name;
         read_sec_name(sec_name);
-        sec.m_entries.insert(std::make_pair(sec_name, load_storage_entry()));
+        const auto insert_loc = sec.m_entries.lower_bound(sec_name);
+        CHECK_AND_ASSERT_THROW_MES(insert_loc == sec.m_entries.end() || insert_loc->first != sec_name, "duplicate key: " << sec_name);
+        sec.m_entries.emplace_hint(insert_loc, std::move(sec_name), load_storage_entry());
       }
     }
     inline
