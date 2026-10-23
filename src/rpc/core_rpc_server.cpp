@@ -1776,7 +1776,8 @@ namespace cryptonote
       error_resp.message = "Internal error: can't get last block.";
       return false;
     }
-    bool response_filled = fill_block_header_response(last_block, false, last_block_height, last_block_hash, res.block_header, req.fill_pow_hash);
+    const bool restricted = m_restricted && ctx;
+    bool response_filled = fill_block_header_response(last_block, false, last_block_height, last_block_hash, res.block_header, req.fill_pow_hash && !restricted);
     if (!response_filled)
     {
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
@@ -1795,6 +1796,8 @@ namespace cryptonote
       return r;
 
     CHECK_PAYMENT_MIN1(req, res, COST_PER_BLOCK_HEADER, false);
+
+    const bool restricted = m_restricted && ctx;
 
     auto get = [this](const std::string &hash, bool fill_pow_hash, block_header_response &block_header, epee::json_rpc::error &error_resp) -> bool {
       crypto::hash block_hash;
@@ -1833,14 +1836,14 @@ namespace cryptonote
 
     if(!req.hash.empty())
     {
-      if(!get(req.hash, req.fill_pow_hash, res.block_header, error_resp))
+      if(!get(req.hash, req.fill_pow_hash && !restricted, res.block_header, error_resp))
         return false;
     }
     res.block_headers.reserve(req.hashes.size());
     for(const std::string &hash: req.hashes)
     {
       res.block_headers.push_back({});
-      if(!get(hash, req.fill_pow_hash, res.block_headers.back(), error_resp))
+      if(!get(hash, req.fill_pow_hash && !restricted, res.block_headers.back(), error_resp))
         return false;
     }
 
@@ -1862,6 +1865,7 @@ namespace cryptonote
       error_resp.message = "Invalid start/end heights.";
       return false;
     }
+    const bool restricted = m_restricted && ctx;
     CHECK_PAYMENT_MIN1(req, res, (req.end_height - req.start_height + 1) * COST_PER_BLOCK_HEADER, false);
     for (uint64_t h = req.start_height; h <= req.end_height; ++h)
     {
@@ -1888,7 +1892,7 @@ namespace cryptonote
         return false;
       }
       res.headers.push_back(block_header_response());
-      bool response_filled = fill_block_header_response(blk, false, block_height, block_hash, res.headers.back(), req.fill_pow_hash);
+      bool response_filled = fill_block_header_response(blk, false, block_height, block_hash, res.headers.back(), req.fill_pow_hash && !restricted);
       if (!response_filled)
       {
         error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
@@ -1923,6 +1927,7 @@ namespace cryptonote
       return false;
     }
     CHECK_PAYMENT_MIN1(req, res, (number_req_blocks) * COST_PER_BLOCK, false);
+    const bool restricted = m_restricted && ctx;
     for (uint64_t h = req.start_height; h <= req.end_height; ++h)
     {
       crypto::hash block_hash = m_core.get_block_id_by_height(h);
@@ -1948,7 +1953,7 @@ namespace cryptonote
         return false;
       }
       block_header_response block_header = block_header_response();
-      bool response_filled = fill_block_header_response(blk, false, block_height, block_hash, block_header, true);
+      bool response_filled = fill_block_header_response(blk, false, block_height, block_hash, block_header, !restricted);
       if (!response_filled)
       {
         error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
@@ -2015,7 +2020,8 @@ namespace cryptonote
       error_resp.message = "Internal error: can't get block by height. Height = " + std::to_string(req.height) + '.';
       return false;
     }
-    bool response_filled = fill_block_header_response(blk, false, req.height, block_hash, res.block_header, req.fill_pow_hash);
+    const bool restricted = m_restricted && ctx;
+    bool response_filled = fill_block_header_response(blk, false, req.height, block_hash, res.block_header, req.fill_pow_hash && !restricted);
     if (!response_filled)
     {
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
@@ -2072,7 +2078,8 @@ namespace cryptonote
       return false;
     }
     uint64_t block_height = boost::get<txin_gen>(blk.miner_tx.vin.front()).height;
-    bool response_filled = fill_block_header_response(blk, orphan, block_height, block_hash, res.block_header, req.fill_pow_hash);
+    const bool restricted = m_restricted && ctx;
+    bool response_filled = fill_block_header_response(blk, orphan, block_height, block_hash, res.block_header, req.fill_pow_hash && !restricted);
     if (!response_filled)
     {
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
