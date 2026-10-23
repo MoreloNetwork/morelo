@@ -682,6 +682,7 @@ private:
     const cryptonote::account_base& get_account()const{return m_account;}
 
     bool is_key_encryption_enabled() const;
+    void verify_password_with_cached_key(const crypto::chacha_key &key) const;
     void encrypt_keys(const crypto::chacha_key &key);
     void encrypt_keys(const epee::wipeable_string &password);
     void decrypt_keys(const crypto::chacha_key &key);

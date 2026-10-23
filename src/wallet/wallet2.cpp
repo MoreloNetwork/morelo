@@ -3457,6 +3457,9 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
 
   if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
   {
+    // a watch-only export may use a new password, its spend key is dropped below
+    if (!watch_only)
+      verify_password_with_cached_key(key);
     account.encrypt_viewkey(key);
     account.decrypt_keys(key);
   }
@@ -3647,6 +3650,13 @@ static crypto::chacha_key derive_cache_key(const crypto::chacha_key& keys_data_k
   return cache_key;
 }
 //----------------------------------------------------------------------------------------------------
+void wallet2::verify_password_with_cached_key(const crypto::chacha_key &key) const
+{
+  // m_cache_key is derived from the current password, so it tells whether key is the right one:
+  // XORing the spend key with any other key stream would garble it
+  THROW_WALLET_EXCEPTION_IF(derive_cache_key(key) != m_cache_key, error::invalid_password);
+}
+//----------------------------------------------------------------------------------------------------
 void wallet2::setup_keys(const epee::wipeable_string &password)
 {
   crypto::chacha_key key;
@@ -3665,11 +3675,10 @@ void wallet2::setup_keys(const epee::wipeable_string &password)
 //----------------------------------------------------------------------------------------------------
 void wallet2::change_password(const std::string &filename, const epee::wipeable_string &original_password, const epee::wipeable_string &new_password)
 {
-  // m_cache_key is derived from the current password: a wrong original password
-  // would "decrypt" the spend key into garbage, which would then be saved
+  // refuse a wrong original password even when the keys are not encrypted in memory
   crypto::chacha_key original_key;
   crypto::generate_chacha_key(original_password.data(), original_password.size(), original_key, m_kdf_rounds);
-  THROW_WALLET_EXCEPTION_IF(derive_cache_key(original_key) != m_cache_key, error::invalid_password);
+  verify_password_with_cached_key(original_key);
 
   if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
     decrypt_keys(original_password);
@@ -3947,6 +3956,7 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     else
     {
       // rewrite with encrypted keys, ignore errors
+      m_cache_key = derive_cache_key(key); // set by setup_keys below, but needed by the password checks now
       if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
         encrypt_keys(key);
       bool saved_ret = store_keys(keys_file_name, password, m_watch_only);
@@ -4072,6 +4082,8 @@ void wallet2::encrypt_keys(const crypto::chacha_key &key)
 
 void wallet2::decrypt_keys(const crypto::chacha_key &key)
 {
+  verify_password_with_cached_key(key);
+
   m_account.encrypt_viewkey(key);
   m_account.decrypt_keys(key);
 }
@@ -4482,6 +4494,7 @@ std::string wallet2::make_multisig(const epee::wipeable_string &password,
   {
     crypto::chacha_key chacha_key;
     crypto::generate_chacha_key(password.data(), password.size(), chacha_key, m_kdf_rounds);
+    verify_password_with_cached_key(chacha_key);
     m_account.encrypt_viewkey(chacha_key);
     m_account.decrypt_keys(chacha_key);
     keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this, chacha_key]() { m_account.encrypt_keys(chacha_key); m_account.decrypt_viewkey(chacha_key); });
@@ -4618,6 +4631,7 @@ std::string wallet2::exchange_multisig_keys(const epee::wipeable_string &passwor
   {
     crypto::chacha_key chacha_key;
     crypto::generate_chacha_key(password.data(), password.size(), chacha_key, m_kdf_rounds);
+    verify_password_with_cached_key(chacha_key);
     m_account.encrypt_viewkey(chacha_key);
     m_account.decrypt_keys(chacha_key);
     keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this, chacha_key]() { m_account.encrypt_keys(chacha_key); m_account.decrypt_viewkey(chacha_key); });
