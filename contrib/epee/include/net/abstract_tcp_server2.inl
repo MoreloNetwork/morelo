@@ -204,7 +204,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // first read on the raw socket to detect SSL for the server
     buffer_ssl_init_fill = 0;
     if (is_income && m_ssl_support != epee::net_utils::ssl_support_t::e_ssl_support_disabled)
-      socket().async_receive(boost::asio::buffer(buffer_), boost::asio::socket_base::message_peek, boost::asio::bind_executor(strand_, std::bind(&connection<t_protocol_handler>::handle_receive, self, std::placeholders::_1, std::placeholders::_2)));
+      socket().async_receive(boost::asio::buffer(buffer_), boost::asio::bind_executor(strand_, std::bind(&connection<t_protocol_handler>::handle_receive, self, std::placeholders::_1, std::placeholders::_2)));
     else
       async_read_some(boost::asio::buffer(buffer_), boost::asio::bind_executor(strand_, std::bind(&connection<t_protocol_handler>::handle_read, self, std::placeholders::_1, std::placeholders::_2)));
 #if !defined(_WIN32) || !defined(__i686)
@@ -421,9 +421,12 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     reset_timer(get_timeout_from_bytes_read(bytes_transferred), false);
 
     buffer_ssl_init_fill += bytes_transferred;
-    if(buffer_ssl_init_fill <= get_ssl_magic_size())
+    MTRACE("we now have " << buffer_ssl_init_fill << "/" << get_ssl_magic_size() << " bytes needed to detect SSL");
+    if(buffer_ssl_init_fill < get_ssl_magic_size())
     {
-      socket().async_receive(boost::asio::buffer(buffer_.data() + buffer_ssl_init_fill, buffer_.size() - buffer_ssl_init_fill), boost::asio::socket_base::message_peek, boost::asio::bind_executor(strand_, boost::bind(&connection<t_protocol_handler>::handle_receive, connection<t_protocol_handler>::shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
+      // Read real data (not message_peek) so the bytes are consumed once and
+      // fed either to the SSL handshake or to handle_read, never both (f7ab8bc6d).
+      socket().async_receive(boost::asio::buffer(buffer_.data() + buffer_ssl_init_fill, buffer_.size() - buffer_ssl_init_fill), boost::asio::bind_executor(strand_, boost::bind(&connection<t_protocol_handler>::handle_receive, connection<t_protocol_handler>::shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
       return;
     }
 
@@ -444,8 +447,8 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
     if(m_ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_enabled)
     {
-      // Handshake
-      if(!handshake(boost::asio::ssl::stream_base::server))
+      // Handshake, handing it the bytes already read for detection
+      if(!handshake(boost::asio::ssl::stream_base::server, boost::asio::const_buffer(buffer_.data(), buffer_ssl_init_fill)))
       {
         MERROR("SSL handshake failed");
         boost::interprocess::ipcdetail::atomic_write32(&m_want_close_connection, 1);
@@ -459,6 +462,12 @@ PRAGMA_WARNING_DISABLE_VS(4355)
           shutdown();
         return;
       }
+    }
+    else
+    {
+      // not SSL: the bytes read while detecting are real payload, hand them to the reader
+      handle_read(e, buffer_ssl_init_fill);
+      return;
     }
 
     async_read_some(boost::asio::buffer(buffer_), boost::asio::bind_executor(strand_, boost::bind(&connection<t_protocol_handler>::handle_read, connection<t_protocol_handler>::shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
@@ -777,12 +786,9 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // Initiate graceful connection closure.
     m_timer.cancel();
     boost::system::error_code ignored_ec;
-    if(m_ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_enabled)
-    {
-      const shared_state &state = static_cast<const shared_state&>(get_state());
-      if(!state.stop_signal_sent)
-        socket_.shutdown(ignored_ec);
-	}
+    // No synchronous SSL stream shutdown here: it accesses the SSL object and
+    // can race with an async handshake running on another worker thread. The
+    // TCP shutdown below tears the socket down and aborts any pending handshake.
     socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
     if(!m_host.empty())
     {
