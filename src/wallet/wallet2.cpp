@@ -10983,39 +10983,51 @@ bool wallet2::check_reserve_proof(const cryptonote::account_public_address &addr
   crypto::hash prefix_hash;
   crypto::cn_fast_hash(prefix_data.data(), prefix_data.size(), prefix_hash);
 
-  // fetch txes from daemon
-  COMMAND_RPC_GET_TRANSACTIONS::request gettx_req;
+  // fetch txes from daemon, in chunks below the restricted RPC limits
+  // (RESTRICTED_TRANSACTIONS_COUNT and RESTRICTED_SPENT_KEY_IMAGES_COUNT in rpc/core_rpc_server.cpp)
   COMMAND_RPC_GET_TRANSACTIONS::response gettx_res;
-  for (size_t i = 0; i < proofs.size(); ++i)
-    gettx_req.txs_hashes.push_back(epee::string_tools::pod_to_hex(proofs[i].txid));
-  gettx_req.decode_as_json = false;
-  gettx_req.prune = true;
-
+  static const size_t TX_SLICE_SIZE = 100;
+  for (size_t offset = 0; offset < proofs.size(); offset += TX_SLICE_SIZE)
   {
+    COMMAND_RPC_GET_TRANSACTIONS::request gettx_req;
+    COMMAND_RPC_GET_TRANSACTIONS::response chunk_res;
+    const size_t n = std::min(TX_SLICE_SIZE, proofs.size() - offset);
+    for (size_t i = offset; i < offset + n; ++i)
+      gettx_req.txs_hashes.push_back(epee::string_tools::pod_to_hex(proofs[i].txid));
+    gettx_req.decode_as_json = false;
+    gettx_req.prune = true;
+
     const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
     uint64_t pre_call_credits = m_rpc_payment_state.credits;
     gettx_req.client = get_client_signature();
-    bool ok = net_utils::invoke_http_json("/gettransactions", gettx_req, gettx_res, m_http_client);
-    THROW_WALLET_EXCEPTION_IF(!ok || gettx_res.txs.size() != proofs.size(),
+    bool ok = net_utils::invoke_http_json("/gettransactions", gettx_req, chunk_res, m_http_client);
+    THROW_WALLET_EXCEPTION_IF(!ok || chunk_res.txs.size() != n,
       error::wallet_internal_error, "Failed to get transaction from daemon");
-    check_rpc_cost("/gettransactions", gettx_res.credits, pre_call_credits, gettx_res.txs.size() * COST_PER_TX);
+    check_rpc_cost("/gettransactions", chunk_res.credits, pre_call_credits, chunk_res.txs.size() * COST_PER_TX);
+    for (auto &e: chunk_res.txs)
+      gettx_res.txs.push_back(std::move(e));
   }
 
   // check spent status
-  COMMAND_RPC_IS_KEY_IMAGE_SPENT::request kispent_req;
   COMMAND_RPC_IS_KEY_IMAGE_SPENT::response kispent_res;
-  for (size_t i = 0; i < proofs.size(); ++i)
-    kispent_req.key_images.push_back(epee::string_tools::pod_to_hex(proofs[i].key_image));
-
+  static const size_t KI_SLICE_SIZE = 1000;
   bool ok;
+  for (size_t offset = 0; offset < proofs.size(); offset += KI_SLICE_SIZE)
   {
+    COMMAND_RPC_IS_KEY_IMAGE_SPENT::request kispent_req;
+    COMMAND_RPC_IS_KEY_IMAGE_SPENT::response chunk_res;
+    const size_t n = std::min(KI_SLICE_SIZE, proofs.size() - offset);
+    for (size_t i = offset; i < offset + n; ++i)
+      kispent_req.key_images.push_back(epee::string_tools::pod_to_hex(proofs[i].key_image));
+
     const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
     uint64_t pre_call_credits = m_rpc_payment_state.credits;
     kispent_req.client = get_client_signature();
-    ok = epee::net_utils::invoke_http_json("/is_key_image_spent", kispent_req, kispent_res, m_http_client, rpc_timeout);
-    THROW_WALLET_EXCEPTION_IF(!ok || kispent_res.spent_status.size() != proofs.size(),
+    ok = epee::net_utils::invoke_http_json("/is_key_image_spent", kispent_req, chunk_res, m_http_client, rpc_timeout);
+    THROW_WALLET_EXCEPTION_IF(!ok || chunk_res.spent_status.size() != n,
       error::wallet_internal_error, "Failed to get key image spent status from daemon");
-    check_rpc_cost("/is_key_image_spent", kispent_res.credits, pre_call_credits, kispent_res.spent_status.size() * COST_PER_KEY_IMAGE);
+    check_rpc_cost("/is_key_image_spent", chunk_res.credits, pre_call_credits, chunk_res.spent_status.size() * COST_PER_KEY_IMAGE);
+    kispent_res.spent_status.insert(kispent_res.spent_status.end(), chunk_res.spent_status.begin(), chunk_res.spent_status.end());
   }
 
   total = spent = 0;
