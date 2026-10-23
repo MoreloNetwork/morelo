@@ -10822,6 +10822,14 @@ bool wallet2::check_reserve_proof(const cryptonote::account_public_address &addr
   std::unordered_map<crypto::public_key, crypto::signature> subaddr_spendkeys;
   ar >> proofs >> subaddr_spendkeys;
 
+  std::unordered_set<crypto::key_image> seen_key_images;
+  std::unordered_map<crypto::hash, std::unordered_set<uint64_t>> seen_outputs;
+  for (const reserve_proof_entry &proof : proofs)
+  {
+    THROW_WALLET_EXCEPTION_IF(!seen_key_images.insert(proof.key_image).second, error::wallet_internal_error, "Duplicate key image in reserve proof");
+    THROW_WALLET_EXCEPTION_IF(!seen_outputs[proof.txid].insert(proof.index_in_tx).second, error::wallet_internal_error, "Duplicate output in reserve proof");
+  }
+
   THROW_WALLET_EXCEPTION_IF(subaddr_spendkeys.count(address.m_spend_public_key) == 0, error::wallet_internal_error,
     "The given address isn't found in the proof");
 
