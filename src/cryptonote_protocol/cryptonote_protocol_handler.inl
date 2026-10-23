@@ -2657,59 +2657,74 @@ skip:
     uint64_t added = 0;
     std::unordered_set<crypto::hash> blocks_found;
     bool expect_unknown = false;
-    for(size_t i = 0; i < arg.m_block_ids.size(); ++i)
+    // Classify the whole list against one snapshot of the chain: another connection adding a
+    // span meanwhile turns blocks from unknown into known halfway through the list, and an
+    // honest peer got dropped for "known block after unknown" with 5 fail points. Only the
+    // verdict is taken under the lock; dropping takes p2p locks and is done after.
+    const char *drop_reason = NULL;
+    unsigned int drop_score = 0;
     {
-      if (!blocks_found.insert(arg.m_block_ids[i]).second)
+      CRITICAL_REGION_LOCAL(m_core.get_blockchain_storage());
+      for(size_t i = 0; i < arg.m_block_ids.size(); ++i)
       {
-        LOG_ERROR_CCONTEXT("Duplicate blocks in chain entry response, dropping connection");
-        drop_connection_with_score(context, 5, false);
-        return LEVIN_ERROR_CONNECTION;
-      }
-      const bool have_block = m_core.have_block(arg.m_block_ids[i]);
-      if (i == 0)
-      {
-        // our outgoing chainlist only has proven blocks (i.e. downloaded)
-        if (!have_block && m_block_queue.have_height(arg.m_block_ids[i]) != arg.start_height)
+        if (!blocks_found.insert(arg.m_block_ids[i]).second)
         {
-          LOG_ERROR_CCONTEXT("First block hash is unknown, dropping connection");
-          drop_connection_with_score(context, 5, false);
-          return LEVIN_ERROR_CONNECTION;
+          drop_reason = "Duplicate blocks in chain entry response, dropping connection";
+          drop_score = 5;
+          break;
         }
-        if (!have_block)
+        const bool have_block = m_core.have_block(arg.m_block_ids[i]);
+        if (i == 0)
+        {
+          // our outgoing chainlist only has proven blocks (i.e. downloaded)
+          if (!have_block && m_block_queue.have_height(arg.m_block_ids[i]) != arg.start_height)
+          {
+            drop_reason = "First block hash is unknown, dropping connection";
+            drop_score = 5;
+            break;
+          }
+          if (!have_block)
+            expect_unknown = true;
+        }
+        else if (have_block)
+        {
+          // after the first, blocks may be known or unknown, but once one is unknown
+          // the rest must be too, and known main chain blocks must be at that height
+          if (expect_unknown)
+          {
+            drop_reason = "Block is known, but we did not expect a known block, dropping connection";
+            drop_score = 5;
+            break;
+          }
+          block blk;
+          bool orphan = false;
+          if (!m_core.get_block_by_hash(arg.m_block_ids[i], blk, &orphan))
+          {
+            drop_reason = "Block is invalid or known without known type, dropping connection";
+            drop_score = 1;
+            break;
+          }
+          if (!orphan && m_core.get_block_id_by_height(arg.start_height + i) != arg.m_block_ids[i])
+          {
+            drop_reason = "Block is on the main chain, but not at the expected height, dropping connection";
+            drop_score = 5;
+            break;
+          }
+        }
+        else
           expect_unknown = true;
+        const uint64_t block_weight = arg.m_block_weights.empty() ? 0 : arg.m_block_weights[i];
+        context.m_expected_heights.push_back(arg.m_block_ids[i]);
+        context.m_needed_objects.push_back(std::make_pair(arg.m_block_ids[i], block_weight));
+        if (++added == n_use_blocks)
+          break;
       }
-      else if (have_block)
-      {
-        // after the first, blocks may be known or unknown, but once one is unknown
-        // the rest must be too, and known main chain blocks must be at that height
-        if (expect_unknown)
-        {
-          LOG_ERROR_CCONTEXT("Block is known, but we did not expect a known block, dropping connection");
-          drop_connection_with_score(context, 5, false);
-          return LEVIN_ERROR_CONNECTION;
-        }
-        block blk;
-        bool orphan = false;
-        if (!m_core.get_block_by_hash(arg.m_block_ids[i], blk, &orphan))
-        {
-          LOG_ERROR_CCONTEXT("Block is invalid or known without known type, dropping connection");
-          drop_connection(context, true, false);
-          return LEVIN_ERROR_CONNECTION;
-        }
-        if (!orphan && m_core.get_block_id_by_height(arg.start_height + i) != arg.m_block_ids[i])
-        {
-          LOG_ERROR_CCONTEXT("Block is on the main chain, but not at the expected height, dropping connection");
-          drop_connection_with_score(context, 5, false);
-          return LEVIN_ERROR_CONNECTION;
-        }
-      }
-      else
-        expect_unknown = true;
-      const uint64_t block_weight = arg.m_block_weights.empty() ? 0 : arg.m_block_weights[i];
-      context.m_expected_heights.push_back(arg.m_block_ids[i]);
-      context.m_needed_objects.push_back(std::make_pair(arg.m_block_ids[i], block_weight));
-      if (++added == n_use_blocks)
-        break;
+    }
+    if (drop_reason)
+    {
+      LOG_ERROR_CCONTEXT(drop_reason);
+      drop_connection_with_score(context, drop_score, false);
+      return LEVIN_ERROR_CONNECTION;
     }
     context.m_last_response_height -= arg.m_block_ids.size() - n_use_blocks;
 

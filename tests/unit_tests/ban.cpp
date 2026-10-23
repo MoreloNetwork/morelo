@@ -40,10 +40,6 @@
 #define MAKE_IPV4_ADDRESS_PORT(a,b,c,d,e) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),e}
 #define MAKE_IPV4_SUBNET(a,b,c,d,e) epee::net_utils::ipv4_network_subnet{(uint32_t)MAKE_IP(a,b,c,d),e}
 
-namespace cryptonote {
-  class blockchain_storage;
-}
-
 class test_core
 {
 public:
@@ -64,7 +60,8 @@ public:
   bool on_idle(){return true;}
   bool find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, bool clip_pruned, cryptonote::NOTIFY_RESPONSE_CHAIN_ENTRY::request& resp){return true;}
   bool handle_get_objects(cryptonote::NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote::NOTIFY_RESPONSE_GET_OBJECTS::request& rsp, cryptonote::cryptonote_connection_context& context){return true;}
-  cryptonote::blockchain_storage &get_blockchain_storage() { throw std::runtime_error("Called invalid member function: please never call get_blockchain_storage on the TESTING class test_core."); }
+  struct lockable { void lock() {} void unlock() {} } m_blockchain_storage;
+  lockable &get_blockchain_storage() { return m_blockchain_storage; }
   bool get_test_drop_download() const {return true;}
   bool get_test_drop_download_height() const {return true;}
   bool prepare_handle_incoming_blocks(const std::vector<cryptonote::block_complete_entry>  &blocks_entry, std::vector<cryptonote::block> &blocks) { return true; }
