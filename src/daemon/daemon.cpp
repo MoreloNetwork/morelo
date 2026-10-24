@@ -38,6 +38,7 @@
 
 #include "common/password.h"
 #include "common/util.h"
+#include "daemon/bootstrap.h"
 #include "daemon/core.h"
 #include "daemon/p2p.h"
 #include "daemon/protocol.h"
@@ -208,7 +209,12 @@ bool t_daemon::run(bool interactive)
       mp_internals->p2p.get().set_rpc_port(public_rpc_port);
     }
 
-    mp_internals->p2p.run(); // blocks until p2p goes down
+    // before syncing from peers, so the two never feed the core at the same time
+    auto &p2p = mp_internals->p2p.get();
+    bootstrap(mp_internals->core.get(), m_vm, [&p2p]{ return p2p.is_stop_signal_sent(); });
+
+    if (!p2p.is_stop_signal_sent())
+      mp_internals->p2p.run(); // blocks until p2p goes down
 
     if(rpc_commands)
       rpc_commands->stop_handling();

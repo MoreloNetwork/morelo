@@ -135,12 +135,17 @@ namespace cryptonote
     bool should_download_next_span(cryptonote_connection_context& context, bool standby);
     bool should_ask_for_pruned_data(cryptonote_connection_context& context, uint64_t first_block_height, uint64_t nblocks, bool check_block_weights) const;
     void drop_connection(cryptonote_connection_context &context, bool add_fail, bool flush_all_spans);
+    void drop_connection_with_score(cryptonote_connection_context &context, unsigned int score, bool flush_all_spans);
+    void drop_connection(const boost::uuids::uuid&);
+    void drop_connections(const epee::net_utils::network_address address);
+    void hit_score(cryptonote_connection_context &context, int32_t score);
     bool kick_idle_peers();
     bool check_standby_peers();
     bool update_sync_search();
     int try_add_next_blocks(cryptonote_connection_context &context);
     void notify_new_stripe(cryptonote_connection_context &context, uint32_t stripe);
-    void skip_unneeded_hashes(cryptonote_connection_context& context, bool check_block_queue) const;
+    size_t skip_unneeded_hashes(cryptonote_connection_context& context, bool check_block_queue) const;
+    bool pruned_peer_can_serve_chain(const cryptonote_connection_context& context) const;
 
     t_core& m_core;
 
@@ -151,7 +156,7 @@ namespace cryptonote
     std::atomic<bool> m_stopping;
     boost::mutex m_sync_lock;
     block_queue m_block_queue;
-    epee::math_helper::once_a_time_seconds<30> m_idle_peer_kicker;
+    epee::math_helper::once_a_time_seconds<8> m_idle_peer_kicker;
     epee::math_helper::once_a_time_milliseconds<100> m_standby_checker;
     epee::math_helper::once_a_time_seconds<101> m_sync_search_checker;
     std::atomic<unsigned int> m_max_out_peers;

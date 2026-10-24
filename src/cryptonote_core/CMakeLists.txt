@@ -29,6 +29,7 @@
 
 set(cryptonote_core_sources
   blockchain.cpp
+  bootstrap_import.cpp
   cryptonote_core.cpp
   tx_pool.cpp
   tx_sanity_check.cpp
@@ -39,6 +40,8 @@ set(cryptonote_core_headers)
 set(cryptonote_core_private_headers
   blockchain_storage_boost_serialization.h
   blockchain.h
+  bootstrap_import.h
+  bootstrap_serialization.h
   cryptonote_core.h
   tx_pool.h
   tx_sanity_check.h

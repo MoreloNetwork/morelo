@@ -54,6 +54,8 @@ namespace
                 return "Host value is not valid";
             case net::error::invalid_i2p_address:
                 return "Invalid I2P address";
+            case net::error::invalid_mask:
+                return "CIDR netmask outside of 0-32 range";
             case net::error::invalid_port:
                 return "Invalid port value (expected 0-65535)";
             case net::error::invalid_tor_address:

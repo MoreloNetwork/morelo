@@ -75,14 +75,16 @@ namespace
   void test_language(const Language::Base &language)
   {
     const std::vector<std::string> &word_list = language.get_word_list();
-    std::string seed = "", return_seed = "";
+    epee::wipeable_string w_seed = "", w_return_seed = "";
+    std::string seed, return_seed;
     // Generate a random seed without checksum
     crypto::secret_key randkey;
     for (size_t ii = 0; ii < sizeof(randkey); ++ii)
     {
       randkey.data[ii] = rand();
     }
-    crypto::ElectrumWords::bytes_to_words(randkey, seed, language.get_language_name());
+    crypto::ElectrumWords::bytes_to_words(randkey, w_seed, language.get_language_name());
+    seed = std::string(w_seed.data(), w_seed.size());
     // remove the checksum word
     const char *space = strrchr(seed.c_str(), ' ');
     ASSERT_TRUE(space != NULL);
@@ -104,7 +106,8 @@ namespace
     ASSERT_STREQ(language.get_language_name().c_str(), language_name.c_str());
 
     // Convert the secret key back to seed
-    crypto::ElectrumWords::bytes_to_words(key, return_seed, language.get_language_name());
+    crypto::ElectrumWords::bytes_to_words(key, w_return_seed, language.get_language_name());
+    return_seed = std::string(w_return_seed.data(), w_return_seed.size());
     ASSERT_EQ(true, res);
     std::cout << "Returned seed:\n";
     std::cout << return_seed << std::endl;
@@ -127,8 +130,9 @@ namespace
     std::cout << "Detected language: " << language_name << std::endl;
     ASSERT_STREQ(language.get_language_name().c_str(), language_name.c_str());
 
-    return_seed = "";
-    crypto::ElectrumWords::bytes_to_words(key, return_seed, language.get_language_name());
+    w_return_seed = "";
+    crypto::ElectrumWords::bytes_to_words(key, w_return_seed, language.get_language_name());
+    return_seed = std::string(w_return_seed.data(), w_return_seed.size());
     ASSERT_EQ(true, res);
     std::cout << "Returned seed:\n";
     std::cout << return_seed << std::endl;

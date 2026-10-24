@@ -62,6 +62,7 @@ int main(int argc, char* argv[])
   const command_line::arg_descriptor<std::string> arg_log_level  = {"log-level",  "0-4 or categories", ""};
   const command_line::arg_descriptor<uint64_t> arg_block_stop = {"block-stop", "Stop at block number", block_stop};
   const command_line::arg_descriptor<bool> arg_blocks_dat = {"blocksdat", "Output in blocks.dat format", blocks_dat};
+  const command_line::arg_descriptor<uint64_t> arg_block_stop_margin = {"block-stop-margin", "Stop this many blocks below the top, at a multiple of 512 blocks: nodes exporting at the same time then write the same file (for bootstrap mirrors)", 0};
 
 
   command_line::add_arg(desc_cmd_sett, cryptonote::arg_data_dir);
@@ -71,6 +72,7 @@ int main(int argc, char* argv[])
   command_line::add_arg(desc_cmd_sett, arg_log_level);
   command_line::add_arg(desc_cmd_sett, arg_block_stop);
   command_line::add_arg(desc_cmd_sett, arg_blocks_dat);
+  command_line::add_arg(desc_cmd_sett, arg_block_stop_margin);
 
   command_line::add_arg(desc_cmd_only, command_line::arg_help);
 
@@ -170,6 +172,21 @@ int main(int argc, char* argv[])
 
   CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
   LOG_PRINT_L0("Source blockchain storage initialized OK");
+
+  const uint64_t margin = command_line::get_arg(vm, arg_block_stop_margin);
+  if (margin)
+  {
+    // a stop height which won't be reorganized away, and which lets an importer check
+    // every block against the compiled block hashes
+    const uint64_t height = core_storage->get_current_blockchain_height();
+    if (block_stop || height < margin + HASH_OF_HASHES_STEP)
+    {
+      LOG_ERROR("Can't use " << arg_block_stop_margin.name << " with " << arg_block_stop.name << " or below height " << margin + HASH_OF_HASHES_STEP);
+      return 1;
+    }
+    block_stop = (height - margin) / HASH_OF_HASHES_STEP * HASH_OF_HASHES_STEP - 1;
+    LOG_PRINT_L0("Exporting up to block " << block_stop);
+  }
   LOG_PRINT_L0("Exporting blockchain raw data...");
 
   if (opt_blocks_dat)

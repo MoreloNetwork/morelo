@@ -23,6 +23,8 @@ env:
   CCACHE_COMPRESS: 'true'
   CMAKE_C_COMPILER_LAUNCHER: ccache
   CMAKE_CXX_COMPILER_LAUNCHER: ccache
+  # these need DNS / network access
+  GTEST_FILTER: '-DNSResolver.*:AddressFromURL.*'
 
 jobs:
   windows:
@@ -52,8 +54,13 @@ jobs:
     - name: build
       run: |
         export CCACHE_DIR="$(pwd)/.ccache"
-        make -j$(nproc) release-static-win-x86_64
+        make -j$(nproc) release-static-win-x86_64 flags="-DBUILD_TESTS=ON"
         ccache -s
+    - name: unit tests
+      run: |
+        cd build/release
+        tests/unit_tests/unit_tests.exe --gtest_filter="$GTEST_FILTER"
+        ctest -E '^unit_tests$' --output-on-failure
     - name: check for non-system DLL imports
       run: |
         cd build/release/bin
@@ -78,6 +85,10 @@ jobs:
       matrix:
         # ubuntu-22.04 ships Boost 1.74 (the minimum supported), ubuntu-24.04 ships Boost 1.83
         os: [ ubuntu-22.04, ubuntu-24.04 ]
+        include:
+          # tests run on one Linux job only, against the system GTest
+          - os: ubuntu-24.04
+            tests: true
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
     steps:
@@ -87,7 +98,7 @@ jobs:
     - name: install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get -y install build-essential cmake pkg-config ccache libboost-all-dev libssl-dev libsodium-dev libunbound-dev libreadline-dev libhidapi-dev libusb-1.0-0-dev libudev-dev autoconf automake libtool-bin
+        sudo apt-get -y install build-essential cmake pkg-config ccache libboost-all-dev libssl-dev libsodium-dev libunbound-dev libreadline-dev libhidapi-dev libusb-1.0-0-dev libudev-dev autoconf automake libtool-bin ${{ matrix.tests && 'libgtest-dev' || '' }}
     - name: ccache
       uses: actions/cache@v6
       with:
@@ -97,7 +108,13 @@ jobs:
     - name: build
       run: |
         # ARCH=x86-64 instead of the default -march=native, ccache objects are shared between runners with different CPUs
-        make -j$(nproc) release flags="-DBUILD_TESTS=OFF -DARCH=x86-64"
+        make -j$(nproc) release flags="-DBUILD_TESTS=${{ matrix.tests && 'ON' || 'OFF' }} -DARCH=x86-64"
         ccache -s
     - name: smoke test
       run: build/release/bin/morelod --version
+    - name: unit tests
+      if: matrix.tests
+      run: |
+        cd build/release
+        tests/unit_tests/unit_tests --gtest_filter="$GTEST_FILTER"
+        ctest -E '^unit_tests$' --output-on-failure

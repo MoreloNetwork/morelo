@@ -34,8 +34,7 @@ set(blockchain_import_sources
 
 set(blockchain_import_private_headers
   bootstrap_file.h
-  blocksdat_file.h
-  bootstrap_serialization.h)
+  blocksdat_file.h)
 
 morelo_private_headers(blockchain_import
   ${blockchain_import_private_headers})
@@ -47,8 +46,7 @@ set(blockchain_export_sources
 
 set(blockchain_export_private_headers
   bootstrap_file.h
-  blocksdat_file.h
-  bootstrap_serialization.h)
+  blocksdat_file.h)
 
 morelo_private_headers(blockchain_export
   ${blockchain_export_private_headers})
@@ -59,8 +57,7 @@ set(blockchain_blackball_sources
 
 set(blockchain_blackball_private_headers
   bootstrap_file.h
-  blocksdat_file.h
-  bootstrap_serialization.h)
+  blocksdat_file.h)
 
 morelo_private_headers(blockchain_blackball
   ${blockchain_blackball_private_headers})

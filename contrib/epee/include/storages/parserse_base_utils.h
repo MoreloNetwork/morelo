@@ -99,8 +99,14 @@ namespace misc_utils
 
     inline std::string transform_to_escape_sequence(const std::string& src)
     {
-      static const char escaped[] = "\b\f\n\r\t\v\"\\/";
-      std::string::const_iterator it = std::find_first_of(src.begin(), src.end(), escaped, escaped + sizeof(escaped));
+      // RFC 8259: the double quote, reverse solidus and every control character
+      // (U+0000 - U+001F) must be escaped inside a JSON string. The forward slash
+      // is escaped too, as it has been historically.
+      std::string::const_iterator it = std::find_if(src.begin(), src.end(),
+        [](char ch) {
+          const unsigned char c = static_cast<unsigned char>(ch);
+          return c < 0x20 || c == '"' || c == '\\' || c == '/';
+        });
       if (it == src.end())
         return src;
 
@@ -109,7 +115,8 @@ namespace misc_utils
       res.assign(src.begin(), it);
       for(; it!=src.end(); ++it)
       {
-        switch(*it)
+        const unsigned char c = static_cast<unsigned char>(*it);
+        switch(c)
         {
         case '\b':  //Backspace (ascii code 08)
           res+="\\b"; break;
@@ -121,18 +128,22 @@ namespace misc_utils
           res+="\\r"; break;
         case '\t':  //Tab
           res+="\\t"; break;
-        case '\v':  //Vertical tab
-          res+="\\v"; break;
-        //case '\'':  //Apostrophe or single quote
-        //  res+="\\'"; break;
         case '"':  //Double quote
           res+="\\\""; break;
         case '\\':  //Backslash caracter
           res+="\\\\"; break;
-        case '/':  //Backslash caracter
+        case '/':  //Slash character
           res+="\\/"; break;
         default:
-          res.push_back(*it);
+          if (c < 0x20)
+          {
+            //control character without a short escape (\v is not valid JSON)
+            static const char hex[] = "0123456789abcdef";
+            const char u[] = { '\\', 'u', '0', '0', hex[c >> 4], hex[c & 0xf] };
+            res.append(u, sizeof(u));
+          }
+          else
+            res.push_back(*it);
         }
       }
       return res;
@@ -188,7 +199,7 @@ namespace misc_utils
             case '/':  //Slash character
               val.push_back('/');break;
             case 'u':  //Unicode code point
-              if (buf_end - it < 4)
+              if (buf_end - it < 5)
               {
                 ASSERT_MES_AND_THROW("Invalid Unicode escape sequence");
               }
@@ -224,8 +235,9 @@ namespace misc_utils
               }
               break;
             default:
+              // kept lenient for existing clients, but don't echo attacker data to the log
               val.push_back(*it);
-              LOG_PRINT_L0("Unknown escape sequence :\"\\" << *it << "\"");
+              MDEBUG("Unknown escape sequence in JSON string");
             }
             escape_mode = false;
           }else if(*it == '"')
@@ -241,7 +253,7 @@ namespace misc_utils
             val.push_back(*it);
           }
         }
-        ASSERT_MES_AND_THROW("Failed to match string in json entry: " << std::string(star_end_string, buf_end));
+        ASSERT_MES_AND_THROW("Unterminated JSON string");
       }
       inline bool match_string(std::string::const_iterator& star_end_string, std::string::const_iterator buf_end, std::string& val)
       {
@@ -287,10 +299,10 @@ namespace misc_utils
               return;
             }
             else
-              ASSERT_MES_AND_THROW("wrong number in json entry: " << std::string(star_end_string, buf_end));
+              ASSERT_MES_AND_THROW("Invalid number in JSON entry");
           }
         }
-        ASSERT_MES_AND_THROW("wrong number in json entry: " << std::string(star_end_string, buf_end));
+        ASSERT_MES_AND_THROW("Invalid number in JSON entry");
       }
       inline bool match_number(std::string::const_iterator& star_end_string, std::string::const_iterator buf_end, boost::string_ref& val)
       {
@@ -319,10 +331,10 @@ namespace misc_utils
               star_end_string = --it;
               return;
             }else
-              ASSERT_MES_AND_THROW("failed to match word number in json entry: " << std::string(star_end_string, buf_end));
+              ASSERT_MES_AND_THROW("Invalid word in JSON entry");
           }
         }
-        ASSERT_MES_AND_THROW("failed to match word number in json entry: " << std::string(star_end_string, buf_end));
+        ASSERT_MES_AND_THROW("Invalid word in JSON entry");
       }
       inline bool match_word(std::string::const_iterator& star_end_string, std::string::const_iterator buf_end, boost::string_ref& val)
       {

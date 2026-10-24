@@ -171,6 +171,7 @@ namespace nodetool
     uint16_t zmq_port;
     uint32_t rpc_credits_per_hash;
     peerid_type peer_id;
+    uint32_t support_flags;
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(network_id)
@@ -179,6 +180,7 @@ namespace nodetool
       KV_SERIALIZE_OPT(rpc_port, (uint16_t)(0))
       KV_SERIALIZE_OPT(zmq_port, (uint16_t)(0))
       KV_SERIALIZE_OPT(rpc_credits_per_hash, (uint32_t)0)
+      KV_SERIALIZE_OPT(support_flags, (uint32_t)0)
     END_KV_SERIALIZE_MAP()
   };
 

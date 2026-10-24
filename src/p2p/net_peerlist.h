@@ -104,14 +104,15 @@ namespace nodetool
     bool init(peerlist_types&& peers, bool allow_local_ip);
     size_t get_white_peers_count(){CRITICAL_REGION_LOCAL(m_peerlist_lock); return m_peers_white.size();}
     size_t get_gray_peers_count(){CRITICAL_REGION_LOCAL(m_peerlist_lock); return m_peers_gray.size();}
-    bool merge_peerlist(const std::vector<peerlist_entry>& outer_bs);
+    bool merge_peerlist(const std::vector<peerlist_entry>& outer_bs, const std::function<bool(const peerlist_entry&)> &f = NULL);
     bool get_peerlist_head(std::vector<peerlist_entry>& bs_head, bool anonymize, uint32_t depth = P2P_DEFAULT_PEERS_IN_HANDSHAKE);
     void get_peerlist(std::vector<peerlist_entry>& pl_gray, std::vector<peerlist_entry>& pl_white);
     void get_peerlist(peerlist_types& peers);
     bool get_white_peer_by_index(peerlist_entry& p, size_t i);
     bool get_gray_peer_by_index(peerlist_entry& p, size_t i);
     template<typename F> bool foreach(bool white, const F &f);
-    bool append_with_peer_white(const peerlist_entry& pr);
+    void evict_host_from_peerlist(bool white, const peerlist_entry& pr);
+    bool append_with_peer_white(const peerlist_entry& pr, bool trust_last_seen = false);
     bool append_with_peer_gray(const peerlist_entry& pr);
     bool append_with_peer_anchor(const anchor_peerlist_entry& ple);
     bool set_peer_just_seen(peerid_type peer, const epee::net_utils::network_address& addr, uint32_t pruning_seed, uint16_t rpc_port, uint32_t rpc_credits_per_hash);
@@ -122,6 +123,7 @@ namespace nodetool
     bool get_and_empty_anchor_peerlist(std::vector<anchor_peerlist_entry>& apl);
     bool remove_from_peer_anchor(const epee::net_utils::network_address& addr);
     bool remove_from_peer_white(const peerlist_entry& pe);
+    template<typename F> size_t filter(bool white, const F &f); // f returns true: drop, false: keep
 
   private:
     struct by_time{};
@@ -216,12 +218,13 @@ namespace nodetool
   }
   //--------------------------------------------------------------------------------------------------
   inline
-  bool peerlist_manager::merge_peerlist(const std::vector<peerlist_entry>& outer_bs)
+  bool peerlist_manager::merge_peerlist(const std::vector<peerlist_entry>& outer_bs, const std::function<bool(const peerlist_entry&)> &f)
   {
     CRITICAL_REGION_LOCAL(m_peerlist_lock);
     for(const peerlist_entry& be: outer_bs)
     {
-      append_with_peer_gray(be);
+      if (!f || f(be))
+        append_with_peer_gray(be);
     }
     // delete extra elements
     trim_gray_peerlist();
@@ -327,12 +330,12 @@ namespace nodetool
     ple.pruning_seed = pruning_seed;
     ple.rpc_port = rpc_port;
     ple.rpc_credits_per_hash = rpc_credits_per_hash;
-    return append_with_peer_white(ple);
+    return append_with_peer_white(ple, true);
     CATCH_ENTRY_L0("peerlist_manager::set_peer_just_seen()", false);
   }
   //--------------------------------------------------------------------------------------------------
   inline
-  bool peerlist_manager::append_with_peer_white(const peerlist_entry& ple)
+  bool peerlist_manager::append_with_peer_white(const peerlist_entry& ple, bool trust_last_seen)
   {
     TRY_ENTRY();
     if(!is_host_allowed(ple.adr))
@@ -343,14 +346,22 @@ namespace nodetool
     auto by_addr_it_wt = m_peers_white.get<by_addr>().find(ple.adr);
     if(by_addr_it_wt == m_peers_white.get<by_addr>().end())
     {
-      //put new record into white list
+      //put new record into white list, keeping only the last seen node on a given host
+      evict_host_from_peerlist(true, ple);
       m_peers_white.insert(ple);
       trim_white_peerlist();
     }
     else
     {
       //update record in white list
-      m_peers_white.replace(by_addr_it_wt, ple);
+      peerlist_entry new_ple = ple;
+      if (by_addr_it_wt->pruning_seed && ple.pruning_seed == 0) // guard against older nodes not passing pruning info around
+        new_ple.pruning_seed = by_addr_it_wt->pruning_seed;
+      if (by_addr_it_wt->rpc_port && ple.rpc_port == 0) // guard against older nodes not passing RPC port around
+        new_ple.rpc_port = by_addr_it_wt->rpc_port;
+      if (!trust_last_seen)
+        new_ple.last_seen = by_addr_it_wt->last_seen; // do not overwrite the last seen timestamp, incoming peer lists are untrusted
+      m_peers_white.replace(by_addr_it_wt, new_ple);
     }
     //remove from gray list, if need
     auto by_addr_it_gr = m_peers_gray.get<by_addr>().find(ple.adr);
@@ -485,6 +496,44 @@ namespace nodetool
     return true;
 
     CATCH_ENTRY_L0("peerlist_manager::get_and_empty_anchor_peerlist()", false);
+  }
+  //--------------------------------------------------------------------------------------------------
+  inline
+  void peerlist_manager::evict_host_from_peerlist(bool white, const peerlist_entry& pr)
+  {
+    CRITICAL_REGION_LOCAL(m_peerlist_lock);
+    peers_indexed& peers = white ? m_peers_white : m_peers_gray;
+    peers_indexed::index<by_addr>::type& addr_index = peers.get<by_addr>();
+    auto it = addr_index.begin();
+    while (it != addr_index.end())
+    {
+      if (it->adr.is_same_host(pr.adr))
+        it = addr_index.erase(it);
+      else
+        ++it;
+    }
+  }
+  //--------------------------------------------------------------------------------------------------
+  template<typename F> inline
+  size_t peerlist_manager::filter(bool white, const F &f)
+  {
+    size_t filtered = 0;
+    TRY_ENTRY();
+    CRITICAL_REGION_LOCAL(m_peerlist_lock);
+    peers_indexed::index<by_addr>::type& sorted_index = white ? m_peers_white.get<by_addr>() : m_peers_gray.get<by_addr>();
+    auto i = sorted_index.begin();
+    while (i != sorted_index.end())
+    {
+      if (f(*i))
+      {
+        i = sorted_index.erase(i);
+        ++filtered;
+      }
+      else
+        ++i;
+    }
+    CATCH_ENTRY_L0("peerlist_manager::filter()", filtered);
+    return filtered;
   }
   //--------------------------------------------------------------------------------------------------
   inline

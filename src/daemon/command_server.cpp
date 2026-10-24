@@ -233,14 +233,14 @@ t_command_server::t_command_server(
     m_command_lookup.set_handler(
       "ban"
     , std::bind(&t_command_parser_executor::ban, &m_parser, p::_1)
-    , "ban <IP> [<seconds>]"
-    , "Ban a given <IP> for a given amount of <seconds>."
+    , "ban <IP>|<IP>/<mask> [<seconds>]"
+    , "Ban a given <IP> or IPv4 subnet for a given amount of <seconds>."
     );
     m_command_lookup.set_handler(
       "unban"
     , std::bind(&t_command_parser_executor::unban, &m_parser, p::_1)
-    , "unban <IP>"
-    , "Unban a given <IP>."
+    , "unban <IP>|<IP>/<mask>|all"
+    , "Unban a given <IP> or IPv4 subnet, or all banned addresses."
     );
     m_command_lookup.set_handler(
       "flush_txpool"

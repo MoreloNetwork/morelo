@@ -35,6 +35,7 @@ set(unit_tests_sources
   blockchain_db.cpp
   block_queue.cpp
   block_reward.cpp
+  bootstrap.cpp
   bulletproofs.cpp
   canonical_amounts.cpp
   chacha.cpp
@@ -45,8 +46,8 @@ set(unit_tests_sources
   dns_resolver.cpp
   epee_boosted_tcp_server.cpp
   epee_levin_protocol_handler_async.cpp
+  epee_serialization.cpp
   epee_utils.cpp
-  fee.cpp
   get_xtype_from_string.cpp
   hashchain.cpp
   http.cpp
@@ -63,6 +64,7 @@ set(unit_tests_sources
   test_tx_utils.cpp
   test_peerlist.cpp
   test_protocol_pack.cpp
+  threadpool.cpp
   hardfork.cpp
   unbound.cpp
   uri.cpp

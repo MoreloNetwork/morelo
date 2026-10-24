@@ -30,11 +30,12 @@
 #pragma once
 
 #include "version.h"
+#include "cryptonote_core/bootstrap_serialization.h"
 
 
 // bounds checking is done before writing to buffer, but buffer size
-// should be a sensible maximum
-#define BUFFER_SIZE (2 * 1024 * 1024)
+// should be a sensible maximum, the same as the daemon's bootstrap
+#define BUFFER_SIZE cryptonote::bootstrap::max_chunk_size
 #define CHUNK_SIZE_WARNING_THRESHOLD 500000
 #define NUM_BLOCKS_PER_CHUNK 1
 #define BLOCKCHAIN_RAW "blockchain.raw"

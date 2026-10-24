@@ -93,6 +93,30 @@ namespace cryptonote
     return &reinterpret_cast<const unsigned char &>(point);
   }
 
+  static std::size_t max_total_key_offsets()
+  {
+    // This is a 100% guaranteed ceiling for the entire chain: a tx blob may
+    // never exceed get_max_tx_size() (4x that before hard fork 13, see
+    // core::handle_incoming_tx_pre), and every ring member costs at least a
+    // 32 byte key in the signature (64 bytes for v1 and MLSAG rows)
+    return get_max_tx_size() * 4 / sizeof(crypto::public_key);
+  }
+
+  static bool n_key_offsets_exceeds_max(const transaction_prefix& tx)
+  {
+    const std::size_t max_allowed = max_total_key_offsets();
+    std::size_t total_key_offsets = 0;
+    for (const auto &vin : tx.vin)
+    {
+      if (vin.type() != typeid(cryptonote::txin_to_key))
+        continue;
+      const std::size_t n_key_offsets = boost::get<cryptonote::txin_to_key>(vin).key_offsets.size();
+      CHECK_AND_ASSERT_MES((n_key_offsets + total_key_offsets) >= total_key_offsets, true, "key offsets overflow");
+      total_key_offsets += n_key_offsets;
+    }
+    return total_key_offsets > max_allowed;
+  }
+
   // a copy of rct::addKeys, since we can't link to libringct to avoid circular dependencies
   static void add_public_key(crypto::public_key &AB, const crypto::public_key &A, const crypto::public_key &B) {
       ge_p3 B2, A2;
@@ -217,6 +241,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    CHECK_AND_ASSERT_MES(!n_key_offsets_exceeds_max(tx), false, "Transaction contains too many ring members");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
     tx.set_blob_size(tx_blob.size());
@@ -230,6 +255,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = tx.serialize_base(ba);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    CHECK_AND_ASSERT_MES(!n_key_offsets_exceeds_max(tx), false, "Transaction contains too many ring members");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, true), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
     return true;
@@ -242,6 +268,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = ::serialization::serialize_noeof(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction prefix from blob");
+    CHECK_AND_ASSERT_MES(!n_key_offsets_exceeds_max(tx), false, "Transaction contains too many ring members");
     return true;
   }
   //---------------------------------------------------------------
@@ -252,6 +279,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    CHECK_AND_ASSERT_MES(!n_key_offsets_exceeds_max(tx), false, "Transaction contains too many ring members");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
     //TODO: validate tx

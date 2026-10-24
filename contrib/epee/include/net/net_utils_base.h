@@ -108,6 +108,57 @@ namespace net_utils
 	inline bool operator>=(const ipv4_network_address& lhs, const ipv4_network_address& rhs) noexcept
 	{ return !lhs.less(rhs); }
 
+	class ipv4_network_subnet
+	{
+		uint32_t m_ip;
+		uint8_t m_mask;
+
+	public:
+		constexpr ipv4_network_subnet() noexcept
+			: m_ip(0), m_mask(0)
+		{}
+
+		ipv4_network_subnet(uint32_t ip, uint8_t mask)
+			: m_ip(ip), m_mask(mask)
+		{
+			CHECK_AND_ASSERT_THROW_MES(mask <= 32, "invalid IPv4 subnet mask");
+		}
+
+		bool equal(const ipv4_network_subnet& other) const noexcept;
+		bool less(const ipv4_network_subnet& other) const noexcept;
+		bool is_same_host(const ipv4_network_subnet& other) const noexcept
+		{ return subnet() == other.subnet(); }
+		bool matches(const ipv4_network_address &address) const;
+
+		uint8_t mask() const noexcept { return m_mask; }
+		uint32_t subnet() const noexcept;
+		std::string str() const;
+		std::string host_str() const;
+		bool is_loopback() const;
+		bool is_local() const;
+		static constexpr address_type get_type_id() noexcept { return address_type::invalid; }
+		static constexpr zone get_zone() noexcept { return zone::public_; }
+		static constexpr bool is_blockable() noexcept { return true; }
+
+		BEGIN_KV_SERIALIZE_MAP()
+			KV_SERIALIZE(m_ip)
+			KV_SERIALIZE(m_mask)
+		END_KV_SERIALIZE_MAP()
+	};
+
+	inline bool operator==(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
+	{ return lhs.equal(rhs); }
+	inline bool operator!=(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
+	{ return !lhs.equal(rhs); }
+	inline bool operator<(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
+	{ return lhs.less(rhs); }
+	inline bool operator<=(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
+	{ return !rhs.less(lhs); }
+	inline bool operator>(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
+	{ return rhs.less(lhs); }
+	inline bool operator>=(const ipv4_network_subnet& lhs, const ipv4_network_subnet& rhs) noexcept
+	{ return !lhs.less(rhs); }
+
 	class network_address
 	{
 		struct interface

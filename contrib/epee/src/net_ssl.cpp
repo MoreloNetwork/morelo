@@ -27,6 +27,9 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <string.h>
+#include <atomic>
+#include <memory>
+#include <mutex>
 // before OpenSSL, which undefines the wincrypt.h macros that clash with its names (X509_NAME, ...)
 #ifdef _WIN32
 #include <windows.h>
@@ -39,6 +42,7 @@
 #include <openssl/x509.h>
 #include <boost/filesystem/operations.hpp>
 #include "misc_log_ex.h"
+#include "net/net_utils_base.h"
 #include "net/net_ssl.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
@@ -511,7 +515,12 @@ bool ssl_options_t::has_fingerprint(boost::asio::ssl::verify_context &ctx) const
   return false;
 }
 
-bool ssl_options_t::handshake(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> &socket, boost::asio::ssl::stream_base::handshake_type type, const std::string& host) const
+bool ssl_options_t::handshake(
+  boost::asio::ssl::stream<boost::asio::ip::tcp::socket> &socket,
+  boost::asio::ssl::stream_base::handshake_type type,
+  boost::asio::const_buffer buffer,
+  const std::string& host,
+  std::chrono::milliseconds timeout) const
 {
   socket.next_layer().set_option(boost::asio::ip::tcp::no_delay(true));
 
@@ -549,11 +558,78 @@ bool ssl_options_t::handshake(boost::asio::ssl::stream<boost::asio::ip::tcp::soc
     });
   }
 
-  boost::system::error_code ec;
-  socket.handshake(type, ec);
-  if (ec)
+  // Run the handshake asynchronously with a deadline so a peer that opens the
+  // socket and then stalls (e.g. 9 bytes that look like a ClientHello) cannot
+  // park a worker thread forever. Ports Monero 437179197 (#5918), 23ba69ec8
+  // (#5996) and f7ab8bc6d (#7207, buffered detection).
+  // The handlers may run on another worker thread, or after this frame has
+  // returned (a stopped io_context, a late deadline), so everything they touch
+  // lives in a shared state object rather than on this stack.
+  struct handshake_state
   {
-    MERROR("SSL handshake failed, connection dropped: " << ec.message());
+    std::mutex lock;
+    boost::system::error_code result;
+    std::atomic<bool> done{false};
+    std::atomic<bool> cancelled{false};
+    std::atomic<bool> abandoned{false};
+  };
+  auto state = std::make_shared<handshake_state>();
+
+  auto& io_service = GET_IO_SERVICE(socket);
+  if (io_service.stopped())
+  {
+    // Only a client owns its io_context and may restart it. On the server a
+    // stopped io_context means send_stop_signal() ran: restarting it would undo
+    // the shutdown and leave workers running while it is destroyed under them.
+    if (type != boost::asio::ssl::stream_base::client)
+    {
+      MERROR("SSL handshake refused, io_service stopped");
+      return false;
+    }
+    io_service.restart();
+  }
+
+  boost::asio::steady_timer deadline(io_service, timeout);
+  deadline.async_wait([state, &socket](const boost::system::error_code& error) {
+    if (error == boost::asio::error::operation_aborted || state->done || state->abandoned)
+      return;
+    // cancel, don't close: the SSL operation may be live on another thread and
+    // closing the descriptor under it is a use-after-free of reactor state. The
+    // normal shutdown path closes the socket later.
+    state->cancelled = true;
+    boost::system::error_code ec;
+    socket.next_layer().cancel(ec);
+  });
+
+  socket.async_handshake(type, boost::asio::buffer(buffer), [state](const boost::system::error_code& ec, size_t) {
+    std::lock_guard<std::mutex> guard(state->lock);
+    state->result = ec;
+    state->done = true;
+  });
+
+  while (!state->done && !io_service.stopped())
+  {
+    // run_one_for() rather than run_one(): another worker may already be
+    // executing the io_service's tasks, so an unbounded wait could block forever
+    io_service.run_one_for(std::chrono::milliseconds(30));
+  }
+
+  try { deadline.cancel(); } catch (...) { /* ignore */ }
+  if (!state->done)
+  {
+    state->abandoned = true;
+    MERROR("SSL handshake aborted, io_service stopped");
+    return false;
+  }
+
+  boost::system::error_code ec;
+  {
+    std::lock_guard<std::mutex> guard(state->lock);
+    ec = state->result;
+  }
+  if (ec || state->cancelled)
+  {
+    MERROR("SSL handshake failed, connection dropped: " << (state->cancelled ? "timed out" : ec.message()));
     return false;
   }
   MDEBUG("SSL handshake success");

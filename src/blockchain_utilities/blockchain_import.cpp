@@ -38,7 +38,8 @@
 #include <unistd.h>
 #include "misc_log_ex.h"
 #include "bootstrap_file.h"
-#include "bootstrap_serialization.h"
+#include "cryptonote_core/bootstrap_import.h"
+#include "cryptonote_core/bootstrap_serialization.h"
 #include "blocks/blocks.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "serialization/binary_utils.h" // dump_binary(), parse_binary()
@@ -130,91 +131,6 @@ int pop_blocks(cryptonote::core& core, int num_blocks)
   return num_blocks;
 }
 
-int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &blocks, bool force)
-{
-  if (blocks.empty())
-    return 0;
-  if (!force && blocks.size() < db_batch_size)
-    return 0;
-
-  // wait till we can verify a full HOH without extra, for speed
-  uint64_t new_height = core.get_blockchain_storage().get_db().height() + blocks.size();
-  if (!force && new_height % HASH_OF_HASHES_STEP)
-    return 0;
-
-  std::vector<crypto::hash> hashes;
-  for (const auto &b: blocks)
-  {
-    cryptonote::block block;
-    if (!parse_and_validate_block_from_blob(b.block, block))
-    {
-      MERROR("Failed to parse block: "
-          << epee::string_tools::pod_to_hex(get_blob_hash(b.block)));
-      core.cleanup_handle_incoming_blocks();
-      return 1;
-    }
-    hashes.push_back(cryptonote::get_block_hash(block));
-  }
-  core.prevalidate_block_hashes(core.get_blockchain_storage().get_db().height(), hashes, {});
-
-  std::vector<block> pblocks;
-  if(!core.prepare_handle_incoming_blocks(blocks, pblocks))
-  {
-    MERROR("Failed to prepare to add blocks");
-    return 1;
-  }
-  if(!pblocks.empty() && pblocks.size() != blocks.size())
-  {
-    MERROR("Unexpected parsed blocks size");
-    core.cleanup_handle_incoming_blocks();
-    return 1;
-  }
-
-  size_t blockidx = 0;
-  for(const block_complete_entry& block_entry: blocks)
-  {
-    // process transactions
-    for(auto& tx_blob: block_entry.txs)
-    {
-      tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-      core.handle_incoming_tx(tx_blob, tvc, true, true, false);
-      if(tvc.m_verifivation_failed)
-      {
-        MERROR("transaction verification failed, tx_id = "
-            << epee::string_tools::pod_to_hex(get_blob_hash(tx_blob.blob)));
-        core.cleanup_handle_incoming_blocks();
-        return 1;
-      }
-    }
-
-    // process block
-
-    block_verification_context bvc = {};
-
-    core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx++], bvc, false); // <--- process block
-
-    if(bvc.m_verifivation_failed)
-    {
-      MERROR("Block verification failed, id = "
-          << epee::string_tools::pod_to_hex(get_blob_hash(block_entry.block)));
-      core.cleanup_handle_incoming_blocks();
-      return 1;
-    }
-    if(bvc.m_marked_as_orphaned)
-    {
-      MERROR("Block received at sync phase was marked as orphaned");
-      core.cleanup_handle_incoming_blocks();
-      return 1;
-    }
-
-  } // each download block
-  if (!core.cleanup_handle_incoming_blocks())
-    return 1;
-
-  blocks.clear();
-  return 0;
-}
-
 int import_from_file(cryptonote::core& core, const std::string& import_file_path, uint64_t block_stop=0)
 {
   // Reset stats, in case we're using newly created db, accumulating stats
@@ -241,7 +157,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
   uint64_t total_source_blocks = bootstrap.count_blocks(import_file_path, pos, seek_height);
   MINFO("bootstrap file last block number: " << total_source_blocks-1 << " (zero-based height)  total blocks: " << total_source_blocks);
 
-  if (total_source_blocks-1 <= start_height)
+  if (total_source_blocks <= start_height)
   {
     return false;
   }
@@ -266,7 +182,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 
   std::string str1;
   char buffer1[1024];
-  char buffer_block[BUFFER_SIZE];
+  std::string buffer_block;
   block b;
   transaction tx;
   int quit = 0;
@@ -349,7 +265,8 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
       MFATAL("ERROR: chunk_size == 0");
       return 2;
     }
-    import_file.read(buffer_block, chunk_size);
+    buffer_block.resize(chunk_size);
+    import_file.read(&buffer_block[0], chunk_size);
     if (! import_file) {
       if (import_file.eof())
       {
@@ -381,10 +298,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 
     try
     {
-      str1.assign(buffer_block, chunk_size);
-      bootstrap::block_package bp;
-      if (! ::serialization::parse_binary(str1, bp))
-        throw std::runtime_error("Error in deserialization of chunk");
+      str1 = std::move(buffer_block);
 
       int display_interval = 1000;
       int progress_interval = 10;
@@ -401,9 +315,6 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
         {
           MDEBUG("loading block number " << h-1);
         }
-        b = bp.block;
-        MDEBUG("block prev_id: " << b.prev_id << ENDL);
-
         if ((h-1) % progress_interval == 0)
         {
           std::cout << refresh_string << "block " << h-1
@@ -413,21 +324,11 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 
         if (opt_verify)
         {
-          cryptonote::blobdata block;
-          cryptonote::block_to_blob(bp.block, block);
-          std::vector<tx_blob_entry> txs;
-          for (const auto &tx: bp.txs)
-          {
-            txs.push_back({cryptonote::blobdata(), crypto::null_hash});
-            cryptonote::tx_to_blob(tx, txs.back().blob);
-          }
           block_complete_entry bce;
-          bce.pruned = false;
-          bce.block = std::move(block);
-          bce.txs = std::move(txs);
-          blocks.push_back(bce);
-          int ret = check_flush(core, blocks, false);
-          if (ret)
+          if (!bootstrap_chunk_to_entry(str1, bce))
+            throw std::runtime_error("Error in deserialization of chunk");
+          blocks.push_back(std::move(bce));
+          if (!bootstrap_add_blocks(core, blocks, false, db_batch_size))
           {
             quit = 2; // make sure we don't commit partial block data
             break;
@@ -435,6 +336,12 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
         }
         else
         {
+          bootstrap::block_package bp;
+          if (! ::serialization::parse_binary(str1, bp))
+            throw std::runtime_error("Error in deserialization of chunk");
+          b = bp.block;
+          MDEBUG("block prev_id: " << b.prev_id << ENDL);
+
           std::vector<std::pair<transaction, blobdata>> txs;
           std::vector<transaction> archived_txs;
 
@@ -509,12 +416,8 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 quitting:
   import_file.close();
 
-  if (opt_verify)
-  {
-    int ret = check_flush(core, blocks, true);
-    if (ret)
-      return ret;
-  }
+  if (opt_verify && !bootstrap_add_blocks(core, blocks, true, db_batch_size))
+    return 1;
 
   if (use_batch)
   {

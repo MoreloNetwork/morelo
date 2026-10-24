@@ -291,6 +291,36 @@ TEST(Serialization, serializes_vector_int64_as_fixed_int)
   ASSERT_EQ(57, blob.size());
 }
 
+TEST(Serialization, deserializes_vector_reserve)
+{
+  std::vector<int64_t> v;
+  string blob;
+
+  tools::write_varint(std::back_inserter(blob), unsigned(100));
+  blob.append(std::string(100, 0));
+
+  ASSERT_LT(v.capacity(), 20);
+  ASSERT_FALSE(serialization::parse_binary(blob, v));
+  ASSERT_LT(v.capacity(), 100); // could fail if lib allocates more in reserve call
+}
+
+TEST(Serialization, custom_vector_min_wire)
+{
+  // a v1 tx claiming more ring signature data than the blob holds must fail early
+  cryptonote::transaction tx;
+  tx.version = 1;
+  cryptonote::txin_to_key in;
+  in.amount = 1;
+  in.key_offsets.resize(1000, 1);
+  tx.vin.push_back(in);
+  std::string blob;
+  ASSERT_TRUE(serialization::dump_binary(static_cast<cryptonote::transaction_prefix&>(tx), blob));
+  blob.append(64, 0); // room for 1 signature, 1000 claimed
+
+  cryptonote::transaction tx2;
+  ASSERT_FALSE(serialization::parse_binary(blob, tx2));
+}
+
 namespace
 {
   template<typename T>
@@ -669,8 +699,15 @@ TEST(Serialization, serializes_ringct_types)
   ASSERT_TRUE(blob == blob2);
 }
 
+// The portability_* fixtures in tests/data were written by Monero wallets. Morelo derives
+// wallet and export encryption keys with the Arqma CryptoNight parameters (crypto/chacha.h)
+// and uses its own address prefixes, so they cannot be read back. Remove the skips once the
+// fixtures are regenerated with a Morelo testnet wallet.
+#define SKIP_MONERO_FIXTURE() GTEST_SKIP() << "fixture written by a Monero wallet"
+
 TEST(Serialization, portability_wallet)
 {
+  SKIP_MONERO_FIXTURE();
   const cryptonote::network_type nettype = cryptonote::TESTNET;
   const bool restricted = false;
   tools::wallet2 w(nettype, restricted);
@@ -797,6 +834,7 @@ TEST(Serialization, portability_wallet)
 #define OUTPUT_EXPORT_FILE_MAGIC "Monero output export\003"
 TEST(Serialization, portability_outputs)
 {
+  SKIP_MONERO_FIXTURE();
   // read file
   const boost::filesystem::path filename = unit_test::data_dir / "outputs";
   std::string data;
@@ -811,7 +849,7 @@ TEST(Serialization, portability_outputs)
     if(ciphertext.size() < prefix_size)
       return {};
     crypto::chacha_key key;
-    crypto::generate_chacha_key(&skey, sizeof(skey), key);
+    crypto::generate_chacha_key(&skey, sizeof(skey), key, 1);
     const crypto::chacha_iv &iv = *(const crypto::chacha_iv*)&ciphertext[0];
     std::string plaintext;
     plaintext.resize(ciphertext.size() - prefix_size);
@@ -913,6 +951,7 @@ TEST(Serialization, portability_outputs)
 #define UNSIGNED_TX_PREFIX "Monero unsigned tx set\003"
 TEST(Serialization, portability_unsigned_tx)
 {
+  SKIP_MONERO_FIXTURE();
   const boost::filesystem::path filename = unit_test::data_dir / "unsigned_monero_tx";
   std::string s;
   const cryptonote::network_type nettype = cryptonote::TESTNET;
@@ -1016,10 +1055,10 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(dest.amount == 1400000000000);
   ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == "9xnhrMczQkPeoGi6dyu6BgKAYX4tZsDs6KHCkyTStDBKL4M4pM1gfCR3utmTAcSaKHGa1R5o266FbdnubErmij3oMdLyYgA");
   // transfers
-  ASSERT_TRUE(exported_txs.transfers.size() == 3);
-  auto& td0 = exported_txs.transfers[0];
-  auto& td1 = exported_txs.transfers[1];
-  auto& td2 = exported_txs.transfers[2];
+  ASSERT_TRUE(exported_txs.transfers.second.size() == 3);
+  auto& td0 = exported_txs.transfers.second[0];
+  auto& td1 = exported_txs.transfers.second[1];
+  auto& td2 = exported_txs.transfers.second[2];
   ASSERT_TRUE(td0.m_block_height == 818424);
   ASSERT_TRUE(td1.m_block_height == 818522);
   ASSERT_TRUE(td2.m_block_height == 818522);
@@ -1061,6 +1100,7 @@ TEST(Serialization, portability_unsigned_tx)
 #define SIGNED_TX_PREFIX "Monero signed tx set\003"
 TEST(Serialization, portability_signed_tx)
 {
+  SKIP_MONERO_FIXTURE();
   const boost::filesystem::path filename = unit_test::data_dir / "signed_monero_tx";
   const cryptonote::network_type nettype = cryptonote::TESTNET;
   std::string s;

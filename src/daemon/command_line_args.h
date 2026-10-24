@@ -135,6 +135,23 @@ namespace daemon_args
     }
   };
 
+  const command_line::arg_descriptor<std::vector<std::string>> arg_bootstrap_url = {
+    "bootstrap-url"
+  , "Download the blockchain from this https bootstrap mirror, a file written by morelo-blockchain-export (unrelated to --bootstrap-daemon-address), instead of the default ones (can be repeated). Used while the local blockchain is empty, every block is verified as if it came from a peer"
+  };
+
+  const command_line::arg_descriptor<bool> arg_no_bootstrap = {
+    "no-bootstrap"
+  , "Never download the blockchain from bootstrap mirrors, sync it from peers only"
+  , false
+  };
+
+  const command_line::arg_descriptor<bool> arg_bootstrap_force = {
+    "bootstrap-force"
+  , "Bootstrap even though the local blockchain is not empty, meant for a single start: the file is read from its start and the blocks already present are skipped, so this only pays off far behind its height"
+  , false
+  };
+
 }  // namespace daemon_args
 
 #endif // DAEMON_COMMAND_LINE_ARGS_H

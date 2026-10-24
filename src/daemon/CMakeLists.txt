@@ -28,6 +28,7 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 set(daemon_sources
+  bootstrap.cpp
   command_parser_executor.cpp
   command_server.cpp
   daemon.cpp
@@ -38,6 +39,7 @@ set(daemon_sources
 set(daemon_headers)
 
 set(daemon_private_headers
+  bootstrap.h
   command_parser_executor.h
   command_server.h
   core.h
