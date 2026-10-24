@@ -29,6 +29,7 @@
 
 #include <iostream>
 #include <vector>
+#include <boost/optional/optional.hpp>
 
 #include "gtest/gtest.h"
 
@@ -174,3 +175,15 @@ TEST(DNS_PUBLIC, invalid_ip_num5) { EXPECT_TRUE(tools::dns_utils::parse_dns_publ
 TEST(DNS_PUBLIC, invalid_ip_4_missing) { EXPECT_TRUE(tools::dns_utils::parse_dns_public("tcp://3.4..7").empty()); }
 TEST(DNS_PUBLIC, valid_ip_lo) { EXPECT_TRUE(is_equal("127.0.0.1", tools::dns_utils::parse_dns_public("tcp://127.0.0.1"))); }
 TEST(DNS_PUBLIC, valid_ip) { EXPECT_TRUE(is_equal("3.4.5.6", tools::dns_utils::parse_dns_public("tcp://3.4.5.6"))); }
+
+namespace tools { boost::optional<std::string> ipv6_to_string(const char* src, size_t len); }
+
+TEST(DNSResolver, ipv6_to_string)
+{
+  // AAAA rdata is the 16 address bytes in network order
+  const char rdata[16] = {0x2a, 0x01, 0x04, (char)0xf8, 0x0c, 0x17, 0x12, 0x34, 0, 0, 0, 0, 0, 0, 0, 0x01};
+  const boost::optional<std::string> ip = tools::ipv6_to_string(rdata, sizeof(rdata));
+  ASSERT_TRUE(bool(ip));
+  EXPECT_EQ("2a01:4f8:c17:1234::1", *ip);
+  EXPECT_FALSE(tools::ipv6_to_string(rdata, 15));
+}

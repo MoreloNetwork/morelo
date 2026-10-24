@@ -39,6 +39,8 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/optional.hpp>
+#include <boost/asio/ip/address_v6.hpp>
+#include <cstring>
 using namespace epee;
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
@@ -115,32 +117,17 @@ boost::optional<std::string> ipv4_to_string(const char* src, size_t len)
   return ss.str();
 }
 
-// this obviously will need to change, but is here to reflect the above
-// stop-gap measure and to make the tests pass at least...
 boost::optional<std::string> ipv6_to_string(const char* src, size_t len)
 {
-  if (len < 8)
+  if (len < 16)
   {
-    MERROR("Invalid IPv6 address: " << std::string(src, len));
+    MERROR("Invalid IPv6 address with length " << len);
     return boost::none;
   }
 
-  std::stringstream ss;
-  unsigned int bytes[8];
-  for (int i = 0; i < 8; i++)
-  {
-    unsigned char a = src[i];
-    bytes[i] = a;
-  }
-  ss << bytes[0] << ":"
-     << bytes[1] << ":"
-     << bytes[2] << ":"
-     << bytes[3] << ":"
-     << bytes[4] << ":"
-     << bytes[5] << ":"
-     << bytes[6] << ":"
-     << bytes[7];
-  return ss.str();
+  boost::asio::ip::address_v6::bytes_type bytes;
+  std::memcpy(bytes.data(), src, 16);
+  return boost::asio::ip::address_v6(bytes).to_string();
 }
 
 boost::optional<std::string> txt_to_string(const char* src, size_t len)
