@@ -967,6 +967,20 @@ namespace nodetool
         }
         for (std::string& addr : addr_list)
           addr += ":" + std::to_string(p2p_port);
+        MINFO("dns_threads[" << result_index << "] addr_str: " << addr_str << "  number of A results: " << addr_list.size());
+        // results are handed over as they come, so a slow AAAA lookup can't cost the A ones;
+        // a timed out lookup finds the frame gone and simply discards its results
+        const auto store = [&frame_weak, result_index](const std::vector<std::string>& results)
+        {
+          const auto frame = frame_weak.lock();
+          if (frame)
+          {
+            const boost::lock_guard<boost::mutex> lock{frame->sync};
+            std::vector<std::string>& stored = frame->dns_results.at(result_index);
+            stored.insert(stored.end(), results.begin(), results.end());
+          }
+        };
+        store(addr_list);
         if (use_ipv6)
         {
           std::vector<std::string> addr6_list = tools::DNSResolver::instance().get_ipv6(addr_str, avail, valid);
@@ -975,16 +989,10 @@ namespace nodetool
             MWARNING("DNSSEC validation failed for a DNS seed node: " << addr_str << ", ignoring " << addr6_list.size() << " AAAA results: " << boost::algorithm::join(addr6_list, ", "));
             addr6_list.clear();
           }
-          for (const std::string& addr : addr6_list)
-            addr_list.push_back("[" + addr + "]:" + std::to_string(p2p_port));
-        }
-        MINFO("dns_threads[" << result_index << "] addr_str: " << addr_str << "  number of results: " << addr_list.size());
-        // a timed out lookup finds the frame gone and simply discards its results
-        const auto frame = frame_weak.lock();
-        if (frame)
-        {
-          const boost::lock_guard<boost::mutex> lock{frame->sync};
-          frame->dns_results.at(result_index) = std::move(addr_list);
+          for (std::string& addr : addr6_list)
+            addr = "[" + addr + "]:" + std::to_string(p2p_port);
+          MINFO("dns_threads[" << result_index << "] addr_str: " << addr_str << "  number of AAAA results: " << addr6_list.size());
+          store(addr6_list);
         }
       });
 
