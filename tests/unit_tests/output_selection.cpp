@@ -101,3 +101,33 @@ TEST(select_outputs, order)
   PICK(4); // then the one that's adjacent
   PICK(1); // then the one that's on the same height
 }
+
+TEST(select_outputs, exact_unlock_block_tiny)
+{
+  // Smallest chain the picker accepts, with one output in block 0. Since
+  // rct_offsets is cumulative, later blocks retain that output.
+  std::vector<uint64_t> offsets(config::tx_settings::MORELO_TX_CONFIRMATIONS_REQUIRED + 1, 1);
+  tools::gamma_picker picker(offsets);
+  ASSERT_EQ(picker.get_num_rct_outs(), 1);
+
+  constexpr size_t MAX_PICK_TRIES = 1000;
+  bool found_the_one_output = false;
+  for (size_t i = 0; i < MAX_PICK_TRIES; ++i)
+  {
+    if (picker.pick() == 0)
+    {
+      found_the_one_output = true;
+      break;
+    }
+  }
+
+  EXPECT_TRUE(found_the_one_output);
+}
+
+TEST(select_outputs, gamma_no_outputs_in_window)
+{
+  // all outputs are older than the consideration window: must throw, not divide by zero
+  const size_t blocks_in_a_year = 86400 * 365 / DIFFICULTY_TARGET_V11;
+  std::vector<uint64_t> offsets(blocks_in_a_year + 10, 5);
+  EXPECT_THROW(tools::gamma_picker picker(offsets), std::exception);
+}

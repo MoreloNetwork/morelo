@@ -43,3 +43,6 @@ TEST(vercmp, one_dot_ten_one_dot_nine) { ASSERT_TRUE(tools::vercmp("1.10", "1.9"
 TEST(vercmp, one_one_dot_nine) { ASSERT_TRUE(tools::vercmp("1", "1.9") < 0); }
 TEST(vercmp, to_master) { ASSERT_TRUE(tools::vercmp("1.0", "1.0-master") < 0); }
 TEST(vercmp, from_master) { ASSERT_TRUE(tools::vercmp("1.0-master", "1.1") < 0); }
+TEST(vercmp, huge) { ASSERT_TRUE(tools::vercmp("99999999999", "1") > 0); }
+TEST(vercmp, huge_vs_int_max) { ASSERT_TRUE(tools::vercmp("2147483648", "2147483647") > 0); }
+TEST(vercmp, int_min_diff) { ASSERT_TRUE(tools::vercmp("0", "2147483648") < 0); }

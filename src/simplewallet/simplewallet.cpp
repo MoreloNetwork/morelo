@@ -133,6 +133,19 @@ typedef cryptonote::simple_wallet sw;
 #define MAX_PAYMENT_DIFF 10000
 #define MIN_PAYMENT_RATE 0.01f // per hash
 
+#define CHECK_MULTISIG_ENABLED() \
+  do \
+  { \
+    if (!m_wallet->is_multisig_enabled()) \
+    { \
+      fail_msg_writer() << tr("Multisig is disabled."); \
+      fail_msg_writer() << tr("Multisig is an experimental feature and may have bugs. Things that could go wrong include: funds sent to a multisig wallet can't be spent at all, can only be spent with the participation of a malicious group member, or can be stolen by a malicious group member."); \
+      fail_msg_writer() << tr("You can enable it with:"); \
+      fail_msg_writer() << tr("  set enable-multisig-experimental 1"); \
+      return true; \
+    } \
+  } while(0)
+
 enum TransferType {
   Transfer,
   TransferLocked,
@@ -953,6 +966,7 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
 
 bool simple_wallet::prepare_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
@@ -986,6 +1000,7 @@ bool simple_wallet::prepare_multisig(const std::vector<std::string> &args)
 
 bool simple_wallet::make_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
@@ -1064,6 +1079,7 @@ bool simple_wallet::make_multisig(const std::vector<std::string> &args)
 
 bool simple_wallet::finalize_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   bool ready;
   if (m_wallet->key_on_device())
   {
@@ -1116,6 +1132,7 @@ bool simple_wallet::finalize_multisig(const std::vector<std::string> &args)
 
 bool simple_wallet::exchange_multisig_keys(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
     bool ready;
     if (m_wallet->key_on_device())
     {
@@ -1173,6 +1190,7 @@ bool simple_wallet::exchange_multisig_keys(const std::vector<std::string> &args)
 
 bool simple_wallet::export_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   bool ready;
   if (m_wallet->key_on_device())
   {
@@ -1224,6 +1242,7 @@ bool simple_wallet::export_multisig(const std::vector<std::string> &args)
 
 bool simple_wallet::import_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   bool ready;
   uint32_t threshold, total;
   if (m_wallet->key_on_device())
@@ -1304,6 +1323,7 @@ bool simple_wallet::accept_loaded_tx(const tools::wallet2::multisig_tx_set &txs)
 
 bool simple_wallet::sign_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   bool ready;
   if (m_wallet->key_on_device())
   {
@@ -1377,6 +1397,7 @@ bool simple_wallet::sign_multisig(const std::vector<std::string> &args)
 
 bool simple_wallet::submit_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   bool ready;
   uint32_t threshold;
   if (m_wallet->key_on_device())
@@ -1445,6 +1466,7 @@ bool simple_wallet::submit_multisig(const std::vector<std::string> &args)
 
 bool simple_wallet::export_raw_multisig(const std::vector<std::string> &args)
 {
+  CHECK_MULTISIG_ENABLED();
   bool ready;
   uint32_t threshold;
   if (m_wallet->key_on_device())
@@ -2017,8 +2039,8 @@ bool simple_wallet::public_nodes(const std::vector<std::string> &args)
       const float cph = node.rpc_credits_per_hash / RPC_CREDITS_PER_HASH_SCALE;
       char cphs[9];
       snprintf(cphs, sizeof(cphs), "%.3f", cph);
-      const std::string last_seen = node.last_seen == 0 ? tr("never") : get_human_readable_timespan(std::chrono::seconds(now - node.last_seen));
-      std::string host = node.host + ":" + std::to_string(node.rpc_port);
+      const std::string last_seen = node.last_seen == 0 ? tr("never") : get_human_readable_timespan(std::chrono::seconds(now - std::min(now, node.last_seen)));
+      const std::string host = node.host + ":" + std::to_string(node.rpc_port);
       message_writer() << boost::format("%32s %12s %16s") % host % cphs % last_seen;
       m_claimed_cph[host] = node.rpc_credits_per_hash;
     }
@@ -2590,6 +2612,19 @@ bool simple_wallet::set_credits_target(const std::vector<std::string> &args/* = 
   return true;
 }
 
+bool simple_wallet::set_enable_multisig(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
+{
+  const auto pwd_container = get_and_verify_password();
+  if (pwd_container)
+  {
+    parse_bool_and_use(args[1], [&](bool r) {
+      m_wallet->enable_multisig(r);
+      m_wallet->rewrite(m_wallet_file, pwd_container->password());
+    });
+  }
+  return true;
+}
+
 bool simple_wallet::set_key_reuse_mitigation2(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
   const auto pwd_container = get_and_verify_password();
@@ -2851,7 +2886,9 @@ simple_wallet::simple_wallet()
                                   "auto-mine-for-rpc-payment-threshold <float>\n "
                                   "  Whether to automatically start mining for RPC payment if the daemon requires it.\n"
                                   "credits-target <unsigned int>\n"
-                                  "  The RPC payment credits balance to target."));
+                                  "  The RPC payment credits balance to target.\n"
+                                  "enable-multisig-experimental <1|0>\n "
+                                  "  Set this to allow multisig commands. Multisig may currently be exploitable if parties do not trust each other."));
   m_cmd_binder.set_handler("encrypted_seed",
                            boost::bind(&simple_wallet::encrypted_seed, this, _1),
                            tr("Display the encrypted Electrum-style mnemonic seed."));
@@ -3129,6 +3166,7 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     success_msg_writer() << "persistent-rpc-client-id = " << m_wallet->persistent_rpc_client_id();
     success_msg_writer() << "auto-mine-for-rpc-payment-threshold = " << m_wallet->auto_mine_for_rpc_payment_threshold();
     success_msg_writer() << "credits-target = " << m_wallet->credits_target();
+    success_msg_writer() << "enable-multisig-experimental = " << m_wallet->is_multisig_enabled();
     return true;
   }
   else
@@ -3188,6 +3226,7 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     CHECK_SIMPLE_VARIABLE("persistent-rpc-client-id", set_persistent_rpc_client_id, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("auto-mine-for-rpc-payment-threshold", set_auto_mine_for_rpc_payment_threshold, tr("floating point >= 0"));
     CHECK_SIMPLE_VARIABLE("credits-target", set_credits_target, tr("unsigned integer"));
+    CHECK_SIMPLE_VARIABLE("enable-multisig-experimental", set_enable_multisig, tr("0 or 1"));
   }
   fail_msg_writer() << tr("set: unrecognized argument(s)");
   return true;
@@ -5772,6 +5811,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     // actually commit the transactions
     if (m_wallet->multisig())
     {
+      CHECK_MULTISIG_ENABLED();
       bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_morelo_tx");
       if (!r)
       {
@@ -5881,6 +5921,7 @@ bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
     // actually commit the transactions
     if (m_wallet->multisig())
     {
+      CHECK_MULTISIG_ENABLED();
       bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_morelo_tx");
       if (!r)
       {
@@ -6096,6 +6137,13 @@ bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<st
       local_args.pop_back();
   }
 
+  if (local_args.empty())
+  {
+    fail_msg_writer() << tr("No address given");
+    print_usage();
+    return true;
+  }
+
   cryptonote::address_parse_info info;
   if (!cryptonote::get_account_address_from_str_or_url(info, m_wallet->nettype(), local_args[0], oa_prompter))
   {
@@ -6203,6 +6251,7 @@ bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<st
     // actually commit the transactions
     if (m_wallet->multisig())
     {
+      CHECK_MULTISIG_ENABLED();
       bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_morelo_tx");
       if (!r)
       {
@@ -6422,6 +6471,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
     // actually commit the transactions
     if (m_wallet->multisig())
     {
+      CHECK_MULTISIG_ENABLED();
       bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_morelo_tx");
       if (!r)
       {

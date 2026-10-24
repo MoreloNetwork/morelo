@@ -32,6 +32,7 @@
 #include <string>
 #include <unordered_set>
 #include <unordered_map>
+#include <boost/thread/mutex.hpp>
 #include <boost/serialization/version.hpp>
 #include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_basic/cryptonote_basic.h"
@@ -140,6 +141,7 @@ namespace cryptonote
     uint64_t m_nonces_stale;
     uint64_t m_nonces_bad;
     uint64_t m_nonces_dupe;
+    mutable boost::mutex mutex;
   };
 }
 

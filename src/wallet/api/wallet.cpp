@@ -84,10 +84,17 @@ namespace {
       return dir.string();
     }
 
+    void checkMultisigEnabled(const tools::wallet2* wallet) {
+        if (!wallet->is_multisig_enabled()) {
+            throw runtime_error("Multisig is disabled. It is an experimental feature that may be exploited by a malicious group member; enable it once with: morelo-wallet-cli set enable-multisig-experimental 1");
+        }
+    }
+
     void checkMultisigWalletReady(const tools::wallet2* wallet) {
         if (!wallet) {
             throw runtime_error("Wallet is not initialized yet");
         }
+        checkMultisigEnabled(wallet);
 
         bool ready;
         if (!wallet->multisig(&ready)) {
@@ -106,6 +113,7 @@ namespace {
         if (!wallet) {
             throw runtime_error("Wallet is not initialized yet");
         }
+        checkMultisigEnabled(wallet);
 
         bool ready;
         if (!wallet->multisig(&ready)) {
@@ -613,6 +621,7 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
         setStatusError(string(tr("failed to generate new wallet: ")) + e.what());
         return false;
     }
+    m_password = password;
     return true;
 }
 
@@ -631,6 +640,7 @@ bool WalletImpl::recoverFromDevice(const std::string &path, const std::string &p
         m_status = Status_Error;
         return false;
     }
+    m_password = password;
     return true;
 }
 
@@ -696,6 +706,7 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
     try {
         m_wallet->set_seed_language(old_language);
         m_wallet->generate(path, password, recovery_key, true, false);
+        m_password = password;
 
     } catch (const std::exception& e) {
         setStatusCritical(e.what());
@@ -1177,6 +1188,7 @@ MultisigState WalletImpl::multisig() const {
 string WalletImpl::getMultisigInfo() const {
     try {
         clearStatus();
+        checkMultisigEnabled(m_wallet.get());
         return m_wallet->get_multisig_info();
     } catch (const exception& e) {
         LOG_ERROR("Error on generating multisig info: " << e.what());
@@ -1190,6 +1202,7 @@ string WalletImpl::makeMultisig(const vector<string>& info, uint32_t threshold) 
     try {
         clearStatus();
 
+        checkMultisigEnabled(m_wallet.get());
         if (m_wallet->multisig()) {
             throw runtime_error("Wallet is already multisig");
         }

@@ -62,6 +62,30 @@ using namespace epee;
 
 #define DEFAULT_AUTO_REFRESH_PERIOD 20 // seconds
 
+#define CHECK_IF_RESTRICTED() \
+  do \
+  { \
+    if (m_restricted) \
+    { \
+      er.code = WALLET_RPC_ERROR_CODE_DENIED; \
+      er.message = "Command unavailable in restricted mode."; \
+      return false; \
+    } \
+  } while(0)
+
+// Multisig (the old, unpatched scheme) is only usable once explicitly enabled
+#define CHECK_MULTISIG_ENABLED_IF(cond) \
+  do \
+  { \
+    if ((cond) && !m_wallet->is_multisig_enabled()) \
+    { \
+      er.code = WALLET_RPC_ERROR_CODE_DISABLED; \
+      er.message = "Multisig is disabled. Multisig is an experimental feature and may have bugs. Things that could go wrong include: funds sent to a multisig wallet can't be spent at all, can only be spent with the participation of a malicious group member, or can be stolen by a malicious group member. You can enable it by running this once in morelo-wallet-cli: set enable-multisig-experimental 1, or by passing enable_multisig_experimental to prepare_multisig"; \
+      return false; \
+    } \
+  } while(0)
+#define CHECK_MULTISIG_ENABLED() CHECK_MULTISIG_ENABLED_IF(m_wallet->multisig())
+
 namespace
 {
   const command_line::arg_descriptor<std::string, true> arg_rpc_bind_port = {"rpc-bind-port", "Sets bind port for server"};
@@ -71,6 +95,27 @@ namespace
   const command_line::arg_descriptor<bool> arg_prompt_for_password = {"prompt-for-password", "Prompts for password when not provided", false};
 
   constexpr const char default_rpc_username[] = "morelo";
+
+  // a plain file name inside --wallet-dir: no path separators, and none of the
+  // Windows reserved device names, which would open a device instead of a file
+  bool is_valid_wallet_filename(const std::string &filename)
+  {
+    if (filename.empty() || filename == "." || filename == ".." || filename.find('/') != std::string::npos)
+      return false;
+#ifdef _WIN32
+    if (filename.find_first_of("\\:") != std::string::npos)
+      return false;
+    std::string base = boost::algorithm::to_upper_copy(filename.substr(0, filename.find('.')));
+    base.erase(base.find_last_not_of(' ') + 1);
+    static const char *const reserved[] = { "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$" };
+    for (const char *r: reserved)
+      if (base == r)
+        return false;
+    if (base.size() == 4 && (base.compare(0, 3, "COM") == 0 || base.compare(0, 3, "LPT") == 0) && base[3] >= '0' && base[3] <= '9')
+      return false;
+#endif
+    return true;
+  }
 
   boost::optional<tools::password_container> password_prompter(const char *prompt, bool verify)
   {
@@ -215,7 +260,7 @@ namespace tools
         );
 
         std::string temp = "morelo-wallet-rpc." + bind_port + ".login";
-        rpc_login_file = tools::private_file::create(temp);
+        rpc_login_file = tools::private_file::drop_and_recreate(temp);
         if (!rpc_login_file.handle())
         {
           LOG_ERROR(tr("Failed to create file ") << temp << tr(". Check permissions or remove file"));
@@ -469,6 +514,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_create_address(const wallet_rpc::COMMAND_RPC_CREATE_ADDRESS::request& req, wallet_rpc::COMMAND_RPC_CREATE_ADDRESS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -486,6 +532,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_label_address(const wallet_rpc::COMMAND_RPC_LABEL_ADDRESS::request& req, wallet_rpc::COMMAND_RPC_LABEL_ADDRESS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -540,6 +587,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_create_account(const wallet_rpc::COMMAND_RPC_CREATE_ACCOUNT::request& req, wallet_rpc::COMMAND_RPC_CREATE_ACCOUNT::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -557,6 +605,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_label_account(const wallet_rpc::COMMAND_RPC_LABEL_ACCOUNT::request& req, wallet_rpc::COMMAND_RPC_LABEL_ACCOUNT::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -591,6 +640,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_tag_accounts(const wallet_rpc::COMMAND_RPC_TAG_ACCOUNTS::request& req, wallet_rpc::COMMAND_RPC_TAG_ACCOUNTS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -606,6 +656,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_untag_accounts(const wallet_rpc::COMMAND_RPC_UNTAG_ACCOUNTS::request& req, wallet_rpc::COMMAND_RPC_UNTAG_ACCOUNTS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -621,6 +672,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_set_account_tag_description(const wallet_rpc::COMMAND_RPC_SET_ACCOUNT_TAG_DESCRIPTION::request& req, wallet_rpc::COMMAND_RPC_SET_ACCOUNT_TAG_DESCRIPTION::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -856,6 +908,7 @@ namespace tools
 
     LOG_PRINT_L3("on_transfer starts");
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -916,6 +969,7 @@ namespace tools
     std::vector<uint8_t> extra;
 
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -959,6 +1013,7 @@ namespace tools
   bool wallet_rpc_server::on_sign_transfer(const wallet_rpc::COMMAND_RPC_SIGN_TRANSFER::request& req, wallet_rpc::COMMAND_RPC_SIGN_TRANSFER::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1305,6 +1360,7 @@ namespace tools
   bool wallet_rpc_server::on_sweep_dust(const wallet_rpc::COMMAND_RPC_SWEEP_DUST::request& req, wallet_rpc::COMMAND_RPC_SWEEP_DUST::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1333,6 +1389,7 @@ namespace tools
     std::vector<uint8_t> extra;
 
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1388,6 +1445,7 @@ namespace tools
     std::vector<uint8_t> extra;
 
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -1473,6 +1531,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_relay_tx(const wallet_rpc::COMMAND_RPC_RELAY_TX::request& req, wallet_rpc::COMMAND_RPC_RELAY_TX::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
 
     cryptonote::blobdata blob;
@@ -2569,6 +2628,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_export_key_images(const wallet_rpc::COMMAND_RPC_EXPORT_KEY_IMAGES::request& req, wallet_rpc::COMMAND_RPC_EXPORT_KEY_IMAGES::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     try
     {
@@ -2856,6 +2916,12 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
+    if (!m_wallet->is_trusted_daemon())
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "This command requires a trusted daemon.";
+      return false;
+    }
     try
     {
       m_wallet->rescan_spent();
@@ -2871,6 +2937,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_start_mining(const wallet_rpc::COMMAND_RPC_START_MINING::request& req, wallet_rpc::COMMAND_RPC_START_MINING::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     if (!m_wallet->is_trusted_daemon())
     {
@@ -2906,6 +2973,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_stop_mining(const wallet_rpc::COMMAND_RPC_STOP_MINING::request& req, wallet_rpc::COMMAND_RPC_STOP_MINING::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
     cryptonote::COMMAND_RPC_STOP_MINING::request daemon_req;
     cryptonote::COMMAND_RPC_STOP_MINING::response daemon_res;
@@ -2927,6 +2995,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_create_wallet(const wallet_rpc::COMMAND_RPC_CREATE_WALLET::request& req, wallet_rpc::COMMAND_RPC_CREATE_WALLET::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (m_wallet_dir.empty())
     {
       er.code = WALLET_RPC_ERROR_CODE_NO_WALLET_DIR;
@@ -2936,14 +3005,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-#ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-#endif
-    if (ptr)
+    if (!is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3024,6 +3086,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_open_wallet(const wallet_rpc::COMMAND_RPC_OPEN_WALLET::request& req, wallet_rpc::COMMAND_RPC_OPEN_WALLET::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (m_wallet_dir.empty())
     {
       er.code = WALLET_RPC_ERROR_CODE_NO_WALLET_DIR;
@@ -3033,14 +3096,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-#ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-#endif
-    if (ptr)
+    if (!is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3094,6 +3150,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_close_wallet(const wallet_rpc::COMMAND_RPC_CLOSE_WALLET::request& req, wallet_rpc::COMMAND_RPC_CLOSE_WALLET::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (!m_wallet) return not_open(er);
 
     try
@@ -3225,6 +3282,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_generate_from_keys(const wallet_rpc::COMMAND_RPC_GENERATE_FROM_KEYS::request &req, wallet_rpc::COMMAND_RPC_GENERATE_FROM_KEYS::response &res, epee::json_rpc::error &er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (m_wallet_dir.empty())
     {
       er.code = WALLET_RPC_ERROR_CODE_NO_WALLET_DIR;
@@ -3248,14 +3306,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-  #ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-  #endif
-    if (ptr)
+    if (!req.filename.empty() && !is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3320,6 +3371,14 @@ namespace tools
       return false;
     }
 
+    hw::device &hwdev = hw::get_device("default");
+    if (!hwdev.verify_keys(viewkey, info.address.m_view_public_key))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "view secret key does not match main address";
+      return false;
+    }
+
     if (m_wallet && req.autosave_current)
     {
       try
@@ -3346,6 +3405,14 @@ namespace tools
           er.message = "Failed to parse spend key secret key";
           return false;
         }
+
+        if (!hwdev.verify_keys(spendkey, info.address.m_spend_public_key))
+        {
+          er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+          er.message = "spend secret key does not match main address";
+          return false;
+        }
+
         wal->generate(wallet_file, std::move(rc.second).password(), info.address, spendkey, viewkey, false);
         res.info = "Wallet has been generated successfully.";
       }
@@ -3390,6 +3457,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_restore_deterministic_wallet(const wallet_rpc::COMMAND_RPC_RESTORE_DETERMINISTIC_WALLET::request &req, wallet_rpc::COMMAND_RPC_RESTORE_DETERMINISTIC_WALLET::response &res, epee::json_rpc::error &er, const connection_context *ctx)
   {
+    CHECK_IF_RESTRICTED();
     if (m_wallet_dir.empty())
     {
       er.code = WALLET_RPC_ERROR_CODE_NO_WALLET_DIR;
@@ -3407,14 +3475,7 @@ namespace tools
 
     namespace po = boost::program_options;
     po::variables_map vm2;
-    const char *ptr = strchr(req.filename.c_str(), '/');
-  #ifdef _WIN32
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), '\\');
-    if (!ptr)
-      ptr = strchr(req.filename.c_str(), ':');
-  #endif
-    if (ptr)
+    if (!req.filename.empty() && !is_valid_wallet_filename(req.filename))
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = "Invalid filename";
@@ -3593,6 +3654,7 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
+    CHECK_MULTISIG_ENABLED_IF(!req.enable_multisig_experimental);
     if (m_wallet->multisig())
     {
       er.code = WALLET_RPC_ERROR_CODE_ALREADY_MULTISIG;
@@ -3607,12 +3669,17 @@ namespace tools
     }
 
     res.multisig_info = m_wallet->get_multisig_info();
+    // only enable once the call succeeded; there is no password here to rewrite the
+    // keys file, it is saved with the flag by make_multisig, which takes the password
+    if (req.enable_multisig_experimental)
+      m_wallet->enable_multisig(true);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_make_multisig(const wallet_rpc::COMMAND_RPC_MAKE_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_MAKE_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED_IF(true);
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3650,6 +3717,7 @@ namespace tools
   bool wallet_rpc_server::on_export_multisig(const wallet_rpc::COMMAND_RPC_EXPORT_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_EXPORT_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3690,6 +3758,7 @@ namespace tools
   bool wallet_rpc_server::on_import_multisig(const wallet_rpc::COMMAND_RPC_IMPORT_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_IMPORT_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3763,6 +3832,7 @@ namespace tools
   bool wallet_rpc_server::on_finalize_multisig(const wallet_rpc::COMMAND_RPC_FINALIZE_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_FINALIZE_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3814,6 +3884,7 @@ namespace tools
   bool wallet_rpc_server::on_exchange_multisig_keys(const wallet_rpc::COMMAND_RPC_EXCHANGE_MULTISIG_KEYS::request& req, wallet_rpc::COMMAND_RPC_EXCHANGE_MULTISIG_KEYS::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3863,6 +3934,7 @@ namespace tools
   bool wallet_rpc_server::on_sign_multisig(const wallet_rpc::COMMAND_RPC_SIGN_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_SIGN_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -3932,6 +4004,7 @@ namespace tools
   bool wallet_rpc_server::on_submit_multisig(const wallet_rpc::COMMAND_RPC_SUBMIT_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_SUBMIT_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+    CHECK_MULTISIG_ENABLED();
     if (m_restricted)
     {
       er.code = WALLET_RPC_ERROR_CODE_DENIED;
@@ -4063,10 +4136,24 @@ namespace tools
 	  ssl_allowed_fingerprints.reserve(req.ssl_allowed_fingerprints.size());
 	  for (const std::string &fp: req.ssl_allowed_fingerprints)
 	  {
-	    ssl_allowed_fingerprints.push_back({});
-	    std::vector<uint8_t> &v = ssl_allowed_fingerprints.back();
-	    for (auto c: fp)
-	      v.push_back(c);
+	    std::vector<uint8_t> decoded;
+	    try
+	    {
+	      decoded = epee::from_hex_locale::to_vector(fp);
+	    }
+	    catch (const std::exception &)
+	    {
+	      er.code = WALLET_RPC_ERROR_CODE_NO_DAEMON_CONNECTION;
+	      er.message = "ssl_allowed_fingerprints[] entries must be hex-encoded SHA-256 values";
+	      return false;
+	    }
+	    if (decoded.size() != SSL_FINGERPRINT_SIZE)
+	    {
+	      er.code = WALLET_RPC_ERROR_CODE_NO_DAEMON_CONNECTION;
+	      er.message = "Each ssl_allowed_fingerprints[] entry must decode to exactly " BOOST_PP_STRINGIZE(SSL_FINGERPRINT_SIZE) " bytes";
+	      return false;
+	    }
+	    ssl_allowed_fingerprints.emplace_back(std::move(decoded));
 	  }
 
 	  epee::net_utils::ssl_options_t ssl_options = epee::net_utils::ssl_support_t::e_ssl_support_enabled;
@@ -4187,6 +4274,12 @@ public:
       if(!wallet_file.empty() && !from_json.empty())
       {
         LOG_ERROR(tools::wallet_rpc_server::tr("Can't specify more than one of --wallet-file and --generate-from-json"));
+        return false;
+      }
+
+      if (!wallet_dir.empty() && tools::wallet2::has_password_option(vm))
+      {
+        LOG_ERROR(tools::wallet_rpc_server::tr("--password and --password-file are not allowed in combination with --wallet-dir"));
         return false;
       }
 

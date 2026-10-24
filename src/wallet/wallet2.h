@@ -78,7 +78,7 @@
   } while(0)
 
 #define THROW_ON_RPC_RESPONSE_ERROR_GENERIC(r, err, res, method) \
-  THROW_ON_RPC_RESPONSE_ERROR(r, err, res, method, tools::error::wallet_generic_rpc_error, method, res.status)
+  THROW_ON_RPC_RESPONSE_ERROR(r, err, res, method, tools::error::wallet_generic_rpc_error, method, get_rpc_status(res.status))
 
 class Serialization_portability_wallet_Test;
 
@@ -94,6 +94,7 @@ namespace tools
     uint64_t pick();
     gamma_picker(const std::vector<uint64_t> &rct_offsets);
     gamma_picker(const std::vector<uint64_t> &rct_offsets, double shape, double scale);
+    uint64_t get_num_rct_outs() const { return num_rct_outputs; }
 
   private:
     struct gamma_engine
@@ -118,10 +119,16 @@ private:
     wallet_keys_unlocker(wallet2 &w, const boost::optional<tools::password_container> &password);
     wallet_keys_unlocker(wallet2 &w, bool locked, const epee::wipeable_string &password);
     ~wallet_keys_unlocker();
+    //! drops the bookkeeping of a wallet that is being destroyed
+    static void forget_wallet(const wallet2 *w);
   private:
+    void unlock(const epee::wipeable_string &password);
+
     wallet2 &w;
-    bool locked;
+    bool should_relock;
     crypto::chacha_key key;
+    static boost::mutex lockers_lock;
+    static std::map<wallet2*, std::size_t> lockers_per_wallet;
   };
 
   class i_wallet2_callback
@@ -215,6 +222,7 @@ private:
 
     static bool has_testnet_option(const boost::program_options::variables_map& vm);
     static bool has_stagenet_option(const boost::program_options::variables_map& vm);
+    static bool has_password_option(const boost::program_options::variables_map& vm);
     static std::string device_name_option(const boost::program_options::variables_map& vm);
     static void init_options(boost::program_options::options_description& desc_params);
 
@@ -675,6 +683,8 @@ private:
     cryptonote::account_base& get_account(){return m_account;}
     const cryptonote::account_base& get_account()const{return m_account;}
 
+    bool is_key_encryption_enabled() const;
+    void verify_password_with_cached_key(const crypto::chacha_key &key) const;
     void encrypt_keys(const crypto::chacha_key &key);
     void encrypt_keys(const epee::wipeable_string &password);
     void decrypt_keys(const crypto::chacha_key &key);
@@ -1015,6 +1025,8 @@ private:
     void set_rpc_client_secret_key(const crypto::secret_key &key) { m_rpc_client_secret_key = key; m_node_rpc_proxy.set_client_secret_key(key); }
     uint64_t credits_target() const { return m_credits_target; }
     void credits_target(uint64_t threshold) { m_credits_target = threshold; }
+    bool is_multisig_enabled() const { return m_enable_multisig; }
+    void enable_multisig(bool enable) { m_enable_multisig = enable; }
 
     bool get_tx_key(const crypto::hash &txid, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys) const;
     void set_tx_key(const crypto::hash &txid, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys);
@@ -1454,6 +1466,7 @@ private:
     crypto::secret_key m_rpc_client_secret_key;
     rpc_payment_state_t m_rpc_payment_state;
     uint64_t m_credits_target;
+    bool m_enable_multisig;
 
     // Light wallet
     bool m_light_wallet; /* sends view key to daemon for scanning */
@@ -1478,7 +1491,7 @@ private:
     std::unique_ptr<tools::file_locker> m_keys_file_locker;
 
     crypto::chacha_key m_cache_key;
-    boost::optional<epee::wipeable_string> m_encrypt_keys_after_refresh;
+    std::shared_ptr<wallet_keys_unlocker> m_encrypt_keys_after_refresh;
 
     bool m_unattended;
 

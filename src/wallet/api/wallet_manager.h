@@ -94,7 +94,7 @@ public:
     std::string resolveOpenAlias(const std::string &address, bool &dnssec_valid) const override;
 
 private:
-    WalletManagerImpl() {}
+    WalletManagerImpl();
     friend struct WalletManagerFactory;
     std::string m_daemonAddress;
     epee::net_utils::http::http_simple_client m_http_client;

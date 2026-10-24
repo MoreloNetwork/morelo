@@ -135,7 +135,7 @@ Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_long_term_effective_median_block_weight(0),
   m_difficulty_for_next_block_top_hash(crypto::null_hash),
   m_difficulty_for_next_block(1),
-  m_btc_valid(false),
+  m_btc_include_sensitive(true), m_btc_valid(false),
   m_batch_success(true),
   m_prepare_height(0)
 {
@@ -478,7 +478,10 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   {
     try
     {
-      producer.setsockopt(ZMQ_IDENTITY, "block", 5);
+      const std::string &identity = zmq_notifier_identity();
+      producer.setsockopt(ZMQ_IDENTITY, identity.data(), identity.size());
+      // undelivered notifications must not keep the daemon from exiting
+      producer.setsockopt<int>(ZMQ_LINGER, 0);
       std::string bind_address = "tcp://";
       bind_address.append(zmq_ip).append(":").append(zmq_port);
       LOG_PRINT_L1("Blockchain::" << bind_address);
@@ -492,6 +495,12 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
  }
 
   return true;
+}
+//------------------------------------------------------------------
+const std::string& Blockchain::zmq_notifier_identity()
+{
+  static const std::string identity = "block-" + epee::string_tools::pod_to_hex(crypto::rand<crypto::hash>());
+  return identity;
 }
 //------------------------------------------------------------------
 bool Blockchain::init(BlockchainDB* db, HardFork*& hf, const network_type nettype, bool offline)
@@ -576,8 +585,8 @@ bool Blockchain::deinit()
     try
     {
       LOG_PRINT_L1("closing zmq.... ");
-      zmq_close(&producer);
-      zmq_term(&context);
+      producer.close();
+      context.close();
     }
     catch (const std::exception& e)
     {
@@ -1453,7 +1462,7 @@ uint64_t Blockchain::get_current_cumulative_block_weight_median() const
 // in a lot of places.  That flag is not referenced in any of the code
 // nor any of the makefiles, howeve.  Need to look into whether or not it's
 // necessary at all.
-bool Blockchain::create_block_template(block& b, const crypto::hash *from_block, const account_public_address& miner_address, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
+bool Blockchain::create_block_template(block& b, const crypto::hash *from_block, const account_public_address& miner_address, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce, bool include_sensitive)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   size_t median_weight;
@@ -1467,7 +1476,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
     // just as we compare it, we'll just use a slightly old template, but
     // this would be the case anyway if we'd lock, and the change happened
     // just after the block template was created
-    if (!memcmp(&miner_address, &m_btc_address, sizeof(cryptonote::account_public_address)) && m_btc_nonce == ex_nonce && m_btc_pool_cookie == m_tx_pool.cookie() && m_btc.prev_id == get_tail_id()) {
+    if (!memcmp(&miner_address, &m_btc_address, sizeof(cryptonote::account_public_address)) && m_btc_nonce == ex_nonce && m_btc_pool_cookie == m_tx_pool.cookie() && m_btc.prev_id == get_tail_id() && m_btc_include_sensitive == include_sensitive) {
       MDEBUG("Using cached template");
       m_btc.timestamp = time(NULL); // update timestamp unconditionally
       b = m_btc;
@@ -1572,7 +1581,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 
   size_t txs_weight;
   uint64_t fee;
-  if (!m_tx_pool.fill_block_template(b, median_weight, already_generated_coins, txs_weight, fee, expected_reward, b.major_version))
+  if (!m_tx_pool.fill_block_template(b, median_weight, already_generated_coins, txs_weight, fee, expected_reward, b.major_version, include_sensitive))
   {
     return false;
   }
@@ -1693,16 +1702,16 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
 
     if (!from_block)
-      cache_block_template(b, miner_address, ex_nonce, diffic, height, expected_reward, pool_cookie);
+      cache_block_template(b, miner_address, ex_nonce, diffic, height, expected_reward, pool_cookie, include_sensitive);
     return true;
   }
   LOG_ERROR("Failed to create_block_template with " << 10 << " tries");
   return false;
 }
 //------------------------------------------------------------------
-bool Blockchain::create_block_template(block& b, const account_public_address& miner_address, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
+bool Blockchain::create_block_template(block& b, const account_public_address& miner_address, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce, bool include_sensitive)
 {
-  return create_block_template(b, NULL, miner_address, diffic, height, expected_reward, ex_nonce);
+  return create_block_template(b, NULL, miner_address, diffic, height, expected_reward, ex_nonce, include_sensitive);
 }
 //------------------------------------------------------------------
 // for an alternate chain, get the timestamps from the main chain to complete
@@ -4145,20 +4154,10 @@ leave:
   invalidate_block_template_cache();
 
 
+  // ZMQ clients re-query the daemon when notified, so wait until the block is
+  // committed: cleanup_handle_incoming_blocks() sends it after batch_stop()
   if (zmq_enabled)
-  {
-    try
-    {
-      std::string hex = epee::string_tools::pod_to_hex(id);
-      LOG_PRINT_L1("blockchain sending hash: " <<  hex);
-      producer.send(create_message(std::move("")), ZMQ_SNDMORE);
-  	  producer.send(create_message(std::move(hex)), 0);
-    }
-    catch( const std::exception& e)
-    {
-      MERROR(std::string("Failed to construct morelo block producer") + e.what());
-    }
-  }
+    m_zmq_pending_block = id;
 
   std::shared_ptr<tools::Notify> block_notify = m_block_notify;
   if (block_notify)
@@ -4449,6 +4448,28 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
   catch (const std::exception& e)
   {
     MERROR("Exception in cleanup_handle_incoming_blocks: " << e.what());
+  }
+
+  if (m_zmq_pending_block != crypto::null_hash)
+  {
+    // one notification per committed batch is enough, clients ask for the current state
+    if (success && m_batch_success)
+    {
+      try
+      {
+        std::string hex = epee::string_tools::pod_to_hex(m_zmq_pending_block);
+        LOG_PRINT_L1("blockchain sending hash: " <<  hex);
+        // never block block processing: the notification is dropped while the
+        // ZMQ server isn't listening yet or its queue is full
+        if (producer.send(create_message(std::move("")), ZMQ_SNDMORE | ZMQ_DONTWAIT))
+          producer.send(create_message(std::move(hex)), ZMQ_DONTWAIT);
+      }
+      catch( const std::exception& e)
+      {
+        MERROR(std::string("Failed to construct morelo block producer") + e.what());
+      }
+    }
+    m_zmq_pending_block = crypto::null_hash;
   }
 
   if (success && m_sync_counter > 0)
@@ -5322,7 +5343,7 @@ void Blockchain::invalidate_block_template_cache()
   m_btc_valid = false;
 }
 
-void Blockchain::cache_block_template(const block &b, const cryptonote::account_public_address &address, const blobdata &nonce, const difficulty_type &diff, uint64_t height, uint64_t expected_reward, uint64_t pool_cookie)
+void Blockchain::cache_block_template(const block &b, const cryptonote::account_public_address &address, const blobdata &nonce, const difficulty_type &diff, uint64_t height, uint64_t expected_reward, uint64_t pool_cookie, bool include_sensitive)
 {
   MDEBUG("Setting block template cache");
   m_btc = b;
@@ -5332,6 +5353,7 @@ void Blockchain::cache_block_template(const block &b, const cryptonote::account_
   m_btc_height = height;
   m_btc_expected_reward = expected_reward;
   m_btc_pool_cookie = pool_cookie;
+  m_btc_include_sensitive = include_sensitive;
   m_btc_valid = true;
 }
 

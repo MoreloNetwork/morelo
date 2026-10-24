@@ -200,6 +200,9 @@ std::string PendingTransactionImpl::multisigSignData() {
         if (!m_wallet.multisig().isMultisig) {
             throw std::runtime_error("wallet is not multisig");
         }
+        if (!m_wallet.m_wallet->is_multisig_enabled()) {
+            throw std::runtime_error("multisig is disabled");
+        }
 
         tools::wallet2::multisig_tx_set txSet;
         txSet.m_ptx = m_pending_tx;
@@ -218,6 +221,10 @@ std::string PendingTransactionImpl::multisigSignData() {
 void PendingTransactionImpl::signMultisigTx() {
     try {
         std::vector<crypto::hash> ignore;
+
+        if (!m_wallet.m_wallet->is_multisig_enabled()) {
+            throw std::runtime_error("multisig is disabled");
+        }
 
         tools::wallet2::multisig_tx_set txSet;
         txSet.m_ptx = m_pending_tx;

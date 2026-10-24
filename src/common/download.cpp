@@ -38,6 +38,8 @@
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "net.dl"
 
+#define MAX_REDIRECTS 5
+
 namespace tools
 {
   struct download_thread_control
@@ -96,12 +98,16 @@ namespace tools
       {
       public:
         download_client(download_async_handle control, std::ofstream &f, uint64_t offset = 0):
-          control(control), f(f), content_length(-1), total(0), offset(offset) {}
+          control(control), f(f), content_length(-1), total(0), offset(offset), skip_body(false) {}
         virtual ~download_client() { f.close(); }
         virtual bool on_header(const epee::net_utils::http::http_response_info &headers)
         {
           for (const auto &kv: headers.m_header_info.m_etc_fields)
             MDEBUG("Header: " << kv.first << ": " << kv.second);
+          // the body of a redirect or an error is not the file, don't write it out
+          skip_body = headers.m_response_code < 200 || headers.m_response_code >= 300;
+          if (skip_body)
+            return true;
           ssize_t length;
           if (epee::string_tools::get_xtype_from_string(length, headers.m_header_info.m_content_length) && length >= 0)
           {
@@ -120,10 +126,10 @@ namespace tools
           {
             // we requested a range, so check if we're getting it, otherwise truncate
             bool got_range = false;
-            const std::string prefix = "bytes=" + std::to_string(offset) + "-";
             for (const auto &kv: headers.m_header_info.m_etc_fields)
             {
-              if (kv.first == "Content-Range" && strncmp(kv.second.c_str(), prefix.c_str(), prefix.size()))
+              if (!epee::string_tools::compare_no_case(kv.first, "Content-Range") &&
+                  tools::content_range_starts_at(kv.second, offset))
               {
                 got_range = true;
                 break;
@@ -140,6 +146,8 @@ namespace tools
         }
         virtual bool handle_target_data(std::string &piece_of_transfer)
         {
+          if (skip_body)
+            return true;
           try
           {
             boost::lock_guard<boost::mutex> lock(control->mutex);
@@ -163,80 +171,101 @@ namespace tools
         ssize_t content_length;
         size_t total;
         uint64_t offset;
+        bool skip_body;
       } client(control, f, existing_size);
-      epee::net_utils::http::url_content u_c;
-      if (!epee::net_utils::parse_url(control->uri, u_c))
-      {
-        MERROR("Failed to parse URL " << control->uri);
-        control->result_cb(control->path, control->uri, control->success);
-        return;
-      }
-      if (u_c.host.empty())
-      {
-        MERROR("Failed to determine address from URL " << control->uri);
-        control->result_cb(control->path, control->uri, control->success);
-        return;
-      }
-
       lock.unlock();
 
-      epee::net_utils::ssl_support_t ssl = u_c.schema == "https" ? epee::net_utils::ssl_support_t::e_ssl_support_enabled : epee::net_utils::ssl_support_t::e_ssl_support_disabled;
-      uint16_t port = u_c.port ? u_c.port : ssl == epee::net_utils::ssl_support_t::e_ssl_support_enabled ? 443 : 80;
-      MDEBUG("Connecting to " << u_c.host << ":" << port);
-      client.set_server(u_c.host, std::to_string(port), boost::none, ssl);
-      if (!client.connect(std::chrono::seconds(30)))
+      // GitHub release downloads redirect to a CDN: follow a few redirects, https only.
+      // What we get is checked against the expected hash by the caller anyway.
+      std::string uri = control->uri;
+      for (unsigned hops = 0; ; ++hops)
       {
-        boost::lock_guard<boost::mutex> lock(control->mutex);
-        MERROR("Failed to connect to " << control->uri);
-        control->result_cb(control->path, control->uri, control->success);
-        return;
-      }
-      MDEBUG("GETting " << u_c.uri);
-      const epee::net_utils::http::http_response_info *info = NULL;
-      epee::net_utils::http::fields_list fields;
-      if (existing_size > 0)
-      {
-        const std::string range = "bytes=" + std::to_string(existing_size) + "-";
-        MDEBUG("Asking for range: " << range);
-        fields.push_back(std::make_pair("Range", range));
-      }
-      if (!client.invoke_get(u_c.uri, std::chrono::seconds(30), "", &info, fields))
-      {
-        boost::lock_guard<boost::mutex> lock(control->mutex);
-        MERROR("Failed to connect to " << control->uri);
-        client.disconnect();
-        control->result_cb(control->path, control->uri, control->success);
-        return;
-      }
-      if (control->stop)
-      {
-        boost::lock_guard<boost::mutex> lock(control->mutex);
-        MDEBUG("Download cancelled");
-        client.disconnect();
-        control->result_cb(control->path, control->uri, control->success);
-        return;
-      }
-      if (!info)
-      {
-        boost::lock_guard<boost::mutex> lock(control->mutex);
-        MERROR("Failed invoking GET command to " << control->uri << ", no status info returned");
-        client.disconnect();
-        control->result_cb(control->path, control->uri, control->success);
-        return;
-      }
-      MDEBUG("response code: " << info->m_response_code);
-      MDEBUG("response length: " << info->m_header_info.m_content_length);
-      MDEBUG("response comment: " << info->m_response_comment);
-      MDEBUG("response body: " << info->m_body);
-      for (const auto &f: info->m_additional_fields)
-        MDEBUG("additional field: " << f.first << ": " << f.second);
-      if (info->m_response_code != 200 && info->m_response_code != 206)
-      {
-        boost::lock_guard<boost::mutex> lock(control->mutex);
-        MERROR("Status code " << info->m_response_code);
-        client.disconnect();
-        control->result_cb(control->path, control->uri, control->success);
-        return;
+        epee::net_utils::http::url_content u_c;
+        if (!epee::net_utils::parse_url(uri, u_c) || u_c.host.empty())
+        {
+          boost::lock_guard<boost::mutex> lock(control->mutex);
+          MERROR("Failed to parse URL " << uri);
+          control->result_cb(control->path, control->uri, control->success);
+          return;
+        }
+
+        epee::net_utils::ssl_support_t ssl = u_c.schema == "https" ? epee::net_utils::ssl_support_t::e_ssl_support_enabled : epee::net_utils::ssl_support_t::e_ssl_support_disabled;
+        uint16_t port = u_c.port ? u_c.port : ssl == epee::net_utils::ssl_support_t::e_ssl_support_enabled ? 443 : 80;
+        MDEBUG("Connecting to " << u_c.host << ":" << port);
+        client.set_server(u_c.host, std::to_string(port), boost::none, ssl);
+        if (!client.connect(std::chrono::seconds(30)))
+        {
+          boost::lock_guard<boost::mutex> lock(control->mutex);
+          MERROR("Failed to connect to " << u_c.host << ":" << port);
+          control->result_cb(control->path, control->uri, control->success);
+          return;
+        }
+        MDEBUG("GETting " << u_c.uri);
+        const epee::net_utils::http::http_response_info *info = NULL;
+        epee::net_utils::http::fields_list fields;
+        if (existing_size > 0)
+        {
+          const std::string range = "bytes=" + std::to_string(existing_size) + "-";
+          MDEBUG("Asking for range: " << range);
+          fields.push_back(std::make_pair("Range", range));
+        }
+        if (!client.invoke_get(u_c.uri, std::chrono::seconds(30), "", &info, fields))
+        {
+          boost::lock_guard<boost::mutex> lock(control->mutex);
+          MERROR("Failed to connect to " << control->uri);
+          client.disconnect();
+          control->result_cb(control->path, control->uri, control->success);
+          return;
+        }
+        if (control->stop)
+        {
+          boost::lock_guard<boost::mutex> lock(control->mutex);
+          MDEBUG("Download cancelled");
+          client.disconnect();
+          control->result_cb(control->path, control->uri, control->success);
+          return;
+        }
+        if (!info)
+        {
+          boost::lock_guard<boost::mutex> lock(control->mutex);
+          MERROR("Failed invoking GET command to " << control->uri << ", no status info returned");
+          client.disconnect();
+          control->result_cb(control->path, control->uri, control->success);
+          return;
+        }
+        MDEBUG("response code: " << info->m_response_code);
+        MDEBUG("response length: " << info->m_header_info.m_content_length);
+        MDEBUG("response comment: " << info->m_response_comment);
+        for (const auto &f: info->m_additional_fields)
+          MDEBUG("additional field: " << f.first << ": " << f.second);
+        const int code = info->m_response_code;
+        if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308)
+        {
+          std::string location;
+          for (const auto &kv: info->m_header_info.m_etc_fields)
+            if (!epee::string_tools::compare_no_case(kv.first, "Location"))
+              location = kv.second;
+          client.disconnect();
+          if (hops >= MAX_REDIRECTS || location.compare(0, 8, "https://") != 0)
+          {
+            boost::lock_guard<boost::mutex> lock(control->mutex);
+            MERROR("Not following redirect " << code << " from " << uri << (hops >= MAX_REDIRECTS ? ": too many redirects" : ": not an https URL"));
+            control->result_cb(control->path, control->uri, control->success);
+            return;
+          }
+          MDEBUG("Redirected to " << location);
+          uri = location;
+          continue;
+        }
+        if (code != 200 && code != 206)
+        {
+          boost::lock_guard<boost::mutex> lock(control->mutex);
+          MERROR("Status code " << code);
+          client.disconnect();
+          control->result_cb(control->path, control->uri, control->success);
+          return;
+        }
+        break;
       }
       client.disconnect();
       f.close();

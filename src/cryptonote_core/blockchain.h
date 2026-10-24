@@ -348,8 +348,8 @@ namespace cryptonote
      *
      * @return true if block template filled in successfully, else false
      */
-    bool create_block_template(block& b, const account_public_address& miner_address, difficulty_type& di, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce);
-    bool create_block_template(block& b, const crypto::hash *from_block, const account_public_address& miner_address, difficulty_type& di, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce);
+    bool create_block_template(block& b, const account_public_address& miner_address, difficulty_type& di, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce, bool include_sensitive = true);
+    bool create_block_template(block& b, const crypto::hash *from_block, const account_public_address& miner_address, difficulty_type& di, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce, bool include_sensitive = true);
 
     /**
      * @brief checks if a block is known about with a given hash
@@ -745,6 +745,15 @@ namespace cryptonote
     void set_user_options(uint64_t maxthreads, bool sync_on_blocks, uint64_t sync_threshold,
         blockchain_db_sync_mode sync_mode, bool fast_sync);
 
+    /**
+     * @brief random ZMQ routing id used by the internal new block notifier
+     *
+     * The notifier connects to the public ZMQ listener like any client, so
+     * its routing id must not be guessable or a remote client could take it
+     * over (ZMQ_ROUTER_HANDOVER) and fake block notifications.
+     */
+    static const std::string& zmq_notifier_identity();
+
     void set_zmq_options(const std::string& ip, const std::string port, uint16_t clients, bool enabled)
     {
         zmq_ip = ip;
@@ -1103,6 +1112,7 @@ namespace cryptonote
     uint64_t m_btc_height;
     uint64_t m_btc_pool_cookie;
     uint64_t m_btc_expected_reward;
+    bool m_btc_include_sensitive;
     bool m_btc_valid;
 
     bool m_batch_success;
@@ -1111,6 +1121,7 @@ namespace cryptonote
     std::string zmq_port;
     uint16_t zmq_max_clients;
     bool zmq_enabled = false;
+    crypto::hash m_zmq_pending_block = crypto::null_hash; // newest block added in the current batch, guarded by m_blockchain_lock
 
     std::shared_ptr<tools::Notify> m_block_notify;
     std::shared_ptr<tools::Notify> m_reorg_notify;
@@ -1517,6 +1528,6 @@ namespace cryptonote
      *
      * At some point, may be used to push an update to miners
      */
-    void cache_block_template(const block &b, const cryptonote::account_public_address &address, const blobdata &nonce, const difficulty_type &diff, uint64_t height, uint64_t expected_reward, uint64_t pool_cookie);
+    void cache_block_template(const block &b, const cryptonote::account_public_address &address, const blobdata &nonce, const difficulty_type &diff, uint64_t height, uint64_t expected_reward, uint64_t pool_cookie, bool include_sensitive);
   };
 }  // namespace cryptonote
