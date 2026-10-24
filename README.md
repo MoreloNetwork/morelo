@@ -225,7 +225,8 @@ IPv6 is off by default. `--p2p-use-ipv6` makes morelod listen on the p2p port ov
 IPv6 as well (`--p2p-bind-ipv6-address`, default `::`), resolve the AAAA records of
 the seed nodes and connect to IPv6 peers; `--rpc-use-ipv6` does the same for the
 RPC server (`--rpc-bind-ipv6-address`, default `::1`, a non-loopback address needs
-`--confirm-external-bind`). Both use the same port as IPv4; `--p2p-ignore-ipv4` and
+`--confirm-external-bind`). Both use the same port as IPv4; `--p2p-bind-ip` and
+`--rpc-bind-ip` take IPv4 addresses only, and `--p2p-ignore-ipv4` and
 `--rpc-ignore-ipv4` keep going when only the IPv6 bind succeeds. IPv6 addresses are
 written as `[2001:db8::1]:38301` wherever a `host:port` is expected (`--add-peer`,
 `--daemon-address`, ...); `ban` and `--ban-list` also take IPv6 subnets such as

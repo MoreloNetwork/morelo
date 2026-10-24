@@ -549,6 +549,12 @@ namespace nodetool
     network_zone& public_zone = m_network_zones[epee::net_utils::zone::public_];
     public_zone.m_connect = &public_connect;
     public_zone.m_bind_ip = command_line::get_arg(vm, arg_p2p_bind_ip);
+    // the IPv4 listener; neither an IPv4 address nor a hostname contains ':'
+    if (public_zone.m_bind_ip.find(':') != std::string::npos)
+    {
+      MFATAL("--" << arg_p2p_bind_ip.name << " takes an IPv4 address, for IPv6 use --" << arg_p2p_use_ipv6.name << " and --" << arg_p2p_bind_ipv6_address.name);
+      return false;
+    }
     public_zone.m_bind_ipv6_address = command_line::get_arg(vm, arg_p2p_bind_ipv6_address);
     // "[::]" is accepted for symmetry with the [host]:port notation used elsewhere
     std::string& ipv6_bind_address = public_zone.m_bind_ipv6_address;

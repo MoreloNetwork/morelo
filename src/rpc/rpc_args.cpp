@@ -134,6 +134,12 @@ namespace cryptonote
     rpc_args config{};
 
     config.bind_ip = command_line::get_arg(vm, arg.rpc_bind_ip);
+    // the IPv4 listener; neither an IPv4 address nor a hostname contains ':'
+    if (config.bind_ip.find(':') != std::string::npos)
+    {
+      LOG_ERROR("--" << arg.rpc_bind_ip.name << tr(" takes an IPv4 address, for IPv6 use --") << arg.rpc_use_ipv6.name << tr(" and --") << arg.rpc_bind_ipv6_address.name);
+      return boost::none;
+    }
     config.bind_ipv6_address = command_line::get_arg(vm, arg.rpc_bind_ipv6_address);
     config.use_ipv6 = command_line::get_arg(vm, arg.rpc_use_ipv6);
     config.require_ipv4 = !command_line::get_arg(vm, arg.rpc_ignore_ipv4);
