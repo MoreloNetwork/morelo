@@ -70,6 +70,9 @@ namespace cryptonote
     static const command_line::arg_descriptor<std::string> arg_rpc_payment_address;
     static const command_line::arg_descriptor<uint64_t> arg_rpc_payment_difficulty;
     static const command_line::arg_descriptor<uint64_t> arg_rpc_payment_credits;
+    static const command_line::arg_descriptor<std::size_t> arg_rpc_max_connections_per_public_ip;
+    static const command_line::arg_descriptor<std::size_t> arg_rpc_max_connections_per_private_ip;
+    static const command_line::arg_descriptor<std::size_t> arg_rpc_max_connections;
 
     typedef epee::net_utils::connection_context_base connection_context;
 

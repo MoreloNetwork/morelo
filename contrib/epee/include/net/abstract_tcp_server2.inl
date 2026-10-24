@@ -60,6 +60,7 @@
 #define AGGRESSIVE_TIMEOUT_THRESHOLD 240  // sockets
 #define NEW_CONNECTION_TIMEOUT_LOCAL 1200000 // 2 minutes
 #define NEW_CONNECTION_TIMEOUT_REMOTE 10000 // 10 seconds
+#define CONNECTION_CLEANUP_GRACE_MS 2000 // force-shutdown grace when a closing connection's send queue won't drain
 
 PRAGMA_WARNING_PUSH
 namespace epee
@@ -204,7 +205,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // first read on the raw socket to detect SSL for the server
     buffer_ssl_init_fill = 0;
     if (is_income && m_ssl_support != epee::net_utils::ssl_support_t::e_ssl_support_disabled)
-      socket().async_receive(boost::asio::buffer(buffer_), boost::asio::socket_base::message_peek, boost::asio::bind_executor(strand_, std::bind(&connection<t_protocol_handler>::handle_receive, self, std::placeholders::_1, std::placeholders::_2)));
+      socket().async_receive(boost::asio::buffer(buffer_), boost::asio::bind_executor(strand_, std::bind(&connection<t_protocol_handler>::handle_receive, self, std::placeholders::_1, std::placeholders::_2)));
     else
       async_read_some(boost::asio::buffer(buffer_), boost::asio::bind_executor(strand_, std::bind(&connection<t_protocol_handler>::handle_read, self, std::placeholders::_1, std::placeholders::_2)));
 #if !defined(_WIN32) || !defined(__i686)
@@ -421,9 +422,12 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     reset_timer(get_timeout_from_bytes_read(bytes_transferred), false);
 
     buffer_ssl_init_fill += bytes_transferred;
-    if(buffer_ssl_init_fill <= get_ssl_magic_size())
+    MTRACE("we now have " << buffer_ssl_init_fill << "/" << get_ssl_magic_size() << " bytes needed to detect SSL");
+    if(buffer_ssl_init_fill < get_ssl_magic_size())
     {
-      socket().async_receive(boost::asio::buffer(buffer_.data() + buffer_ssl_init_fill, buffer_.size() - buffer_ssl_init_fill), boost::asio::socket_base::message_peek, boost::asio::bind_executor(strand_, boost::bind(&connection<t_protocol_handler>::handle_receive, connection<t_protocol_handler>::shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
+      // Read real data (not message_peek) so the bytes are consumed once and
+      // fed either to the SSL handshake or to handle_read, never both (f7ab8bc6d).
+      socket().async_receive(boost::asio::buffer(buffer_.data() + buffer_ssl_init_fill, buffer_.size() - buffer_ssl_init_fill), boost::asio::bind_executor(strand_, boost::bind(&connection<t_protocol_handler>::handle_receive, connection<t_protocol_handler>::shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
       return;
     }
 
@@ -444,8 +448,8 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
     if(m_ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_enabled)
     {
-      // Handshake
-      if(!handshake(boost::asio::ssl::stream_base::server))
+      // Handshake, handing it the bytes already read for detection
+      if(!handshake(boost::asio::ssl::stream_base::server, boost::asio::const_buffer(buffer_.data(), buffer_ssl_init_fill)))
       {
         MERROR("SSL handshake failed");
         boost::interprocess::ipcdetail::atomic_write32(&m_want_close_connection, 1);
@@ -459,6 +463,12 @@ PRAGMA_WARNING_DISABLE_VS(4355)
           shutdown();
         return;
       }
+    }
+    else
+    {
+      // not SSL: the bytes read while detecting are real payload, hand them to the reader
+      handle_read(e, buffer_ssl_init_fill);
+      return;
     }
 
     async_read_some(boost::asio::buffer(buffer_), boost::asio::bind_executor(strand_, boost::bind(&connection<t_protocol_handler>::handle_read, connection<t_protocol_handler>::shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
@@ -607,33 +617,20 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
     // No sleeping here; sleeping is done once and for all in "handle_write"
 
-    m_send_que_lock.lock(); // *** critical ***
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){m_send_que_lock.unlock();});
+    epee::critical_region_t<decltype(m_send_que_lock)> send_guard(m_send_que_lock); // *** critical ***
 
-    long int retry = 0;
-    const long int retry_limit = (5 * 4);
-    while (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
+    if (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
     {
-        retry++;
-
-        /* if ( ::cryptonote::core::get_is_stopping() ) { // TODO re-add fast stop
-            _fact("ABORT queue wait due to stopping");
-            return false; // aborted
-        }*/
-
-        long int ms = 250 + (rand()%50);
-        MDEBUG("Sleeping because QUEUE is FULL, in " << __FUNCTION__ << " for " << ms << " ms before packet_size= " << cb); // XXX debug sleep
-        m_send_que_lock.unlock();
-        boost::this_thread::sleep(boost::posix_time::milliseconds( ms ) );
-        m_send_que_lock.lock();
-        _dbg1("sleep for queue: " << ms);
-
-        if(retry > retry_limit)
-        {
-            MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
-            shutdown();
-            return false;
-        }
+        // Do not sleep on a worker thread waiting for the queue to drain: under
+        // load every worker could be blocked here, leaving none to complete the
+        // writes, and a peer that stops reading would park a worker for seconds.
+        // Drop the connection instead (Monero #8426 approach).
+        MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
+        // shutdown() runs the protocol's release callbacks (levin cancels invoke
+        // handlers under its own locks); never call it with m_send_que_lock held
+        send_guard.unlock();
+        shutdown();
+        return false;
     }
 
     m_send_que.resize(m_send_que.size()+1);
@@ -777,13 +774,15 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // Initiate graceful connection closure.
     m_timer.cancel();
     boost::system::error_code ignored_ec;
-    if(m_ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_enabled)
-    {
-      const shared_state &state = static_cast<const shared_state&>(get_state());
-      if(!state.stop_signal_sent)
-        socket_.shutdown(ignored_ec);
-	}
+    // No synchronous SSL stream shutdown here: it accesses the SSL object and
+    // can race with an async handshake running on another worker thread. The
+    // TCP shutdown below tears the socket down and aborts any pending handshake.
     socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+    // Cancel any pending async operation. On Windows shutdown() alone does not
+    // abort a pending async_receive, so against a peer that stops responding the
+    // read stays queued forever, its handler keeps the connection referenced and
+    // the object is never destroyed (no CLOSE CONNECTION, peer stays counted).
+    socket().cancel(ignored_ec);
     if(!m_host.empty())
     {
       try { host_count(m_host, -1); } catch (...) { /* ignore */ }
@@ -811,6 +810,26 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     if(!send_que_size)
     {
       shutdown();
+    }
+    else if(!m_was_shutdown && m_connection_type != e_connection_type_RPC)
+    {
+      // The send queue hasn't drained. If the peer stops reading (e.g. it
+      // accepts the TCP connection but never answers the handshake), the write
+      // completion that would eventually call shutdown() never fires and the
+      // connection leaks - it stays counted as a peer and is_addr_connected()
+      // keeps returning true, so the node never reconnects. Force a teardown
+      // after a short grace period; the resulting FIN also unblocks the peer.
+      // RPC is excluded: a single unsplit response body may legitimately take
+      // longer than the grace to reach a slow half-closed client, and the write
+      // timeout armed by do_send_chunk() already bounds that path.
+      m_timer.expires_from_now(boost::posix_time::milliseconds(CONNECTION_CLEANUP_GRACE_MS));
+      m_timer.async_wait([self](const boost::system::error_code& ec)
+      {
+        if(ec == boost::asio::error::operation_aborted)
+          return;
+        MDEBUG(self->context << "close: send queue did not drain, forcing shutdown");
+        self->shutdown();
+      });
     }
 
     return true;
@@ -871,7 +890,9 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     else
     {
     //have more data to send
-    reset_timer(get_default_timeout(), false);
+    // once close() asked for teardown its grace timer owns m_timer; don't re-arm the long timeout over it
+    if(!boost::interprocess::ipcdetail::atomic_read32(&m_want_close_connection))
+      reset_timer(get_default_timeout(), false);
     auto size_now = m_send_que.front().size();
     MDEBUG("handle_write() NOW SENDS: packet=" << size_now << " B" << ", from  queue size=" << m_send_que.size());
     if (rpc_speed_limit_is_enabled())

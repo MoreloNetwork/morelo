@@ -133,6 +133,9 @@ namespace cryptonote
     command_line::add_arg(desc, arg_rpc_payment_address);
     command_line::add_arg(desc, arg_rpc_payment_difficulty);
     command_line::add_arg(desc, arg_rpc_payment_credits);
+    command_line::add_arg(desc, arg_rpc_max_connections_per_public_ip);
+    command_line::add_arg(desc, arg_rpc_max_connections_per_private_ip);
+    command_line::add_arg(desc, arg_rpc_max_connections);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   core_rpc_server::core_rpc_server(
@@ -237,8 +240,29 @@ namespace cryptonote
     if (m_rpc_payment)
       m_net_server.add_idle_handler([this](){ return m_rpc_payment->on_idle(); }, 60 * 1000);
 
+    const auto max_connections_public = command_line::get_arg(vm, arg_rpc_max_connections_per_public_ip);
+    const auto max_connections_private = command_line::get_arg(vm, arg_rpc_max_connections_per_private_ip);
+    const auto max_connections = command_line::get_arg(vm, arg_rpc_max_connections);
+
+    if (max_connections == 0)
+    {
+      MFATAL(arg_rpc_max_connections.name << " must be at least 1");
+      return false;
+    }
+    if (max_connections < max_connections_public)
+    {
+      MFATAL(arg_rpc_max_connections_per_public_ip.name << " is bigger than " << arg_rpc_max_connections.name);
+      return false;
+    }
+    if (max_connections < max_connections_private)
+    {
+      MFATAL(arg_rpc_max_connections_per_private_ip.name << " is bigger than " << arg_rpc_max_connections.name);
+      return false;
+    }
+
     auto rng = [](size_t len, uint8_t *ptr){ return crypto::rand(len, ptr); };
-    return epee::http_server_impl_base<core_rpc_server, connection_context>::init(rng, std::move(port), std::move(rpc_config->bind_ip), std::move(rpc_config->access_control_origins), std::move(http_login), std::move(rpc_config->ssl_options));
+    return epee::http_server_impl_base<core_rpc_server, connection_context>::init(rng, std::move(port), std::move(rpc_config->bind_ip), std::move(rpc_config->access_control_origins), std::move(http_login), std::move(rpc_config->ssl_options),
+      max_connections_public, max_connections_private, max_connections);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::check_payment(const std::string &client_message, uint64_t payment, const std::string &rpc, bool same_ts, std::string &message, uint64_t &credits, std::string &top_hash)
@@ -3093,5 +3117,23 @@ namespace cryptonote
       "rpc-payment-credits"
     , "Restrict RPC to clients sending micropayment, yields that many credits per payment"
     , DEFAULT_PAYMENT_CREDITS_PER_HASH
+    };
+
+  const command_line::arg_descriptor<std::size_t> core_rpc_server::arg_rpc_max_connections_per_public_ip = {
+      "rpc-max-connections-per-public-ip"
+    , "Max RPC connections permitted from a single public IP. Generous by default; behind a reverse proxy all clients share the proxy's IP, so raise this (or the private-IP limit if the proxy is local) accordingly"
+    , DEFAULT_RPC_MAX_CONNECTIONS_PER_PUBLIC_IP
+    };
+
+  const command_line::arg_descriptor<std::size_t> core_rpc_server::arg_rpc_max_connections_per_private_ip = {
+      "rpc-max-connections-per-private-ip"
+    , "Max RPC connections permitted from a single private or localhost IP"
+    , DEFAULT_RPC_MAX_CONNECTIONS_PER_PRIVATE_IP
+    };
+
+  const command_line::arg_descriptor<std::size_t> core_rpc_server::arg_rpc_max_connections = {
+      "rpc-max-connections"
+    , "Max RPC connections permitted in total"
+    , DEFAULT_RPC_MAX_CONNECTIONS
     };
 }  // namespace cryptonote
