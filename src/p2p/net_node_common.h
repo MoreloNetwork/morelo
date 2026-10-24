@@ -55,10 +55,11 @@ namespace nodetool
     virtual size_t get_zone_count() const=0;
     virtual void for_each_connection(std::function<bool(t_connection_context&, peerid_type, uint32_t)> f)=0;
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(t_connection_context&, peerid_type, uint32_t)> f)=0;
-    virtual bool block_host(const epee::net_utils::network_address &address, time_t seconds = 0)=0;
+    virtual bool block_host(epee::net_utils::network_address address, time_t seconds = 0, bool add_only = false)=0;
     virtual bool unblock_host(const epee::net_utils::network_address &address)=0;
     virtual std::map<std::string, time_t> get_blocked_hosts()=0;
-    virtual bool add_host_fail(const epee::net_utils::network_address &address)=0;
+    virtual std::map<epee::net_utils::ipv4_network_subnet, time_t> get_blocked_subnets()=0;
+    virtual bool add_host_fail(const epee::net_utils::network_address &address, unsigned int score = 1)=0;
     virtual void add_used_stripe_peer(const t_connection_context &context)=0;
     virtual void remove_used_stripe_peer(const t_connection_context &context)=0;
     virtual void clear_used_stripe_peers()=0;
@@ -105,7 +106,7 @@ namespace nodetool
     {
       return false;
     }
-    virtual bool block_host(const epee::net_utils::network_address &address, time_t seconds)
+    virtual bool block_host(epee::net_utils::network_address address, time_t seconds, bool add_only)
     {
       return true;
     }
@@ -117,7 +118,11 @@ namespace nodetool
     {
       return std::map<std::string, time_t>();
     }
-    virtual bool add_host_fail(const epee::net_utils::network_address &address)
+    virtual std::map<epee::net_utils::ipv4_network_subnet, time_t> get_blocked_subnets()
+    {
+      return std::map<epee::net_utils::ipv4_network_subnet, time_t>();
+    }
+    virtual bool add_host_fail(const epee::net_utils::network_address &address, unsigned int score)
     {
       return true;
     }

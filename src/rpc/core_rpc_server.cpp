@@ -2153,6 +2153,17 @@ namespace cryptonote
         res.bans.push_back(b);
       }
     }
+    std::map<epee::net_utils::ipv4_network_subnet, time_t> blocked_subnets = m_p2p.get_blocked_subnets();
+    for (std::map<epee::net_utils::ipv4_network_subnet, time_t>::const_iterator i = blocked_subnets.begin(); i != blocked_subnets.end(); ++i)
+    {
+      if (i->second > now) {
+        COMMAND_RPC_GETBANS::ban b;
+        b.host = i->first.host_str();
+        b.ip = 0;
+        b.seconds = i->second - now;
+        res.bans.push_back(b);
+      }
+    }
 
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -2165,19 +2176,47 @@ namespace cryptonote
     for (auto i = req.bans.begin(); i != req.bans.end(); ++i)
     {
       epee::net_utils::network_address na;
+
+      if (!i->ban && i->host == "all")
+      {
+        m_p2p.clear_bans();
+        continue;
+      }
+
+      // try subnet first
+      if (!i->host.empty())
+      {
+        auto ns_parsed = net::get_ipv4_subnet_address(i->host);
+        if (ns_parsed)
+        {
+          if (i->ban)
+            m_p2p.block_subnet(*ns_parsed, i->seconds);
+          else
+            m_p2p.unblock_subnet(*ns_parsed);
+          continue;
+        }
+      }
+
+      // then host
       if (!i->host.empty())
       {
         auto na_parsed = net::get_network_address(i->host, 0);
         if (!na_parsed)
         {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-          error_resp.message = "Unsupported host type";
+          error_resp.message = "Unsupported host/subnet type";
           return false;
         }
         na = std::move(*na_parsed);
       }
       else
       {
+        if (!i->ip)
+        {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+          error_resp.message = "No ip/host supplied";
+          return false;
+        }
         na = epee::net_utils::ipv4_network_address{i->ip, 0};
       }
       if (i->ban)

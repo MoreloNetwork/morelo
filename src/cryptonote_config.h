@@ -132,8 +132,11 @@
 #define DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN							DIFFICULTY_TARGET_V2 //just alias; used by tests
 
 #define BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT					10000		// by default, blocks ids count in synchronizing
+#define BLOCKS_IDS_SYNCHRONIZING_MAX_COUNT							25000		// max blocks ids count accepted in NOTIFY_RESPONSE_CHAIN_ENTRY (deployed nodes send <= 10000)
 
 #define BLOCKS_SYNCHRONIZING_MAX_COUNT									2048		// must be a power of 2, greater than 128, equal to SEEDHASH_EPOCH_BLOCKS
+#define CURRENCY_PROTOCOL_MAX_OBJECT_REQUEST_COUNT			BLOCKS_SYNCHRONIZING_MAX_COUNT		// NOTIFY_REQUEST_GET_OBJECTS, deployed nodes request up to --block-sync-size blocks
+#define CURRENCY_PROTOCOL_MAX_CHAIN_REQUEST_COUNT				1000		// NOTIFY_REQUEST_CHAIN block_ids, a short chain history is ~log2(height)+12 hashes
 
 #define CRYPTONOTE_MEMPOOL_TX_LIVETIME									(86400 * 3)		// seconds, three days
 #define CRYPTONOTE_MEMPOOL_TX_FROM_ALT_BLOCK_LIVETIME		604800		// seconds, one week
@@ -148,6 +151,7 @@
 #define P2P_DEFAULT_HANDSHAKE_INTERVAL									60		// seconds
 #define P2P_DEFAULT_PACKET_MAX_SIZE											50000000		// 50000000 bytes maximum packet size
 #define P2P_DEFAULT_PEERS_IN_HANDSHAKE									250
+#define P2P_MAX_PEERS_IN_HANDSHAKE											(P2P_DEFAULT_PEERS_IN_HANDSHAKE + 1)		// deployed nodes append their own address in anonymity zones
 #define P2P_DEFAULT_CONNECTION_TIMEOUT									5000		// 5 seconds
 #define P2P_DEFAULT_SOCKS_CONNECT_TIMEOUT								45		// seconds
 #define P2P_DEFAULT_PING_CONNECTION_TIMEOUT							2000		// 2 seconds
@@ -161,9 +165,13 @@
 #define P2P_DEFAULT_LIMIT_RATE_DOWN											32768		// Kbps
 
 #define P2P_FAILED_ADDR_FORGET_SECONDS									(60 * 60)		// 1 hour
+#define P2P_FAILED_SEED_ADDR_FORGET_SECONDS							(60 * 5)		// 5 minutes
 #define P2P_IP_BLOCKTIME																(60 * 60 * 24)		// 24 hour
 #define P2P_IP_FAILS_BEFORE_BLOCK												10
+#define P2P_IP_FAILS_DECAY_SECONDS											(60 * 10)		// one fail point forgiven per 10 minutes without new fails
 #define P2P_IDLE_CONNECTION_KILL_INTERVAL								(5 * 60)		// 5 minutes
+
+#define DNS_BLOCKLIST_LIFETIME													(86400 * 8)
 
 #define P2P_SUPPORT_FLAG_FLUFFY_BLOCKS									0x01
 #define P2P_SUPPORT_FLAGS																P2P_SUPPORT_FLAG_FLUFFY_BLOCKS

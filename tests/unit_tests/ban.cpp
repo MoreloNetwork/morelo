@@ -36,11 +36,9 @@
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.inl"
 
-#define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{MAKE_IP(a,b,c,d),0}
-
-namespace cryptonote {
-  class blockchain_storage;
-}
+#define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),0}
+#define MAKE_IPV4_ADDRESS_PORT(a,b,c,d,e) epee::net_utils::ipv4_network_address{(uint32_t)MAKE_IP(a,b,c,d),e}
+#define MAKE_IPV4_SUBNET(a,b,c,d,e) epee::net_utils::ipv4_network_subnet{(uint32_t)MAKE_IP(a,b,c,d),e}
 
 class test_core
 {
@@ -62,10 +60,12 @@ public:
   bool on_idle(){return true;}
   bool find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, bool clip_pruned, cryptonote::NOTIFY_RESPONSE_CHAIN_ENTRY::request& resp){return true;}
   bool handle_get_objects(cryptonote::NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote::NOTIFY_RESPONSE_GET_OBJECTS::request& rsp, cryptonote::cryptonote_connection_context& context){return true;}
-  cryptonote::blockchain_storage &get_blockchain_storage() { throw std::runtime_error("Called invalid member function: please never call get_blockchain_storage on the TESTING class test_core."); }
+  struct lockable { void lock() {} void unlock() {} } m_blockchain_storage;
+  lockable &get_blockchain_storage() { return m_blockchain_storage; }
   bool get_test_drop_download() const {return true;}
   bool get_test_drop_download_height() const {return true;}
   bool prepare_handle_incoming_blocks(const std::vector<cryptonote::block_complete_entry>  &blocks_entry, std::vector<cryptonote::block> &blocks) { return true; }
+  bool check_incoming_block_size(const cryptonote::blobdata& block_blob) const { return true; }
   bool cleanup_handle_incoming_blocks(bool force_sync = false) { return true; }
   uint64_t get_target_blockchain_height() const { return 1; }
   size_t get_block_sync_size(uint64_t height) const { return config::sync::NORMAL_SYNC; }
@@ -76,6 +76,7 @@ public:
   bool get_blocks(uint64_t start_offset, size_t count, std::vector<std::pair<cryptonote::blobdata, cryptonote::block>>& blocks, std::vector<cryptonote::blobdata>& txs) const { return false; }
   bool get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<cryptonote::transaction>& txs, std::vector<crypto::hash>& missed_txs) const { return false; }
   bool get_block_by_hash(const crypto::hash &h, cryptonote::block &blk, bool *orphan = NULL) const { return false; }
+  crypto::hash get_block_id_by_height(uint64_t height) const { return crypto::null_hash; }
   uint8_t get_ideal_hard_fork_version() const { return 0; }
   uint8_t get_ideal_hard_fork_version(uint64_t height) const { return 0; }
   uint8_t get_hard_fork_version(uint64_t height) const { return 0; }
@@ -192,6 +193,69 @@ TEST(ban, add)
   ASSERT_TRUE(is_blocked(server,MAKE_IPV4_ADDRESS(1,2,3,4), &t));
   ASSERT_FALSE(is_blocked(server,MAKE_IPV4_ADDRESS(1,2,3,5)));
   ASSERT_TRUE(t >= 4);
+}
+
+TEST(ban, subnet)
+{
+  time_t seconds;
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol);
+  cprotocol.set_p2p_endpoint(&server);
+
+  ASSERT_TRUE(server.block_subnet(MAKE_IPV4_SUBNET(1,2,3,4,24), 10));
+  ASSERT_TRUE(server.get_blocked_subnets().size() == 1);
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,3,4), &seconds));
+  ASSERT_TRUE(seconds >= 9);
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,3,255), &seconds));
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,3,0), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,4,0), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,2,0), &seconds));
+  ASSERT_TRUE(server.unblock_subnet(MAKE_IPV4_SUBNET(1,2,3,8,24)));
+  ASSERT_TRUE(server.get_blocked_subnets().size() == 0);
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,3,255), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,2,3,0), &seconds));
+  ASSERT_TRUE(server.block_subnet(MAKE_IPV4_SUBNET(1,2,3,4,8), 10));
+  ASSERT_TRUE(server.get_blocked_subnets().size() == 1);
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,255,3,255), &seconds));
+  ASSERT_TRUE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,0,3,255), &seconds));
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(2,0,3,255), &seconds));
+  ASSERT_TRUE(server.block_host(MAKE_IPV4_ADDRESS(10,1,2,3), 10));
+  ASSERT_TRUE(server.clear_bans());
+  ASSERT_TRUE(server.get_blocked_subnets().empty());
+  ASSERT_TRUE(server.get_blocked_hosts().empty());
+  ASSERT_FALSE(server.is_host_blocked(MAKE_IPV4_ADDRESS(1,0,3,255), &seconds));
+  ASSERT_FALSE(server.clear_bans());
+}
+
+TEST(ban, ignores_port)
+{
+  test_core pr_core;
+  cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+  Server server(cprotocol);
+  cprotocol.set_p2p_endpoint(&server);
+
+  ASSERT_FALSE(is_blocked(server,MAKE_IPV4_ADDRESS_PORT(1,2,3,4,5)));
+  ASSERT_TRUE(server.block_host(MAKE_IPV4_ADDRESS_PORT(1,2,3,4,5), std::numeric_limits<time_t>::max() - 1));
+  ASSERT_TRUE(is_blocked(server,MAKE_IPV4_ADDRESS_PORT(1,2,3,4,5)));
+  ASSERT_TRUE(is_blocked(server,MAKE_IPV4_ADDRESS_PORT(1,2,3,4,6)));
+  ASSERT_TRUE(server.unblock_host(MAKE_IPV4_ADDRESS_PORT(1,2,3,4,5)));
+  ASSERT_FALSE(is_blocked(server,MAKE_IPV4_ADDRESS_PORT(1,2,3,4,5)));
+  ASSERT_FALSE(is_blocked(server,MAKE_IPV4_ADDRESS_PORT(1,2,3,4,6)));
+}
+
+TEST(ban, subnet_parse)
+{
+  ASSERT_TRUE(net::get_ipv4_subnet_address("1.2.3.4/24"));
+  ASSERT_TRUE(net::get_ipv4_subnet_address("1.2.3.4/32"));
+  ASSERT_TRUE(net::get_ipv4_subnet_address("1.2.3.4/0"));
+  ASSERT_FALSE(net::get_ipv4_subnet_address("1.2.3.4/33"));
+  ASSERT_FALSE(net::get_ipv4_subnet_address("1.2.3.4"));
+  ASSERT_TRUE(net::get_ipv4_subnet_address("1.2.3.4", true));
+  ASSERT_FALSE(net::get_ipv4_subnet_address("1.2.3.4/x"));
+  ASSERT_TRUE(net::get_ipv4_subnet_address("1.2.3.4/24")->matches(MAKE_IPV4_ADDRESS_PORT(1,2,3,200,1)));
+  ASSERT_FALSE(net::get_ipv4_subnet_address("1.2.3.4/24")->matches(MAKE_IPV4_ADDRESS_PORT(1,2,4,4,1)));
+  ASSERT_EQ(net::get_ipv4_subnet_address("1.2.3.4/24")->host_str(), "1.2.3.0/24");
 }
 
 namespace nodetool { template class node_server<cryptonote::t_cryptonote_protocol_handler<test_core>>; }

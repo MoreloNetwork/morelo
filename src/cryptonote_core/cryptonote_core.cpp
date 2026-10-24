@@ -1315,7 +1315,8 @@ namespace cryptonote
   {
     if(block_sync_size > 0)
       return block_sync_size;
-    if(get_current_blockchain_height() <= config::sync::HIGHEST_CHECKPOINT)
+    // blocks covered by the compiled block hashes skip PoW and most checks, so fetch them in large spans
+    if(is_within_compiled_block_hash_area(height))
       return config::sync::FAST_SYNC;
     else
       return config::sync::NORMAL_SYNC;
