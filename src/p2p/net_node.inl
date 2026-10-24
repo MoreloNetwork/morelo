@@ -126,12 +126,11 @@ namespace nodetool
   // cannot parse them, drops the connection and after a few repeats bans us. Callers mask the
   // peer's flags with ours, so a node with IPv6 off never passes on IPv6 entries an older run
   // left in its peer list file. Forbidden addresses are never sent.
-  inline void filter_peerlist_for_peer(std::vector<peerlist_entry>& peerlist, uint32_t peer_support_flags)
+  inline bool can_send_peer(const peerlist_entry& pe, uint32_t peer_support_flags)
   {
-    const bool ipv6_ok = peer_support_flags & P2P_SUPPORT_FLAG_IPV6;
-    peerlist.erase(std::remove_if(peerlist.begin(), peerlist.end(), [ipv6_ok](const peerlist_entry& pe) {
-      return (!ipv6_ok && pe.adr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id()) || is_forbidden_ipv6_address(pe.adr);
-    }), peerlist.end());
+    if (is_forbidden_ipv6_address(pe.adr))
+      return false;
+    return (peer_support_flags & P2P_SUPPORT_FLAG_IPV6) || pe.adr.get_type_id() != epee::net_utils::ipv6_network_address::get_type_id();
   }
   //-----------------------------------------------------------------------------------
   // an IPv6 peer given on the command line is never used without --p2p-use-ipv6, say so
@@ -2475,8 +2474,8 @@ namespace nodetool
     const uint32_t max_peerlist_size = P2P_DEFAULT_PEERS_IN_HANDSHAKE - (outgoing_to_same_zone ? 1 : 0);
 
     std::vector<peerlist_entry> local_peerlist_new;
-    zone.m_peerlist.get_peerlist_head(local_peerlist_new, true, max_peerlist_size);
-    filter_peerlist_for_peer(local_peerlist_new, context.support_flags & zone.m_config.m_support_flags);
+    const uint32_t send_flags = context.support_flags & zone.m_config.m_support_flags;
+    zone.m_peerlist.get_peerlist_head(local_peerlist_new, true, max_peerlist_size, [send_flags](const peerlist_entry& pe) { return can_send_peer(pe, send_flags); });
 
     /* Tor/I2P nodes receiving connections via forwarding (from tor/i2p daemon)
     do not know the address of the connecting peer. This is relayed to them,
@@ -2593,8 +2592,8 @@ namespace nodetool
       });
 
     //fill response
-    zone.m_peerlist.get_peerlist_head(rsp.local_peerlist_new, true);
-    filter_peerlist_for_peer(rsp.local_peerlist_new, context.support_flags & zone.m_config.m_support_flags);
+    const uint32_t send_flags = context.support_flags & zone.m_config.m_support_flags;
+    zone.m_peerlist.get_peerlist_head(rsp.local_peerlist_new, true, P2P_DEFAULT_PEERS_IN_HANDSHAKE, [send_flags](const peerlist_entry& pe) { return can_send_peer(pe, send_flags); });
     for(const auto &e: rsp.local_peerlist_new)
       context.sent_addresses.insert(e.adr);
     get_local_node_data(rsp.node_data, zone);

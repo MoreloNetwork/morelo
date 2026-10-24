@@ -384,26 +384,21 @@ TEST(node_server, forbidden_ipv6)
 
 TEST(node_server, peerlist_filter_by_support_flags)
 {
-  const std::vector<nodetool::peerlist_entry> all = { make_peer(public_v4, 1), make_peer(public_v6, 2), make_peer(mapped_v6, 3) };
-
   // a peer without P2P_SUPPORT_FLAG_IPV6 (any deployed node) must never see an IPv6 entry
-  std::vector<nodetool::peerlist_entry> list = all;
-  nodetool::filter_peerlist_for_peer(list, 0);
-  ASSERT_EQ(1, list.size());
-  EXPECT_EQ(public_v4, list[0].adr);
-
-  list = all;
-  nodetool::filter_peerlist_for_peer(list, P2P_SUPPORT_FLAG_FLUFFY_BLOCKS);
-  ASSERT_EQ(1, list.size());
-  EXPECT_EQ(public_v4, list[0].adr);
+  for (const uint32_t flags : {0u, (uint32_t)P2P_SUPPORT_FLAG_FLUFFY_BLOCKS})
+  {
+    EXPECT_TRUE(nodetool::can_send_peer(make_peer(public_v4, 1), flags));
+    EXPECT_FALSE(nodetool::can_send_peer(make_peer(public_v6, 2), flags));
+    EXPECT_FALSE(nodetool::can_send_peer(make_peer(mapped_v6, 3), flags));
+  }
 
   // an IPv6 capable peer gets them, forbidden addresses are never sent
-  list = all;
-  nodetool::filter_peerlist_for_peer(list, P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_IPV6);
-  ASSERT_EQ(2, list.size());
-  EXPECT_TRUE(contains(list, public_v4));
-  EXPECT_TRUE(contains(list, public_v6));
-  EXPECT_FALSE(contains(list, mapped_v6));
+  const uint32_t flags = P2P_SUPPORT_FLAG_FLUFFY_BLOCKS | P2P_SUPPORT_FLAG_IPV6;
+  EXPECT_TRUE(nodetool::can_send_peer(make_peer(public_v4, 1), flags));
+  EXPECT_TRUE(nodetool::can_send_peer(make_peer(public_v6, 2), flags));
+  EXPECT_FALSE(nodetool::can_send_peer(make_peer(mapped_v6, 3), flags));
+  EXPECT_FALSE(nodetool::can_send_peer(make_peer(unspecified_v6, 4), flags));
+  EXPECT_FALSE(nodetool::can_send_peer(make_peer(multicast_v6, 5), flags));
 }
 
 TEST(node_server, sanitize_peerlist)

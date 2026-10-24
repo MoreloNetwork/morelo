@@ -310,3 +310,25 @@ TEST(peerlist_storage, store_and_open_mixed)
   EXPECT_EQ(types.anchor[0].adr, out.anchor[0].adr);
   EXPECT_EQ(40, out.anchor[0].first_seen);
 }
+
+TEST(peerlist_manager, head_filter_before_depth)
+{
+  // the newest entries are IPv6; a peer that may only get IPv4 ones still gets a full list
+  nodetool::peerlist_types types{};
+  for (uint16_t i = 0; i < 20; ++i)
+    types.white.push_back(make_peer(v6("2001:db8::1", 1000 + i), i, 2000 + i));
+  for (uint16_t i = 0; i < 10; ++i)
+    types.white.push_back(make_peer(v4(MAKE_IP(1,2,3,4), 1000 + i), 100 + i, 100 + i));
+  nodetool::peerlist_manager plm;
+  ASSERT_TRUE(plm.init(std::move(types), false));
+
+  const auto ipv4_only = [](const nodetool::peerlist_entry& pe) { return pe.adr.get_type_id() == epee::net_utils::address_type::ipv4; };
+  for (const bool anonymize : {false, true})
+  {
+    std::vector<nodetool::peerlist_entry> head;
+    ASSERT_TRUE(plm.get_peerlist_head(head, anonymize, 8, ipv4_only));
+    ASSERT_EQ(8, head.size());
+    for (const auto& pe : head)
+      EXPECT_EQ(epee::net_utils::address_type::ipv4, pe.adr.get_type_id());
+  }
+}
