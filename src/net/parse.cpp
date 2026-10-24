@@ -146,7 +146,8 @@ namespace net
 
         boost::system::error_code ec;
         const boost::asio::ip::address_v6 ip = boost::asio::ip::make_address_v6(std::string{host}, ec);
-        if (ec)
+        // IPv4 hosts are never seen as ::ffff:a.b.c.d, such a subnet would match nothing
+        if (ec || ip.is_v4_mapped())
             return make_error_code(net::error::invalid_host);
 
         return {epee::net_utils::ipv6_network_subnet{ip, (uint8_t)mask}};

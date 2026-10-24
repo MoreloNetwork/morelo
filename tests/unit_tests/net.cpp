@@ -188,6 +188,7 @@ TEST(get_network_address, ipv6subnet)
   EXPECT_EQ(net::error::invalid_mask, net::get_ipv6_subnet_address("2001:db8::1/x"));
   EXPECT_EQ(net::error::invalid_host, net::get_ipv6_subnet_address("1.2.3.4/24"));
   EXPECT_EQ(net::error::invalid_host, net::get_ipv6_subnet_address("host/24"));
+  EXPECT_EQ(net::error::invalid_host, net::get_ipv6_subnet_address("::ffff:1.2.3.0/120"));
 
   subnet = net::get_ipv6_subnet_address("[2001:db8:1:2:3:4:5:6]/64");
   ASSERT_TRUE(bool(subnet));
