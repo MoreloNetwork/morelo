@@ -133,11 +133,24 @@ namespace nodetool
     return (peer_support_flags & P2P_SUPPORT_FLAG_IPV6) || pe.adr.get_type_id() != epee::net_utils::ipv6_network_address::get_type_id();
   }
   //-----------------------------------------------------------------------------------
-  // an IPv6 peer given on the command line is never used without --p2p-use-ipv6, say so
-  inline void warn_if_ipv6_disabled(const epee::net_utils::network_address& na, bool use_ipv6)
+  // a peer given on the command line that we never connect to, say so
+  inline bool warn_if_unusable(const epee::net_utils::network_address& na, bool use_ipv6)
   {
-    if (!use_ipv6 && na.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id())
+    if (!should_skip_connect_address(na, use_ipv6))
+      return false;
+    if (is_forbidden_ipv6_address(na))
+      MWARNING(na.str() << " is not a usable peer address, it will not be used");
+    else
       MWARNING(na.str() << " is an IPv6 address, it will not be used without --" << arg_p2p_use_ipv6.name);
+    return true;
+  }
+  //-----------------------------------------------------------------------------------
+  template<typename T>
+  inline void drop_ipv6_entries(std::vector<T>& peers)
+  {
+    peers.erase(std::remove_if(peers.begin(), peers.end(), [](const T& pe) {
+      return pe.adr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id();
+    }), peers.end());
   }
   //-----------------------------------------------------------------------------------
   // whether `na` lies in `subnet`, false for an address of the other family
@@ -589,7 +602,9 @@ namespace nodetool
         expect<epee::net_utils::network_address> adr = net::get_network_address(pr_str, default_port);
         if (adr)
         {
-          warn_if_ipv6_disabled(*adr, m_use_ipv6);
+          // kept out of the white list, it would only end up in p2pstate.bin
+          if (warn_if_unusable(*adr, m_use_ipv6))
+            continue;
           add_zone(adr->get_zone());
           pe.adr = std::move(*adr);
           m_command_line_peers.push_back(std::move(pe));
@@ -1066,7 +1081,16 @@ namespace nodetool
 
     for (auto& zone : m_network_zones)
     {
-      res = zone.second.m_peerlist.init(m_peerlist_storage.take_zone(zone.first), m_allow_local_ip);
+      peerlist_types peers = m_peerlist_storage.take_zone(zone.first);
+      // with IPv6 off, forget the IPv6 peers an earlier run stored: they are never used and
+      // would keep p2pstate.bin unreadable for older versions
+      if (!m_use_ipv6)
+      {
+        drop_ipv6_entries(peers.white);
+        drop_ipv6_entries(peers.gray);
+        drop_ipv6_entries(peers.anchor);
+      }
+      res = zone.second.m_peerlist.init(std::move(peers), m_allow_local_ip);
       CHECK_AND_ASSERT_MES(res, false, "Failed to init peerlist.");
     }
 
@@ -1703,7 +1727,7 @@ namespace nodetool
       {
         if (filtered.size() >= limit)
           return false;
-        // IPv6 entries stay listed for peers that can use them, we just never pick them
+        // never pick an address we would not connect to (forbidden IPv6, IPv6 while it is off)
         const bool usable = !should_skip_connect_address(pe.adr, m_use_ipv6);
         if (usable && (next_needed_pruning_stripe == 0 || pe.pruning_seed == 0))
           filtered.push_back(idx);
@@ -2706,7 +2730,7 @@ namespace nodetool
       expect<epee::net_utils::network_address> adr = net::get_network_address(pr_str, default_port);
       if (adr)
       {
-        warn_if_ipv6_disabled(*adr, m_use_ipv6);
+        warn_if_unusable(*adr, m_use_ipv6);
         add_zone(adr->get_zone());
         container.push_back(std::move(*adr));
         continue;

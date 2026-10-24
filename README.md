@@ -234,7 +234,8 @@ host covers its whole /64. IPv6 peers are only announced to nodes that have IPv6
 enabled too, older nodes keep seeing IPv4 peers only. UPnP port mapping stays IPv4
 only. Older versions cannot read a peer list file (`p2pstate.bin`) holding IPv6 peers:
 after a downgrade they start over with an empty peer list from the seed nodes (a copy
-of the file is kept as `p2pstate.bin.unportable`).
+of the file is kept as `p2pstate.bin.unportable`). Running this version once without
+`--p2p-use-ipv6` before downgrading drops the IPv6 peers and avoids that.
 
 ## Using Tor
 

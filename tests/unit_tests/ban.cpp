@@ -30,6 +30,8 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "gtest/gtest.h"
+#include <boost/filesystem.hpp>
+#include <boost/program_options/parsers.hpp>
 #include "cryptonote_core/cryptonote_core.h"
 #include "p2p/net_node.h"
 #include "p2p/net_node.inl"
@@ -426,6 +428,72 @@ TEST(node_server, sanitize_peerlist)
   EXPECT_EQ(public_v4, list[0].adr);
   EXPECT_EQ(11, list[0].id);
   EXPECT_EQ(0, list[0].last_seen); // a remote last seen is never trusted
+}
+
+namespace
+{
+  // brings `server` up from command line options, offline so that nothing is bound
+  bool init_offline(Server& server, const boost::filesystem::path& data_dir, std::vector<std::string> args)
+  {
+    boost::program_options::options_description desc;
+    cryptonote::core::init_options(desc);
+    Server::init_options(desc);
+    args.push_back("--offline");
+    args.push_back("--data-dir=" + data_dir.string());
+    boost::program_options::variables_map vm;
+    boost::program_options::store(boost::program_options::command_line_parser(args).options(desc).run(), vm);
+    boost::program_options::notify(vm);
+    return server.init(vm);
+  }
+}
+
+TEST(node_server, ipv6_peers_need_ipv6)
+{
+  const boost::filesystem::path dir = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+  ASSERT_TRUE(boost::filesystem::create_directories(dir));
+  nodetool::peerlist_types stored{};
+  stored.white.push_back(make_peer(public_v4, 1));
+  stored.white.push_back(make_peer(public_v6, 2));
+  stored.gray.push_back(make_peer(MAKE_IPV6_ADDRESS("2001:db8::2", 38303), 3));
+  ASSERT_TRUE(nodetool::peerlist_storage{}.store((dir / P2P_NET_DATA_FILENAME).string(), stored));
+
+  for (const bool use_ipv6 : {false, true})
+  {
+    test_core pr_core;
+    cryptonote::t_cryptonote_protocol_handler<test_core> cprotocol(pr_core, NULL);
+    Server server(cprotocol);
+    cprotocol.set_p2p_endpoint(&server);
+    std::vector<std::string> args{"--add-peer=[2001:db8::5]:38303"};
+    if (use_ipv6)
+      args.push_back("--p2p-use-ipv6");
+    ASSERT_TRUE(init_offline(server, dir, args));
+
+    // with IPv6 off, stored and command line IPv6 peers are dropped, they would only keep
+    // p2pstate.bin unreadable for older versions
+    std::vector<nodetool::peerlist_entry> gray, white;
+    server.get_public_peerlist(gray, white);
+    EXPECT_TRUE(contains(white, public_v4));
+    EXPECT_EQ(use_ipv6, contains(white, public_v6));
+    EXPECT_EQ(use_ipv6, contains(white, MAKE_IPV6_ADDRESS("2001:db8::5", 38303)));
+    EXPECT_EQ(use_ipv6 ? 1u : 0u, gray.size());
+
+    // received IPv6 peers are only kept with IPv6 on, and never local or forbidden ones
+    std::vector<nodetool::peerlist_entry> list;
+    list.push_back(make_peer(public_v6, 4));
+    list.push_back(make_peer(MAKE_IPV6_ADDRESS("fe80::1", 38303), 5));
+    list.push_back(make_peer(MAKE_IPV6_ADDRESS("fd00::1", 38303), 6));
+    list.push_back(make_peer(MAKE_IPV6_ADDRESS("::1", 38303), 7));
+    list.push_back(make_peer(mapped_v6, 8));
+    list.push_back(make_peer(unspecified_v6, 9));
+    list.push_back(make_peer(multicast_v6, 10));
+    list.push_back(make_peer(MAKE_IPV6_ADDRESS("2001:db8::3", 38302), 11)); // p2p port equal to its rpc port
+    list.push_back(make_peer(public_v4, 12));
+    ASSERT_TRUE(server.sanitize_peerlist(list));
+    ASSERT_EQ(use_ipv6 ? 2u : 1u, list.size());
+    EXPECT_TRUE(contains(list, public_v4));
+    EXPECT_EQ(use_ipv6, contains(list, public_v6));
+  }
+  boost::filesystem::remove_all(dir);
 }
 
 namespace nodetool { template class node_server<cryptonote::t_cryptonote_protocol_handler<test_core>>; }
