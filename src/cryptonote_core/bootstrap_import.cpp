@@ -32,12 +32,25 @@
 #include "cryptonote_core.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "serialization/binary_utils.h"
+#include "net/levin_base.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bootstrap"
 
 namespace cryptonote
 {
+  namespace
+  {
+    // blocks a peer can send fit in a levin packet
+    const uint32_t max_chunk_size = LEVIN_DEFAULT_MAX_PACKET_SIZE;
+    const uint32_t max_header_size = 1024 * 1024;
+
+    bool read_uint32(const std::string &buffer, size_t pos, uint32_t &value)
+    {
+      return ::serialization::parse_binary(buffer.substr(pos, sizeof(value)), value);
+    }
+  }
+
   bool bootstrap_chunk_to_entry(const std::string &chunk, block_complete_entry &entry)
   {
     bootstrap::block_package bp;
@@ -176,6 +189,60 @@ namespace cryptonote
       return false;
 
     blocks.clear();
+    return true;
+  }
+
+  bool bootstrap_stream::feed(const std::string &data, const std::function<bool(const std::string&)> &on_chunk)
+  {
+    m_buffer += data;
+    size_t pos = 0;
+    if (m_offset == 0)
+    {
+      // magic, then the size of a serialized bootstrap::file_info and the file_info,
+      // which holds the size of the header (after the magic) the chunks follow
+      uint32_t magic, info_size;
+      if (m_buffer.size() < 2 * sizeof(uint32_t))
+        return true;
+      if (!read_uint32(m_buffer, 0, magic) || magic != bootstrap::blockchain_raw_magic)
+      {
+        MERROR("Not a bootstrap file");
+        return false;
+      }
+      if (!read_uint32(m_buffer, sizeof(magic), info_size) || info_size > max_header_size)
+      {
+        MERROR("Invalid bootstrap file header");
+        return false;
+      }
+      if (m_buffer.size() < 2 * sizeof(uint32_t) + info_size)
+        return true;
+      bootstrap::file_info info;
+      if (!::serialization::parse_binary(m_buffer.substr(2 * sizeof(uint32_t), info_size), info) ||
+          info.header_size < sizeof(uint32_t) + info_size || info.header_size > max_header_size)
+      {
+        MERROR("Invalid bootstrap file header");
+        return false;
+      }
+      if (m_buffer.size() < sizeof(magic) + info.header_size)
+        return true;
+      pos = m_offset = sizeof(magic) + info.header_size;
+    }
+
+    uint32_t size;
+    while (m_buffer.size() - pos >= sizeof(size))
+    {
+      if (!read_uint32(m_buffer, pos, size) || size == 0 || size > max_chunk_size)
+      {
+        MERROR("Invalid chunk size " << size << " at offset " << m_offset);
+        return false;
+      }
+      if (m_buffer.size() - pos - sizeof(size) < size)
+        break;
+      m_offset += sizeof(size) + size;
+      if (!on_chunk(m_buffer.substr(pos + sizeof(size), size)))
+        return false;
+      pos += sizeof(size) + size;
+    }
+    m_buffer.erase(0, pos);
     return true;
   }
 }

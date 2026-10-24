@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -52,4 +53,22 @@ namespace cryptonote
   //! up to the last boundary, the rest is dropped). Returns false if a block fails,
   //! blocks are cleared once added.
   bool bootstrap_add_blocks(core &core, std::vector<block_complete_entry> &blocks, bool force, uint64_t batch_size);
+
+  //! splits a bootstrap file, fed in pieces of any size, into chunks of one block each
+  class bootstrap_stream
+  {
+  public:
+    //! offset is that of the first byte fed, 0 if the stream starts with the file header
+    explicit bootstrap_stream(uint64_t offset = 0): m_offset(offset) {}
+
+    //! false on malformed data, or if on_chunk returned false
+    bool feed(const std::string &data, const std::function<bool(const std::string&)> &on_chunk);
+
+    //! offset of the next chunk in the file, while on_chunk runs that of the one after it
+    uint64_t offset() const { return m_offset; }
+
+  private:
+    std::string m_buffer;
+    uint64_t m_offset;
+  };
 }

@@ -44,9 +44,7 @@ using namespace epee;
 
 namespace
 {
-  // This number was picked by taking the leading 4 bytes from this output:
-  // echo Arqma bootstrap file | sha1sum
-  const uint32_t blockchain_raw_magic = 0x17e66914;
+  using bootstrap::blockchain_raw_magic;
   const uint32_t header_size = 1024;
 
   std::string refresh_string = "\r                                    \r";

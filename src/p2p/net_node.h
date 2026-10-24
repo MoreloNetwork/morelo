@@ -240,6 +240,11 @@ namespace nodetool
     bool init(const boost::program_options::variables_map& vm);
     bool deinit();
     bool send_stop_signal();
+    bool is_stop_signal_sent() const
+    {
+      const auto public_zone = m_network_zones.find(epee::net_utils::zone::public_);
+      return public_zone != m_network_zones.end() && public_zone->second.m_net_server.is_stop_signal_sent();
+    }
     uint32_t get_this_peer_port(){return m_listening_port;}
     t_payload_net_handler& get_payload_object();
 

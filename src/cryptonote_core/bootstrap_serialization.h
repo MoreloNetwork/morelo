@@ -37,6 +37,9 @@ namespace cryptonote
 {
   namespace bootstrap
   {
+    // This number was picked by taking the leading 4 bytes from this output:
+    // echo Arqma bootstrap file | sha1sum
+    const uint32_t blockchain_raw_magic = 0x17e66914;
 
     struct file_info
     {

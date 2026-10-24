@@ -35,6 +35,69 @@
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "serialization/binary_utils.h"
 
+namespace
+{
+  std::string u32(uint32_t value)
+  {
+    std::string blob;
+    ::serialization::dump_binary(value, blob);
+    return blob;
+  }
+
+  // as morelo-blockchain-export writes it: magic, then 1024 bytes starting with the file_info
+  std::string file_header()
+  {
+    cryptonote::bootstrap::file_info info{0, 1, 1024};
+    std::string blob;
+    ::serialization::dump_binary(info, blob);
+    std::string header = u32(cryptonote::bootstrap::blockchain_raw_magic) + u32(blob.size()) + blob;
+    header.resize(4 + 1024, 0);
+    return header;
+  }
+
+  std::vector<std::string> split(const std::string &data, uint64_t offset, size_t piece)
+  {
+    std::vector<std::string> chunks;
+    cryptonote::bootstrap_stream stream(offset);
+    for (size_t i = 0; i < data.size(); i += piece)
+      EXPECT_TRUE(stream.feed(data.substr(i, piece), [&](const std::string &chunk) { chunks.push_back(chunk); return true; }));
+    EXPECT_EQ(offset + data.size(), stream.offset());
+    return chunks;
+  }
+
+  bool ignore(const std::string&) { return true; }
+}
+
+TEST(bootstrap, stream_any_piece_size)
+{
+  const std::vector<std::string> chunks = {"a", std::string(300, 'b'), "ccccc"};
+  std::string file = file_header();
+  for (const auto &chunk: chunks)
+    file += u32(chunk.size()) + chunk;
+
+  for (size_t piece = 1; piece <= file.size(); ++piece)
+    ASSERT_EQ(chunks, split(file, 0, piece));
+
+  // resuming at the second chunk
+  const uint64_t second = file_header().size() + 4 + 1;
+  ASSERT_EQ(std::vector<std::string>(chunks.begin() + 1, chunks.end()), split(file.substr(second), second, 7));
+}
+
+TEST(bootstrap, stream_rejects_bad_data)
+{
+  std::string header = file_header();
+  header[0] ^= 1;
+  ASSERT_FALSE(cryptonote::bootstrap_stream().feed(header, ignore));
+  ASSERT_FALSE(cryptonote::bootstrap_stream().feed(file_header() + u32(0), ignore));
+  ASSERT_FALSE(cryptonote::bootstrap_stream().feed(file_header() + u32(200000000), ignore));
+  ASSERT_FALSE(cryptonote::bootstrap_stream().feed(file_header() + u32(1) + "a", [](const std::string&) { return false; }));
+
+  // a truncated chunk waits for the rest
+  cryptonote::bootstrap_stream stream;
+  ASSERT_TRUE(stream.feed(file_header() + u32(10) + "abc", ignore));
+  ASSERT_EQ(file_header().size(), stream.offset());
+}
+
 TEST(bootstrap, chunk_only_carries_its_block_transactions)
 {
   cryptonote::bootstrap::block_package bp;
