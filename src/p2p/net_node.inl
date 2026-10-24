@@ -517,6 +517,15 @@ namespace nodetool
 
     CRITICAL_REGION_LOCAL(m_host_fails_score_lock);
     const time_t now = time(nullptr);
+    // forget hosts whose score has decayed to nothing, the map would keep every host (or
+    // IPv6 /64) that ever failed otherwise
+    for (auto it = m_host_fails_score.begin(); it != m_host_fails_score.end(); )
+    {
+      if (now > it->second.last && uint64_t(now - it->second.last) / P2P_IP_FAILS_DECAY_SECONDS >= it->second.score)
+        it = m_host_fails_score.erase(it);
+      else
+        ++it;
+    }
     // public IPv6 hosts score as their /64, like they are banned and limited
     host_fails &entry = m_host_fails_score[epee::net_utils::get_host_limit_key(address)];
     // forgive one point per P2P_IP_FAILS_DECAY_SECONDS without a new fail, so that unrelated
