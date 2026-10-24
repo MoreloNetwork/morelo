@@ -159,44 +159,55 @@ namespace cryptonote
       return false;
     }
 
-    size_t blockidx = 0;
-    for(const block_complete_entry& block_entry: blocks)
+    // nothing below should throw, but a batch left open would keep the pool and
+    // blockchain locked for good
+    try
     {
-      // process transactions
-      for(auto& tx_blob: block_entry.txs)
+      size_t blockidx = 0;
+      for(const block_complete_entry& block_entry: blocks)
       {
-        tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-        core.handle_incoming_tx(tx_blob, tvc, true, true, false);
-        if(tvc.m_verifivation_failed)
+        // process transactions
+        for(auto& tx_blob: block_entry.txs)
         {
-          MERROR("transaction verification failed, tx_id = "
-              << epee::string_tools::pod_to_hex(get_blob_hash(tx_blob.blob)));
+          tx_verification_context tvc = AUTO_VAL_INIT(tvc);
+          core.handle_incoming_tx(tx_blob, tvc, true, true, false);
+          if(tvc.m_verifivation_failed)
+          {
+            MERROR("transaction verification failed, tx_id = "
+                << epee::string_tools::pod_to_hex(get_blob_hash(tx_blob.blob)));
+            core.cleanup_handle_incoming_blocks();
+            return false;
+          }
+        }
+
+        // process block
+
+        block_verification_context bvc = {};
+
+        core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx++], bvc, false); // <--- process block
+
+        if(bvc.m_verifivation_failed)
+        {
+          MERROR("Block verification failed, id = "
+              << epee::string_tools::pod_to_hex(get_blob_hash(block_entry.block)));
           core.cleanup_handle_incoming_blocks();
           return false;
         }
-      }
+        if(bvc.m_marked_as_orphaned)
+        {
+          MERROR("Block received at sync phase was marked as orphaned");
+          core.cleanup_handle_incoming_blocks();
+          return false;
+        }
 
-      // process block
-
-      block_verification_context bvc = {};
-
-      core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx++], bvc, false); // <--- process block
-
-      if(bvc.m_verifivation_failed)
-      {
-        MERROR("Block verification failed, id = "
-            << epee::string_tools::pod_to_hex(get_blob_hash(block_entry.block)));
-        core.cleanup_handle_incoming_blocks();
-        return false;
-      }
-      if(bvc.m_marked_as_orphaned)
-      {
-        MERROR("Block received at sync phase was marked as orphaned");
-        core.cleanup_handle_incoming_blocks();
-        return false;
-      }
-
-    } // each download block
+      } // each download block
+    }
+    catch (const std::exception &e)
+    {
+      MERROR("Failed to add blocks: " << e.what());
+      core.cleanup_handle_incoming_blocks();
+      return false;
+    }
     if (!core.cleanup_handle_incoming_blocks())
       return false;
 
