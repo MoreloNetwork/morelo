@@ -1,5 +1,8 @@
 #include "net/net_helper.h"
 
+#include <vector>
+#include <boost/asio/connect.hpp>
+
 namespace epee
 {
 namespace net_utils
@@ -14,14 +17,15 @@ namespace net_utils
 		if(results.empty()) // Documentation states that successful call is guaranteed to be non-empty
 			throw boost::system::system_error{boost::asio::error::fault, "Failed to resolve " + addr};
 
-		// literals resolve to themselves; a hostname with both records keeps connecting over IPv4
-		boost::asio::ip::tcp::endpoint endpoint = results.begin()->endpoint();
+		// tried in turn, IPv4 first: a hostname with both records keeps connecting over IPv4 but
+		// still works when only its IPv6 address answers
+		std::vector<boost::asio::ip::tcp::endpoint> endpoints;
 		for(const auto& entry : results)
 			if(entry.endpoint().address().is_v4())
-			{
-				endpoint = entry.endpoint();
-				break;
-			}
+				endpoints.push_back(entry.endpoint());
+		for(const auto& entry : results)
+			if(!entry.endpoint().address().is_v4())
+				endpoints.push_back(entry.endpoint());
 
 		//////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +48,7 @@ namespace net_utils
 				shared->socket_.close();
 			}
 		});
-		shared->socket_.async_connect(endpoint, [shared] (boost::system::error_code error)
+		boost::asio::async_connect(shared->socket_, endpoints, [shared] (boost::system::error_code error, const boost::asio::ip::tcp::endpoint&)
 		{
 			if (shared)
 			{

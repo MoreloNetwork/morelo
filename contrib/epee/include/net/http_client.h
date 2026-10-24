@@ -397,7 +397,8 @@ namespace net_utils
 				std::string req_buff{};
 				req_buff.reserve(2048);
 				req_buff.append(method.data(), method.size()).append(" ").append(uri.data(), uri.size()).append(" HTTP/1.1\r\n");
-				add_field(req_buff, "Host", m_host_buff);
+				// an IPv6 literal is bracketed in the Host header (RFC 7230), nothing else has a ':'
+				add_field(req_buff, "Host", m_host_buff.find(':') != std::string::npos ? "[" + m_host_buff + "]" : m_host_buff);
 				add_field(req_buff, "Content-Length", std::to_string(body.size()));
 
 				//handle "additional_params"
