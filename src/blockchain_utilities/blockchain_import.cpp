@@ -157,7 +157,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
   uint64_t total_source_blocks = bootstrap.count_blocks(import_file_path, pos, seek_height);
   MINFO("bootstrap file last block number: " << total_source_blocks-1 << " (zero-based height)  total blocks: " << total_source_blocks);
 
-  if (total_source_blocks-1 <= start_height)
+  if (total_source_blocks <= start_height)
   {
     return false;
   }
