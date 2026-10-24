@@ -175,7 +175,10 @@ namespace cryptonote
           else
           {
             MINFO(context << "dropping idle peer with negative score");
-            drop_connection_with_score(context, context.m_expect_response == 0 ? 1 : 5, false);
+            // only a peer claiming blocks we lack can stall our sync; one that is not ahead is
+            // busy with its own sync (adding a queue of spans blocks its connection for minutes)
+            const bool ahead = context.m_remote_blockchain_height > m_core.get_current_blockchain_height();
+            drop_connection_with_score(context, !ahead ? 0 : context.m_expect_response == 0 ? 1 : 5, false);
             return false;
           }
         }
