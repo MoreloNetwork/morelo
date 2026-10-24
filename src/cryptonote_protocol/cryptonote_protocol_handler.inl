@@ -1729,11 +1729,14 @@ skip:
   template<class t_core>
   void t_cryptonote_protocol_handler<t_core>::notify_new_stripe(cryptonote_connection_context& cntxt, uint32_t stripe)
   {
+    const uint64_t height = m_core.get_current_blockchain_height();
     m_p2p->for_each_connection([&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)->bool
     {
       if (cntxt.m_connection_id == context.m_connection_id)
         return true;
-      if (context.m_state == cryptonote_connection_context::state_normal)
+      // a peer that is not ahead has nothing for us, and while it syncs (maybe from us) it may not
+      // answer a chain request in time; timed sync puts it back to syncing once it is ahead
+      if (context.m_state == cryptonote_connection_context::state_normal && context.m_remote_blockchain_height > height)
       {
         const uint32_t peer_stripe = tools::get_pruning_stripe(context.m_pruning_seed);
         if (stripe && peer_stripe && peer_stripe != stripe)
