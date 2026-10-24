@@ -1121,6 +1121,7 @@ namespace cryptonote
     std::string zmq_port;
     uint16_t zmq_max_clients;
     bool zmq_enabled = false;
+    crypto::hash m_zmq_pending_block = crypto::null_hash; // newest block added in the current batch, guarded by m_blockchain_lock
 
     std::shared_ptr<tools::Notify> m_block_notify;
     std::shared_ptr<tools::Notify> m_reorg_notify;

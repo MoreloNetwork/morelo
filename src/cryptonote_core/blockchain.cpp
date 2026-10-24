@@ -4154,22 +4154,10 @@ leave:
   invalidate_block_template_cache();
 
 
+  // ZMQ clients re-query the daemon when notified, so wait until the block is
+  // committed: cleanup_handle_incoming_blocks() sends it after batch_stop()
   if (zmq_enabled)
-  {
-    try
-    {
-      std::string hex = epee::string_tools::pod_to_hex(id);
-      LOG_PRINT_L1("blockchain sending hash: " <<  hex);
-      // never block block processing: the notification is dropped while the
-      // ZMQ server isn't listening yet (e.g. genesis) or its queue is full
-      if (producer.send(create_message(std::move("")), ZMQ_SNDMORE | ZMQ_DONTWAIT))
-        producer.send(create_message(std::move(hex)), ZMQ_DONTWAIT);
-    }
-    catch( const std::exception& e)
-    {
-      MERROR(std::string("Failed to construct morelo block producer") + e.what());
-    }
-  }
+    m_zmq_pending_block = id;
 
   std::shared_ptr<tools::Notify> block_notify = m_block_notify;
   if (block_notify)
@@ -4460,6 +4448,28 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
   catch (const std::exception& e)
   {
     MERROR("Exception in cleanup_handle_incoming_blocks: " << e.what());
+  }
+
+  if (m_zmq_pending_block != crypto::null_hash)
+  {
+    // one notification per committed batch is enough, clients ask for the current state
+    if (success && m_batch_success)
+    {
+      try
+      {
+        std::string hex = epee::string_tools::pod_to_hex(m_zmq_pending_block);
+        LOG_PRINT_L1("blockchain sending hash: " <<  hex);
+        // never block block processing: the notification is dropped while the
+        // ZMQ server isn't listening yet or its queue is full
+        if (producer.send(create_message(std::move("")), ZMQ_SNDMORE | ZMQ_DONTWAIT))
+          producer.send(create_message(std::move(hex)), ZMQ_DONTWAIT);
+      }
+      catch( const std::exception& e)
+      {
+        MERROR(std::string("Failed to construct morelo block producer") + e.what());
+      }
+    }
+    m_zmq_pending_block = crypto::null_hash;
   }
 
   if (success && m_sync_counter > 0)
