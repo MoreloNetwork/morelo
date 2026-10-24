@@ -536,7 +536,11 @@ bool load_txt_records_from_dns(std::vector<std::string> &good_records, const std
 
   if (num_valid_records < 2)
   {
-    LOG_PRINT_L0("WARNING: no two valid DNS TXT records were received");
+    // none at all is what a name without records gives, not worth a warning
+    if (num_valid_records)
+      LOG_PRINT_L0("WARNING: no two valid DNS TXT records were received");
+    else
+      LOG_PRINT_L1("No valid DNS TXT records were received");
     return false;
   }
 
