@@ -11,3 +11,6 @@
 [submodule "external/randomarq"]
 	path = external/randomarq
 	url = https://github.com/arqma/randomarq
+[submodule "external/gtest"]
+	path = external/gtest
+	url = https://github.com/google/googletest.git

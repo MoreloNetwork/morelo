@@ -28,6 +28,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 #include "gtest/gtest.h"
 #include "crypto/crypto.h"
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
@@ -35,13 +36,13 @@
 
 static const boost::uuids::uuid &uuid1()
 {
-  static const boost::uuids::uuid uuid = crypto::rand<boost::uuids::uuid>();
+  static const boost::uuids::uuid uuid = boost::uuids::random_generator()();
   return uuid;
 }
 
 static const boost::uuids::uuid &uuid2()
 {
-  static const boost::uuids::uuid uuid = crypto::rand<boost::uuids::uuid>();
+  static const boost::uuids::uuid uuid = boost::uuids::random_generator()();
   return uuid;
 }
 
