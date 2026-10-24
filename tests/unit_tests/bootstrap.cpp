@@ -33,6 +33,7 @@
 #include "cryptonote_core/bootstrap_import.h"
 #include "cryptonote_core/bootstrap_serialization.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
+#include "common/varint.h"
 #include "serialization/binary_utils.h"
 
 namespace
@@ -126,4 +127,37 @@ TEST(bootstrap, chunk_only_carries_its_block_transactions)
   ASSERT_FALSE(cryptonote::bootstrap_chunk_to_entry(chunk(), entry));
 
   ASSERT_FALSE(cryptonote::bootstrap_chunk_to_entry("garbage", entry));
+}
+
+TEST(bootstrap, chunk_bounds_what_it_parses)
+{
+  cryptonote::block b;
+  ASSERT_TRUE(cryptonote::generate_genesis_block(b));
+  cryptonote::block_complete_entry entry;
+
+  // a transaction count the block does not list is refused before reading any
+  std::string count;
+  tools::write_varint(std::back_inserter(count), uint64_t(100000000));
+  ASSERT_FALSE(cryptonote::bootstrap_chunk_to_entry(cryptonote::block_to_blob(b) + count + std::string(1000, 0), entry));
+
+  // as are transactions larger than a peer may send
+  cryptonote::transaction tx;
+  tx.extra.resize(cryptonote::get_max_tx_size() * 4);
+  b.tx_hashes.push_back(cryptonote::get_transaction_hash(tx));
+  cryptonote::bootstrap::block_package bp;
+  bp.block = b;
+  bp.txs.push_back(tx);
+  bp.block_weight = 0;
+  bp.cumulative_difficulty = 1;
+  bp.coins_generated = 0;
+  std::string blob;
+  ASSERT_TRUE(::serialization::dump_binary(bp, blob));
+  ASSERT_FALSE(cryptonote::bootstrap_chunk_to_entry(blob, entry));
+
+  cryptonote::transaction smaller;
+  smaller.extra.resize(cryptonote::get_max_tx_size() * 2);
+  bp.block.tx_hashes[0] = cryptonote::get_transaction_hash(smaller);
+  bp.txs[0] = smaller;
+  ASSERT_TRUE(::serialization::dump_binary(bp, blob));
+  ASSERT_TRUE(cryptonote::bootstrap_chunk_to_entry(blob, entry));
 }

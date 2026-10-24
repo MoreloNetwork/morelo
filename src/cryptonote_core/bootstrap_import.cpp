@@ -32,7 +32,6 @@
 #include "cryptonote_core.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "serialization/binary_utils.h"
-#include "net/levin_base.h"
 
 #undef MORELO_DEFAULT_LOG_CATEGORY
 #define MORELO_DEFAULT_LOG_CATEGORY "bootstrap"
@@ -41,8 +40,7 @@ namespace cryptonote
 {
   namespace
   {
-    // blocks a peer can send fit in a levin packet
-    const uint32_t max_chunk_size = LEVIN_DEFAULT_MAX_PACKET_SIZE;
+    using bootstrap::max_chunk_size;
     const uint32_t max_header_size = 1024 * 1024;
 
     bool read_uint32(const std::string &buffer, size_t pos, uint32_t &value)
@@ -53,30 +51,44 @@ namespace cryptonote
 
   bool bootstrap_chunk_to_entry(const std::string &chunk, block_complete_entry &entry)
   {
-    bootstrap::block_package bp;
-    if (!::serialization::parse_binary(chunk, bp))
+    // a bootstrap::block_package, read a piece at a time so that a crafted chunk
+    // can't make us hold more than its own size: the block, then its transactions
+    // (the weight, difficulty and coins after them are only used by --no-verify)
+    std::istringstream stream(chunk);
+    binary_archive<false> ar(stream);
+    // do_serialize, as serialize also wants the stream to end after the object
+    block b;
+    if (!::do_serialize(ar, b) || !stream.good())
     {
       MERROR("Failed to parse a block from the bootstrap file");
       return false;
     }
     // the transactions are added to the pool ahead of their block, so only accept
     // the block's own: anything else would be left behind in the pool
-    if (bp.txs.size() != bp.block.tx_hashes.size())
+    size_t count;
+    ar.begin_array(count);
+    if (!stream.good() || count != b.tx_hashes.size())
     {
-      MERROR("Block " << get_block_hash(bp.block) << " comes with " << bp.txs.size() << " transactions, it has " << bp.block.tx_hashes.size());
+      MERROR("Block " << get_block_hash(b) << " does not come with its " << b.tx_hashes.size() << " transactions");
       return false;
     }
     entry.pruned = false;
-    entry.block = block_to_blob(bp.block);
+    entry.block = block_to_blob(b);
     entry.txs.clear();
-    for (size_t i = 0; i < bp.txs.size(); ++i)
+    for (const crypto::hash &tx_hash: b.tx_hashes)
     {
-      if (get_transaction_hash(bp.txs[i]) != bp.block.tx_hashes[i])
+      // no larger than a peer may send it, the 4x limit of old hard forks included
+      const size_t pos = stream.tellg();
+      std::istringstream tx_stream(chunk.substr(pos, get_max_tx_size() * 4));
+      binary_archive<false> tx_ar(tx_stream);
+      transaction tx;
+      if (!::do_serialize(tx_ar, tx) || !tx_stream.good() || get_transaction_hash(tx) != tx_hash)
       {
-        MERROR("Block " << get_block_hash(bp.block) << " comes with a transaction which is not its own");
+        MERROR("Block " << get_block_hash(b) << " comes with a transaction which is not its own");
         return false;
       }
-      entry.txs.push_back({tx_to_blob(bp.txs[i]), crypto::null_hash});
+      stream.seekg(pos + static_cast<size_t>(tx_stream.tellg()));
+      entry.txs.push_back({tx_to_blob(tx), crypto::null_hash});
     }
     return true;
   }

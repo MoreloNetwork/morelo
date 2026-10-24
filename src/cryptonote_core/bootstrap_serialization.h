@@ -41,6 +41,10 @@ namespace cryptonote
     // echo Arqma bootstrap file | sha1sum
     const uint32_t blockchain_raw_magic = 0x17e66914;
 
+    // largest chunk (a block with its transactions) read from a file, the largest
+    // on mainnet is 2098801 bytes (block 523553)
+    const uint32_t max_chunk_size = 8 * 1024 * 1024;
+
     struct file_info
     {
       uint8_t  major_version;
