@@ -312,6 +312,27 @@ TEST(peerlist_storage, store_and_open_mixed)
   EXPECT_EQ(40, out.anchor[0].first_seen);
 }
 
+TEST(peerlist_entry, kv_malformed_ipv6)
+{
+  // an IPv6 entry with a short address blob loads as an invalid address, which
+  // sanitize_peerlist drops, instead of a made up one
+  epee::serialization::portable_storage stg{};
+  ASSERT_TRUE(make_peer(v6("2001:db8::1", 38303), 1, 7).store(stg));
+  const auto adr = stg.open_section("adr", nullptr);
+  ASSERT_NE(nullptr, adr);
+  const auto addr = stg.open_section("addr", adr);
+  ASSERT_NE(nullptr, addr);
+  ASSERT_TRUE(stg.set_value("addr", std::string(15, 'a'), addr));
+  std::string blob;
+  ASSERT_TRUE(stg.store_to_binary(blob));
+
+  epee::serialization::portable_storage stg2{};
+  ASSERT_TRUE(stg2.load_from_binary(blob));
+  nodetool::peerlist_entry out{};
+  out.load(stg2);
+  EXPECT_EQ(epee::net_utils::address_type::invalid, out.adr.get_type_id());
+}
+
 TEST(peerlist_manager, head_filter_before_depth)
 {
   // the newest entries are IPv6; a peer that may only get IPv4 ones still gets a full list
