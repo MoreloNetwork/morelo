@@ -39,6 +39,15 @@
 
 using namespace boost::placeholders;
 
+namespace
+{
+  static const constexpr epee::serialization::portable_storage::limits_t default_levin_limits = {
+    131072, // objects
+    262144, // fields
+    262144, // strings
+  };
+}
+
 namespace epee
 {
   namespace net_utils
@@ -61,7 +70,7 @@ namespace epee
         return false;
       }
       serialization::portable_storage stg_ret;
-      if(!stg_ret.load_from_binary(buff_to_recv))
+      if(!stg_ret.load_from_binary(buff_to_recv, &default_levin_limits))
       {
         LOG_ERROR("Failed to load_from_binary on command " << command);
         return false;
@@ -105,7 +114,7 @@ namespace epee
         return false;
       }
       typename serialization::portable_storage stg_ret;
-      if(!stg_ret.load_from_binary(buff_to_recv))
+      if(!stg_ret.load_from_binary(buff_to_recv, &default_levin_limits))
       {
         LOG_ERROR("Failed to load_from_binary on command " << command);
         return false;
@@ -130,7 +139,7 @@ namespace epee
           return false;
         }
         serialization::portable_storage stg_ret;
-        if(!stg_ret.load_from_binary(buff))
+        if(!stg_ret.load_from_binary(buff, &default_levin_limits))
         {
           LOG_ERROR("Failed to load_from_binary on command " << command);
           cb(LEVIN_ERROR_FORMAT, result_struct, context);
@@ -176,7 +185,7 @@ namespace epee
     int buff_to_t_adapter(int command, const epee::span<const uint8_t> in_buff, std::string& buff_out, callback_t cb, t_context& context)
     {
       serialization::portable_storage strg;
-      if(!strg.load_from_binary(in_buff))
+      if(!strg.load_from_binary(in_buff, &default_levin_limits))
       {
         LOG_ERROR("Failed to load_from_binary in command " << command);
         return -1;
@@ -206,7 +215,7 @@ namespace epee
     int buff_to_t_adapter(t_owner* powner, int command, const epee::span<const uint8_t> in_buff, callback_t cb, t_context& context)
     {
       serialization::portable_storage strg;
-      if(!strg.load_from_binary(in_buff))
+      if(!strg.load_from_binary(in_buff, &default_levin_limits))
       {
         LOG_ERROR("Failed to load_from_binary in notify " << command);
         return -1;
@@ -258,6 +267,7 @@ namespace epee
 #define BEGIN_INVOKE_MAP2(owner_type) \
   template <class t_context> int handle_invoke_map(bool is_notify, int command, const epee::span<const uint8_t> in_buff, std::string& buff_out, t_context& context, bool& handled) \
   { \
+  try { \
   typedef owner_type internal_owner_type_name;
 
 #define HANDLE_INVOKE2(command_id, func, type_name_in, typename_out) \
@@ -301,7 +311,12 @@ namespace epee
 
 #define END_INVOKE_MAP2() \
   LOG_ERROR("Unknown command:" << command); \
-  return LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED; \
+  return is_notify ? LEVIN_OK : LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED; \
+  } \
+  catch (const std::exception &e) { \
+    MERROR("Error in handle_invoke_map: " << e.what()); \
+    return LEVIN_ERROR_CONNECTION_TIMEDOUT; /* seems kinda appropriate */ \
+  } \
   }
   }
 }

@@ -106,11 +106,12 @@ namespace net_utils
           m_ssl_options(epee::net_utils::ssl_support_t::e_ssl_support_autodetect),
           m_initialized(true),
           m_connected(false),
-          m_deadline(m_io_service),
+          m_deadline(m_io_service, std::chrono::steady_clock::time_point::max()),
           m_shutdowned(0),
           m_bytes_sent(0),
           m_bytes_received(0)
     {
+      check_deadline();
     }
 
     /*! The first/second parameters are host/port respectively. The third
@@ -174,7 +175,7 @@ namespace net_utils
 					// SSL Options
 					if(ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_enabled || ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_autodetect)
 					{
-						if(!m_ssl_options.handshake(*m_ssl_socket, boost::asio::ssl::stream_base::client, addr))
+						if(!m_ssl_options.handshake(*m_ssl_socket, boost::asio::ssl::stream_base::client, {}, addr, timeout))
 						{
 							if(ssl_support == epee::net_utils::ssl_support_t::e_ssl_support_autodetect)
 							{

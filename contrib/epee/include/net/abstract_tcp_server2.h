@@ -68,9 +68,16 @@ namespace net_utils
 
   struct i_connection_filter
   {
-    virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address) = 0;
+    virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address, time_t *t = NULL) = 0;
   protected:
     virtual ~i_connection_filter(){}
+  };
+
+  struct i_connection_limit
+  {
+    virtual bool is_host_limit(const epee::net_utils::network_address &address) = 0;
+  protected:
+    virtual ~i_connection_limit(){}
   };
 
 
@@ -91,10 +98,11 @@ namespace net_utils
     struct shared_state : connection_basic_shared_state
     {
       shared_state()
-        : connection_basic_shared_state(), pfilter(nullptr), config(), stop_signal_sent(false)
+        : connection_basic_shared_state(), pfilter(nullptr), plimit(nullptr), config(), stop_signal_sent(false)
       {}
 
       i_connection_filter* pfilter;
+      i_connection_limit* plimit;
       typename t_protocol_handler::config_type config;
       bool stop_signal_sent;
     };
@@ -103,12 +111,14 @@ namespace net_utils
     explicit connection( boost::asio::io_context& io_service,
                          boost::shared_ptr<shared_state> state,
                          t_connection_type connection_type,
-                         epee::net_utils::ssl_support_t ssl_support);
+                         epee::net_utils::ssl_support_t ssl_support,
+                         t_connection_context&& initial = t_connection_context{});
 
     explicit connection( boost::asio::ip::tcp::socket&& sock,
                          boost::shared_ptr<shared_state> state,
                          t_connection_type connection_type,
-                         epee::net_utils::ssl_support_t ssl_support);
+                         epee::net_utils::ssl_support_t ssl_support,
+                         t_connection_context&& initial = t_connection_context{});
 
     virtual ~connection() noexcept(false);
 
@@ -246,6 +256,7 @@ namespace net_utils
     size_t get_threads_count(){return m_threads_count;}
 
     void set_connection_filter(i_connection_filter* pfilter);
+    void set_connection_limit(i_connection_limit* plimit);
 
     void set_default_remote(epee::net_utils::network_address remote)
     {
@@ -256,7 +267,7 @@ namespace net_utils
     try_connect_result_t try_connect(connection_ptr new_connection_l, const std::string& adr, const std::string& port, boost::asio::ip::tcp::socket& sock_, const boost::asio::ip::tcp::endpoint &remote_endpoint, const std::string &bind_ip, uint32_t conn_timeout, epee::net_utils::ssl_support_t ssl_support);
     bool connect(const std::string& adr, const std::string& port, uint32_t conn_timeout, t_connection_context& cn, const std::string& bind_ip = "0.0.0.0", epee::net_utils::ssl_support_t ssl_support = epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
     template<class t_callback>
-    bool connect_async(const std::string& adr, const std::string& port, uint32_t conn_timeout, const t_callback &cb, const std::string& bind_ip = "0.0.0.0", epee::net_utils::ssl_support_t ssl_support = epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
+    bool connect_async(const std::string& adr, const std::string& port, uint32_t conn_timeout, const t_callback &cb, const std::string& bind_ip = "0.0.0.0", epee::net_utils::ssl_support_t ssl_support = epee::net_utils::ssl_support_t::e_ssl_support_autodetect, t_connection_context&& initial = t_connection_context{});
 
     typename t_protocol_handler::config_type& get_config_object()
     {

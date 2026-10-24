@@ -64,7 +64,7 @@ namespace string_tools
     if (str.size() != length)
       return false;
     for (char c: str)
-      if (!isxdigit(c))
+      if (!isxdigit(static_cast<unsigned char>(c)))
         return false;
     return true;
   }

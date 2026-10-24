@@ -100,7 +100,7 @@ namespace net_utils
 					entry.m_etc_header_fields.push_back(std::pair<std::string, std::string>(result[field_etc_name], result[field_val]));
 				else
 				{
-					LOG_ERROR("simple_http_connection_handler::parse_header() not matched last entry in:"<<std::string(it_current_bound, it_end));
+					LOG_ERROR("simple_http_connection_handler::parse_header() not matched last entry (" << std::distance(it_current_bound, it_end) << " bytes)");
 				}
 
 				it_current_bound = result[(int)result.size()-1].first;
@@ -121,7 +121,7 @@ namespace net_utils
 
 			if(!parse_header(it_begin, end_header_it+4, entry))
 			{
-				LOG_ERROR("Failed to parse header:" << std::string(it_begin, end_header_it+2));
+				LOG_ERROR("Failed to parse header (" << std::distance(it_begin, end_header_it + 2) << " bytes)");
 				return false;
 			}
 
@@ -138,7 +138,7 @@ namespace net_utils
 			std::string boundary;
 			if(!match_boundary(content_type, boundary))
 			{
-				MERROR("Failed to match boundary in content type: " << content_type);
+				MERROR("Failed to match boundary in content type (" << content_type.size() << " bytes)");
 				return false;
 			}
 
@@ -206,10 +206,46 @@ namespace net_utils
 		m_config(config),
 		m_want_close(false),
 		m_newlines(0),
+		m_bytes_read(0),
 		m_psnd_hndlr(psnd_hndlr),
-		m_conn_context(conn_context)
+		m_conn_context(conn_context),
+		m_initialized(false)
 	{
 
+	}
+	//--------------------------------------------------------------------------------------------
+	template<class t_connection_context>
+	simple_http_connection_handler<t_connection_context>::~simple_http_connection_handler()
+	{
+	  try
+	  {
+	    if (m_initialized)
+	    {
+	      CRITICAL_REGION_LOCAL(m_config.m_lock);
+	      if (m_config.m_connection_count)
+	        --m_config.m_connection_count;
+	      auto elem = m_config.m_connections.find(m_conn_context.m_remote_address.host_str());
+	      if (elem != m_config.m_connections.end())
+	      {
+	        if (elem->second <= 1)
+	          m_config.m_connections.erase(elem);
+	        else
+	          --(elem->second);
+	      }
+	    }
+	  }
+	  catch (...)
+	  {}
+	}
+	//--------------------------------------------------------------------------------------------
+	template<class t_connection_context>
+	bool simple_http_connection_handler<t_connection_context>::after_init_connection()
+	{
+	  CRITICAL_REGION_LOCAL(m_config.m_lock);
+	  ++m_config.m_connections[m_conn_context.m_remote_address.host_str()];
+	  ++m_config.m_connection_count;
+	  m_initialized = true;
+	  return true;
 	}
 	//--------------------------------------------------------------------------------------------
 	template<class t_connection_context>
@@ -221,6 +257,8 @@ namespace net_utils
 		m_query_info.clear();
 		m_len_summary = 0;
 		m_newlines = 0;
+		// data already buffered for a pipelined request still counts toward m_max_content_length
+		m_bytes_read = m_cache.size();
 		return true;
 	}
 	//--------------------------------------------------------------------------------------------
@@ -242,6 +280,14 @@ namespace net_utils
 	{
 
 		size_t ndel;
+
+		m_bytes_read += buf.size();
+		if (m_bytes_read > m_config.m_max_content_length)
+		{
+			LOG_ERROR("simple_http_connection_handler::handle_buff_in: Too much data: got " << m_bytes_read);
+			m_state = http_state_error;
+			return false;
+		}
 
 		if(m_cache.size())
 			m_cache += buf;
@@ -360,7 +406,7 @@ namespace net_utils
 		boost::smatch result;
 		if(boost::regex_search(m_cache, result, rexp_match_command_line, boost::match_default) && result[0].matched)
 		{
-			if (!analize_http_method(result, m_query_info.m_http_method, m_query_info.m_http_ver_hi, m_query_info.m_http_ver_hi))
+			if (!analize_http_method(result, m_query_info.m_http_method, m_query_info.m_http_ver_hi, m_query_info.m_http_ver_lo))
 			{
 				m_state = http_state_error;
 				MERROR("Failed to analyze method");
@@ -384,7 +430,7 @@ namespace net_utils
 		}else
 		{
 			m_state = http_state_error;
-			LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::handle_invoke_query_line(): Failed to match first line: " << m_cache);
+			LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::handle_invoke_query_line(): Failed to match first line (" << m_cache.size() << " bytes)");
 			return false;
 		}
 
@@ -408,14 +454,14 @@ namespace net_utils
   template<class t_connection_context>
 	bool simple_http_connection_handler<t_connection_context>::analize_cached_request_header_and_invoke_state(size_t pos)
 	{
-		LOG_PRINT_L3("HTTP HEAD:\r\n" << m_cache.substr(0, pos));
+		LOG_PRINT_L3("HTTP HEAD: " << pos << " bytes");
 
 		m_query_info.m_full_request_buf_size = pos;
     m_query_info.m_request_head.assign(m_cache.begin(), m_cache.begin()+pos);
 
-		if(!parse_cached_header(m_query_info.m_header_info, m_cache, pos))
+		if(!parse_cached_header(m_query_info.m_header_info, m_cache, pos, m_len_summary))
 		{
-			LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::analize_cached_request_header_and_invoke_state(): failed to anilize request header: " << m_cache);
+			LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::analize_cached_request_header_and_invoke_state(): failed to anilize request header (" << pos << " bytes)");
 			m_state = http_state_error;
 			return false;
 		}
@@ -429,12 +475,6 @@ namespace net_utils
 		{
 			m_state = http_state_retriving_body;
 			m_body_transfer_type = http_body_transfer_measure;
-			if(!get_len_from_content_lenght(m_query_info.m_header_info.m_content_length, m_len_summary))
-			{
-				LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::analize_cached_request_header_and_invoke_state(): Failed to get_len_from_content_lenght();, m_query_info.m_content_length="<<m_query_info.m_header_info.m_content_length);
-				m_state = http_state_error;
-				return false;
-			}
 			if(0 == m_len_summary)
 			{	//current query finished, next will be next query
 				if(handle_request_and_send_response(m_query_info))
@@ -499,7 +539,7 @@ namespace net_utils
 	}
 	//--------------------------------------------------------------------------------------------
   template<class t_connection_context>
-	bool simple_http_connection_handler<t_connection_context>::parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos)
+	bool simple_http_connection_handler<t_connection_context>::parse_cached_header(http_header_info& body_info, const std::string& m_cache_to_process, size_t pos, size_t& content_length)
 	{
 		STATIC_REGEXP_EXPR_1(rexp_mach_field,
 			"\n?((Connection)|(Referer)|(Content-Length)|(Content-Type)|(Transfer-Encoding)|(Content-Encoding)|(Host)|(Cookie)|(User-Agent)|(Origin)"
@@ -513,6 +553,8 @@ namespace net_utils
 		std::string::const_iterator it_end_bound = m_cache_to_process.begin()+pos;
 
 		body_info.clear();
+		content_length = 0;
+		bool has_content_length = false;
 
 		//lookup all fields and fill well-known fields
 		while( boost::regex_search( it_current_bound, it_end_bound, result, rexp_mach_field, boost::match_default) && result[0].matched)
@@ -526,11 +568,22 @@ namespace net_utils
 			else if(result[i++].matched)//"Referer"
 				body_info.m_referer = result[field_val];
 			else if(result[i++].matched)//"Content-Length"
-				body_info.m_content_length = result[field_val];
+			{
+				// conflicting or malformed lengths make the request framing ambiguous
+				size_t parsed_length = 0;
+				const std::string value = result[field_val];
+				if(!get_len_from_content_lenght(value, parsed_length) ||
+					(has_content_length && parsed_length != content_length))
+					return false;
+				if(!has_content_length)
+					body_info.m_content_length = value;
+				has_content_length = true;
+				content_length = parsed_length;
+			}
 			else if(result[i++].matched)//"Content-Type"
 				body_info.m_content_type = result[field_val];
 			else if(result[i++].matched)//"Transfer-Encoding"
-				body_info.m_transfer_encoding = result[field_val];
+				return false; // not supported: ignoring it would desync request framing with proxies
 			else if(result[i++].matched)//"Content-Encoding"
 				body_info.m_content_encoding = result[field_val];
 			else if(result[i++].matched)//"Host"
@@ -545,7 +598,7 @@ namespace net_utils
 				body_info.m_etc_fields.push_back(std::pair<std::string, std::string>(result[field_etc_name], result[field_val]));
 			else
 			{
-				LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::parse_cached_header() not matched last entry in:" << m_cache_to_process);
+				LOG_ERROR_CC(m_conn_context, "simple_http_connection_handler<t_connection_context>::parse_cached_header() not matched last entry (" << pos << " bytes)");
 			}
 
 			it_current_bound = result[(int)result.size()-1]. first;
@@ -554,17 +607,44 @@ namespace net_utils
 	}
 	//-----------------------------------------------------------------------------------
   template<class t_connection_context>
-	bool simple_http_connection_handler<t_connection_context>::get_len_from_content_lenght(const std::string& str, size_t& OUT len)
+	bool simple_http_connection_handler<t_connection_context>::get_len_from_content_lenght(boost::string_ref str, size_t& OUT len)
 	{
-		STATIC_REGEXP_EXPR_1(rexp_mach_field, "\\d+", boost::regex::normal);
-		std::string res;
-		boost::smatch result;
-		if(!(boost::regex_search( str, result, rexp_mach_field, boost::match_default) && result[0].matched))
-			return false;
+		// Content-Length must be 1*DIGIT (RFC 7230 3.3.2); duplicate fields can be
+		// combined into a comma-separated list, accepted only when every value is
+		// valid and identical.
+		bool has_length = false;
+		while(true)
+		{
+			const size_t comma = str.find(',');
+			boost::string_ref value = str.substr(0, comma);
+			while(!value.empty() && (value.front() == ' ' || value.front() == '\t'))
+				value.remove_prefix(1);
+			while(!value.empty() && (value.back() == ' ' || value.back() == '\t'))
+				value.remove_suffix(1);
 
-		try { len = boost::lexical_cast<size_t>(result[0]); }
-		catch(...) { return false; }
-		return true;
+			if(value.empty())
+				return false;
+
+			size_t parsed_length = 0;
+			for(const char c : value)
+			{
+				if(c < '0' || c > '9')
+					return false;
+				const size_t digit = c - '0';
+				if(parsed_length > (std::numeric_limits<size_t>::max() - digit) / 10)
+					return false;
+				parsed_length = parsed_length * 10 + digit;
+			}
+			if(has_length && parsed_length != len)
+				return false;
+			has_length = true;
+			len = parsed_length;
+
+			if(comma == boost::string_ref::npos)
+				break;
+			str.remove_prefix(comma + 1);
+		}
+		return has_length;
 	}
 	//-----------------------------------------------------------------------------------
   template<class t_connection_context>
@@ -599,30 +679,10 @@ namespace net_utils
   template<class t_connection_context>
 	bool simple_http_connection_handler<t_connection_context>::handle_request(const http::http_request_info& query_info, http_response_info& response)
 	{
-
-		std::string uri_to_path = query_info.m_uri_content.m_path;
-		if("/" == uri_to_path)
-			uri_to_path = "/index.html";
-
-		//slash_to_back_slash(uri_to_path);
-		m_config.m_lock.lock();
-		std::string destination_file_path = m_config.m_folder + uri_to_path;
-		m_config.m_lock.unlock();
-		if(!file_io_utils::load_file_to_string(destination_file_path.c_str(), response.m_body))
-		{
-			MWARNING("URI \""<< query_info.m_full_request_str.substr(0, query_info.m_full_request_str.size()-2) << "\" [" << destination_file_path << "] Not Found (404 )");
-			response.m_body = get_not_found_response_body(query_info.m_URI);
-			response.m_response_code = 404;
-			response.m_response_comment = "Not found";
-			response.m_mime_tipe = "text/html";
-			return true;
-		}
-
-		MDEBUG(" -->> " << query_info.m_full_request_str << "\r\n<<--OK");
-		response.m_response_code = 200;
-		response.m_response_comment = "OK";
-		response.m_mime_tipe = get_file_mime_tipe(uri_to_path);
-
+		// the built in static file server was never used and could serve any file
+		// (no path sanitizing); real servers override this
+		response.m_response_code = 404;
+		response.m_response_comment = "Not found";
 		return true;
 	}
 	//-----------------------------------------------------------------------------------
@@ -682,58 +742,6 @@ namespace net_utils
 		buf+="\r\n";
 
 		return buf;
-	}
-	//-----------------------------------------------------------------------------------
-	template<class t_connection_context>
-  std::string simple_http_connection_handler<t_connection_context>::get_file_mime_tipe(const std::string& path)
-	{
-		std::string result;
-		std::string ext = string_tools::get_extension(path);
-		if(!string_tools::compare_no_case(ext, "gif"))
-			result = "image/gif";
-		else if(!string_tools::compare_no_case(ext, "jpg"))
-			result = "image/jpeg";
-		else if(!string_tools::compare_no_case(ext, "html"))
-			result = "text/html";
-		else if(!string_tools::compare_no_case(ext, "htm"))
-			result = "text/html";
-		else if(!string_tools::compare_no_case(ext, "js"))
-			result = "application/x-javascript";
-		else if(!string_tools::compare_no_case(ext, "css"))
-			result = "text/css";
-		else if(!string_tools::compare_no_case(ext, "xml"))
-			result = "application/xml";
-    else if(!string_tools::compare_no_case(ext, "svg"))
-      result = "image/svg+xml";
-
-
-		return result;
-	}
-	//-----------------------------------------------------------------------------------
-	template<class t_connection_context>
-  std::string simple_http_connection_handler<t_connection_context>::get_not_found_response_body(const std::string& URI)
-	{
-		std::string body =
-			"<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\r\n"
-			"<html><head>\r\n"
-			"<title>404 Not Found</title>\r\n"
-			"</head><body>\r\n"
-			"<h1>Not Found</h1>\r\n"
-			"<p>The requested URL \r\n";
-		body += URI;
-		body += "was not found on this server.</p>\r\n"
-			"</body></html>\r\n";
-
-		return body;
-	}
-	//--------------------------------------------------------------------------------------------
-	template<class t_connection_context>
-  bool simple_http_connection_handler<t_connection_context>::slash_to_back_slash(std::string& str)
-	{
-		for(std::string::iterator it = str.begin(); it!=str.end(); it++)
-			if('/' == *it)
-				*it = '\\';
-		return true;
 	}
 	}
 }

@@ -29,6 +29,7 @@
 #pragma once
 
 #include "misc_language.h"
+#include "misc_log_ex.h"
 #include "portable_storage_base.h"
 #include "portable_storage_to_bin.h"
 #include "portable_storage_from_bin.h"
@@ -53,6 +54,13 @@ namespace epee
       typedef epee::serialization::hsection hsection;
       typedef epee::serialization::harray  harray;
       typedef storage_entry meta_entry;
+
+      struct limits_t
+      {
+        size_t n_objects;
+        size_t n_fields;
+        size_t n_strings; // not counting field names
+      };
 
       portable_storage(){}
       virtual ~portable_storage(){}
@@ -84,8 +92,8 @@ namespace epee
 
       //-------------------------------------------------------------------------------
       bool		store_to_binary(binarybuffer& target);
-      bool		load_from_binary(const epee::span<const uint8_t> target);
-      bool		load_from_binary(const std::string& target) { return load_from_binary(epee::strspan<uint8_t>(target)); }
+      bool		load_from_binary(const epee::span<const uint8_t> target, const limits_t *limits = NULL);
+      bool		load_from_binary(const std::string& target, const limits_t *limits = NULL) { return load_from_binary(epee::strspan<uint8_t>(target), limits); }
       template<class trace_policy>
       bool		  dump_as_xml(std::string& targetObj, const std::string& root_name = "");
       bool		  dump_as_json(std::string& targetObj, size_t indent = 0, bool insert_newlines = true);
@@ -150,7 +158,7 @@ namespace epee
       CATCH_ENTRY("portable_storage::store_to_binary", false)
     }
     inline
-    bool portable_storage::load_from_binary(const epee::span<const uint8_t> source)
+    bool portable_storage::load_from_binary(const epee::span<const uint8_t> source, const limits_t *limits)
     {
       m_root.m_entries.clear();
       if(source.size() < sizeof(storage_block_header))
@@ -173,6 +181,8 @@ namespace epee
       }
       TRY_ENTRY();
       throwable_buffer_reader buf_reader(source.data()+sizeof(storage_block_header), source.size()-sizeof(storage_block_header));
+      if (limits)
+        buf_reader.set_limits(limits->n_objects, limits->n_fields, limits->n_strings);
       buf_reader.read(m_root);
       return true;//TODO:
       CATCH_ENTRY("portable_storage::load_from_binary", false);
@@ -280,6 +290,7 @@ namespace epee
     {
       TRY_ENTRY();
       CHECK_AND_ASSERT(psection, nullptr);
+      CHECK_AND_ASSERT(!pentry_name.empty(), nullptr);
       auto ins_res = psection->m_entries.insert(std::pair<std::string, storage_entry>(pentry_name, entry));
       return &ins_res.first->second;
       CATCH_ENTRY("portable_storage::insert_new_entry_get_storage_entry", nullptr);
