@@ -55,6 +55,7 @@ set(unit_tests_sources
   mnemonics.cpp
   mul_div.cpp
   multisig.cpp
+  net.cpp
   parse_amount.cpp
   serialization.cpp
   sha256.cpp

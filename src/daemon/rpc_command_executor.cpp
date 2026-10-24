@@ -65,12 +65,13 @@ namespace {
     std::string id_str;
     std::string port_str;
     std::string elapsed = epee::misc_utils::get_time_interval_string(now - last_seen);
-    std::string ip_str = epee::string_tools::get_ip_string_from_int32(peer.ip);
     std::stringstream peer_id_str;
     peer_id_str << std::hex << std::setw(16) << peer.id;
     peer_id_str >> id_str;
     epee::string_tools::xtype_to_string(peer.port, port_str);
-    std::string addr_str = ip_str + ":" + port_str;
+    // IPv4 peers come with ip/port, IPv6 ones with host/port, others with host only
+    std::string addr_str = peer.ip ? epee::string_tools::get_ip_string_from_int32(peer.ip) + ":" + port_str
+      : peer.port ? "[" + peer.host + "]:" + port_str : peer.host;
     std::string rpc_port = peer.rpc_port ? std::to_string(peer.rpc_port) : "-";
     std::string rpc_credits_per_hash = peer.rpc_credits_per_hash ? print_float(peer.rpc_credits_per_hash / RPC_CREDITS_PER_HASH_SCALE, 2) : "-";
     std::string pruning_seed = epee::string_tools::to_string_hex(peer.pruning_seed);
@@ -510,8 +511,13 @@ bool t_rpc_command_executor::print_connections() {
     }
   }
 
+  // IPv6 addresses are longer than the IPv4 column, widen it to the longest one
+  int host_field_width = 30;
+  for (const auto & info : res.connections)
+    host_field_width = std::max(host_field_width, 8 + (int)info.address.length());
+
   tools::msg_writer()
-      << std::setw(30) << std::left << "Remote Host"
+      << std::setw(host_field_width) << std::left << "Remote Host"
       << std::setw(6) << "SSL"
       << std::setw(20) << "Peer id"
       << std::setw(30) << "Recv/Sent (inactive,sec)"
@@ -526,11 +532,11 @@ bool t_rpc_command_executor::print_connections() {
   for (auto & info : res.connections)
   {
     std::string address = info.incoming ? "INC " : "OUT ";
-    address += info.ip + ":" + info.port;
+    address += info.address;
     //std::string in_out = info.incoming ? "INC " : "OUT ";
     tools::msg_writer()
      //<< std::setw(30) << std::left << in_out
-     << std::setw(30) << std::left << address
+     << std::setw(host_field_width) << std::left << address
      << std::setw(6) << (info.ssl ? "yes" : "no")
      << std::setw(20) << epee::string_tools::pad_string(info.peer_id, 16, '0', true)
      << std::setw(30) << std::to_string(info.recv_count) + "("  + std::to_string(info.recv_idle_time) + ")/" + std::to_string(info.send_count) + "(" + std::to_string(info.send_idle_time) + ")"

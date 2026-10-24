@@ -1,5 +1,8 @@
 #include "net/net_helper.h"
 
+#include <vector>
+#include <boost/asio/connect.hpp>
+
 namespace epee
 {
 namespace net_utils
@@ -10,9 +13,19 @@ namespace net_utils
 		// Get a list of endpoints corresponding to the server name.
 		//////////////////////////////////////////////////////////////////////////
 		boost::asio::ip::tcp::resolver resolver(GET_IO_SERVICE(timeout));
-		const auto results = resolver.resolve(boost::asio::ip::tcp::v4(), addr, port, boost::asio::ip::tcp::resolver::canonical_name);
+		const auto results = resolver.resolve(addr, port, boost::asio::ip::tcp::resolver::canonical_name);
 		if(results.empty()) // Documentation states that successful call is guaranteed to be non-empty
 			throw boost::system::system_error{boost::asio::error::fault, "Failed to resolve " + addr};
+
+		// tried in turn, IPv4 first: a hostname with both records keeps connecting over IPv4 but
+		// still works when only its IPv6 address answers
+		std::vector<boost::asio::ip::tcp::endpoint> endpoints;
+		for(const auto& entry : results)
+			if(entry.endpoint().address().is_v4())
+				endpoints.push_back(entry.endpoint());
+		for(const auto& entry : results)
+			if(!entry.endpoint().address().is_v4())
+				endpoints.push_back(entry.endpoint());
 
 		//////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +48,7 @@ namespace net_utils
 				shared->socket_.close();
 			}
 		});
-		shared->socket_.async_connect(results.begin()->endpoint(), [shared] (boost::system::error_code error)
+		boost::asio::async_connect(shared->socket_, endpoints, [shared] (boost::system::error_code error, const boost::asio::ip::tcp::endpoint&)
 		{
 			if (shared)
 			{

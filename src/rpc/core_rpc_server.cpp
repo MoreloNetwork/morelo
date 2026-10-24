@@ -202,9 +202,10 @@ namespace cryptonote
 
     if (!m_rpc_payment)
     {
-      uint32_t bind_ip;
-      bool ok = epee::string_tools::get_ip_int32_from_string(bind_ip, rpc_config->bind_ip);
-      if (ok & !epee::net_utils::is_ip_loopback(bind_ip))
+      boost::system::error_code ec4, ec6;
+      const auto bind_ip = boost::asio::ip::make_address(rpc_config->bind_ip, ec4);
+      const auto bind_ipv6 = boost::asio::ip::make_address(rpc_config->bind_ipv6_address, ec6);
+      if ((!ec4 && !bind_ip.is_loopback()) || (rpc_config->use_ipv6 && !ec6 && !bind_ipv6.is_loopback()))
         MWARNING("The RPC server is accessible from the outside, but no RPC payment was setup. RPC access will be free for all.");
     }
 
@@ -262,7 +263,8 @@ namespace cryptonote
 
     auto rng = [](size_t len, uint8_t *ptr){ return crypto::rand(len, ptr); };
     return epee::http_server_impl_base<core_rpc_server, connection_context>::init(rng, std::move(port), std::move(rpc_config->bind_ip), std::move(rpc_config->access_control_origins), std::move(http_login), std::move(rpc_config->ssl_options),
-      max_connections_public, max_connections_private, max_connections);
+      max_connections_public, max_connections_private, max_connections,
+      std::move(rpc_config->bind_ipv6_address), rpc_config->use_ipv6, rpc_config->require_ipv4);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::check_payment(const std::string &client_message, uint64_t payment, const std::string &rpc, bool same_ts, std::string &message, uint64_t &credits, std::string &top_hash)
@@ -1171,25 +1173,24 @@ namespace cryptonote
     std::vector<nodetool::peerlist_entry> gray_list;
     m_p2p.get_public_peerlist(gray_list, white_list);
 
-    res.white_list.reserve(white_list.size());
-    for (auto & entry : white_list)
+    // IPv4 peers fill ip/port, IPv6 ones host/port, anything else only host (as "address:port")
+    const auto convert = [](const std::vector<nodetool::peerlist_entry>& in, std::vector<peer>& out)
     {
-      if (entry.adr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id())
-        res.white_list.emplace_back(entry.id, entry.adr.as<epee::net_utils::ipv4_network_address>().ip(),
-            entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-      else
-        res.white_list.emplace_back(entry.id, entry.adr.str(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-    }
-
-    res.gray_list.reserve(gray_list.size());
-    for (auto & entry : gray_list)
-    {
-      if (entry.adr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id())
-        res.gray_list.emplace_back(entry.id, entry.adr.as<epee::net_utils::ipv4_network_address>().ip(),
-            entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-      else
-        res.gray_list.emplace_back(entry.id, entry.adr.str(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
-    }
+      out.reserve(in.size());
+      for (const auto & entry : in)
+      {
+        if (entry.adr.get_type_id() == epee::net_utils::ipv4_network_address::get_type_id())
+          out.emplace_back(entry.id, entry.adr.as<epee::net_utils::ipv4_network_address>().ip(),
+              entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
+        else if (entry.adr.get_type_id() == epee::net_utils::ipv6_network_address::get_type_id())
+          out.emplace_back(entry.id, entry.adr.host_str(), entry.adr.as<epee::net_utils::ipv6_network_address>().port(),
+              entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
+        else
+          out.emplace_back(entry.id, entry.adr.str(), entry.last_seen, entry.pruning_seed, entry.rpc_port, entry.rpc_credits_per_hash);
+      }
+    };
+    convert(white_list, res.white_list);
+    convert(gray_list, res.gray_list);
 
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -2188,6 +2189,17 @@ namespace cryptonote
         res.bans.push_back(b);
       }
     }
+    std::map<epee::net_utils::ipv6_network_subnet, time_t> blocked_subnets6 = m_p2p.get_blocked_subnets6();
+    for (std::map<epee::net_utils::ipv6_network_subnet, time_t>::const_iterator i = blocked_subnets6.begin(); i != blocked_subnets6.end(); ++i)
+    {
+      if (i->second > now) {
+        COMMAND_RPC_GETBANS::ban b;
+        b.host = i->first.host_str();
+        b.ip = 0;
+        b.seconds = i->second - now;
+        res.bans.push_back(b);
+      }
+    }
 
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -2217,6 +2229,15 @@ namespace cryptonote
             m_p2p.block_subnet(*ns_parsed, i->seconds);
           else
             m_p2p.unblock_subnet(*ns_parsed);
+          continue;
+        }
+        auto ns6_parsed = net::get_ipv6_subnet_address(i->host);
+        if (ns6_parsed)
+        {
+          if (i->ban)
+            m_p2p.block_subnet(*ns6_parsed, i->seconds);
+          else
+            m_p2p.unblock_subnet(*ns6_parsed);
           continue;
         }
       }

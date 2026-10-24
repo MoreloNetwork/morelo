@@ -224,7 +224,7 @@ namespace net_utils
 	      CRITICAL_REGION_LOCAL(m_config.m_lock);
 	      if (m_config.m_connection_count)
 	        --m_config.m_connection_count;
-	      auto elem = m_config.m_connections.find(m_conn_context.m_remote_address.host_str());
+	      auto elem = m_config.m_connections.find(net_utils::get_host_limit_key(m_conn_context.m_remote_address));
 	      if (elem != m_config.m_connections.end())
 	      {
 	        if (elem->second <= 1)
@@ -242,7 +242,8 @@ namespace net_utils
 	bool simple_http_connection_handler<t_connection_context>::after_init_connection()
 	{
 	  CRITICAL_REGION_LOCAL(m_config.m_lock);
-	  ++m_config.m_connections[m_conn_context.m_remote_address.host_str()];
+	  // public IPv6 clients are counted per /64, one host owns a whole prefix as a rule
+	  ++m_config.m_connections[net_utils::get_host_limit_key(m_conn_context.m_remote_address)];
 	  ++m_config.m_connection_count;
 	  m_initialized = true;
 	  return true;

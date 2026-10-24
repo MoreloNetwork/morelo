@@ -156,6 +156,7 @@ namespace nodetool
         : m_connect(nullptr),
           m_net_server(epee::net_utils::e_connection_type_P2P),
           m_bind_ip(),
+          m_bind_ipv6_address(),
           m_port(),
           m_our_address(),
           m_peerlist(),
@@ -172,6 +173,7 @@ namespace nodetool
         : m_connect(nullptr),
           m_net_server(public_service, epee::net_utils::e_connection_type_P2P),
           m_bind_ip(),
+          m_bind_ipv6_address(),
           m_port(),
           m_our_address(),
           m_peerlist(),
@@ -187,6 +189,7 @@ namespace nodetool
       connect_func* m_connect;
       net_server m_net_server;
       std::string m_bind_ip;
+      std::string m_bind_ipv6_address;
       std::string m_port;
       epee::net_utils::network_address m_our_address; // in anonymity networks
       peerlist_manager m_peerlist;
@@ -230,6 +233,8 @@ namespace nodetool
         m_hide_my_port(false),
         m_igd(no_igd),
         m_offline(false),
+        m_use_ipv6(false),
+        m_require_ipv4(true),
         m_save_graph(false),
         is_closing(false),
         m_network_id(),
@@ -267,11 +272,17 @@ namespace nodetool
     virtual bool block_host(epee::net_utils::network_address address, time_t seconds = P2P_IP_BLOCKTIME, bool add_only = false);
     virtual bool unblock_host(const epee::net_utils::network_address &address);
     virtual bool block_subnet(const epee::net_utils::ipv4_network_subnet &subnet, time_t seconds = P2P_IP_BLOCKTIME);
+    virtual bool block_subnet(const epee::net_utils::ipv6_network_subnet &subnet, time_t seconds = P2P_IP_BLOCKTIME);
     virtual bool unblock_subnet(const epee::net_utils::ipv4_network_subnet &subnet);
+    virtual bool unblock_subnet(const epee::net_utils::ipv6_network_subnet &subnet);
     virtual bool clear_bans();
     virtual bool is_host_blocked(const epee::net_utils::network_address &address, time_t *seconds) { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return !is_remote_host_allowed(address, seconds); }
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
     virtual std::map<epee::net_utils::ipv4_network_subnet, time_t> get_blocked_subnets() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_subnets; }
+    virtual std::map<epee::net_utils::ipv6_network_subnet, time_t> get_blocked_subnets6() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_subnets6; }
+
+    // drops entries a peer must not have sent us (public so the unit tests can exercise it)
+    bool sanitize_peerlist(std::vector<peerlist_entry>& local_peerlist);
 
     virtual void add_used_stripe_peer(const typename t_payload_net_handler::connection_context &context);
     virtual void remove_used_stripe_peer(const typename t_payload_net_handler::connection_context &context);
@@ -339,7 +350,10 @@ namespace nodetool
     bool get_local_node_data(basic_node_data& node_data, const network_zone& zone);
     //bool get_local_handshake_data(handshake_data& hshd);
 
-    bool sanitize_peerlist(std::vector<peerlist_entry>& local_peerlist);
+    // the subnet ban bookkeeping, shared by the IPv4 and IPv6 subnet maps
+    template<class Subnet> bool is_in_blocked_subnet(std::map<Subnet, time_t>& subnets, const epee::net_utils::network_address& address, time_t now, time_t* t);
+    template<class Subnet> bool block_subnet_impl(std::map<Subnet, time_t>& subnets, const Subnet& subnet, time_t seconds, bool add_only = false);
+    template<class Subnet> bool unblock_subnet_impl(std::map<Subnet, time_t>& subnets, const Subnet& subnet);
 
     bool connections_maker();
     bool peer_sync_idle_maker();
@@ -443,6 +457,8 @@ namespace nodetool
     bool m_hide_my_port;
     igd_t m_igd;
     bool m_offline;
+    bool m_use_ipv6;
+    bool m_require_ipv4;
     std::atomic<bool> m_save_graph;
     std::atomic<bool> is_closing;
     std::unique_ptr<boost::thread> mPeersLoggerThread;
@@ -487,6 +503,7 @@ namespace nodetool
     epee::critical_section m_blocked_hosts_lock; // for both hosts and subnets
     std::map<std::string, time_t> m_blocked_hosts;
     std::map<epee::net_utils::ipv4_network_subnet, time_t> m_blocked_subnets;
+    std::map<epee::net_utils::ipv6_network_subnet, time_t> m_blocked_subnets6; // a public IPv6 host ban is a /64 entry here
 
     struct host_fails { uint64_t score; time_t last; };
     epee::critical_section m_host_fails_score_lock;
@@ -507,7 +524,10 @@ namespace nodetool
     const int64_t default_limit_up = P2P_DEFAULT_LIMIT_RATE_UP;
     const int64_t default_limit_down = P2P_DEFAULT_LIMIT_RATE_DOWN;
     extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ip;
+    extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ipv6_address;
     extern const command_line::arg_descriptor<std::string, false, true, 2> arg_p2p_bind_port;
+    extern const command_line::arg_descriptor<bool> arg_p2p_use_ipv6;
+    extern const command_line::arg_descriptor<bool> arg_p2p_ignore_ipv4;
     extern const command_line::arg_descriptor<uint32_t> arg_p2p_external_port;
     extern const command_line::arg_descriptor<bool> arg_p2p_allow_local_ip;
     extern const command_line::arg_descriptor<std::vector<std::string>> arg_p2p_add_peer;

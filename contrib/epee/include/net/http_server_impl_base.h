@@ -65,7 +65,8 @@ namespace epee
       net_utils::ssl_options_t ssl_options = net_utils::ssl_support_t::e_ssl_support_autodetect,
       const std::size_t max_public_ip_connections = 64,
       const std::size_t max_private_ip_connections = 100,
-      const std::size_t max_connections = 1000)
+      const std::size_t max_connections = 1000,
+      const std::string& bind_ipv6_address = "::", bool use_ipv6 = false, bool require_ipv4 = true)
     {
       if (max_connections < max_public_ip_connections)
         throw std::invalid_argument{"Max public IP connections cannot be more than max connections"};
@@ -86,8 +87,10 @@ namespace epee
       m_net_server.get_config_object().m_max_connections = max_connections;
       m_net_server.set_connection_limit(this);
 
-      MGINFO("Binding on " << bind_ip << ":" << bind_port);
-      bool res = m_net_server.init_server(bind_port, bind_ip, std::move(ssl_options));
+      MGINFO("Binding on " << bind_ip << " (IPv4):" << bind_port);
+      if (use_ipv6)
+        MGINFO("Binding on [" << bind_ipv6_address << "] (IPv6):" << bind_port);
+      bool res = m_net_server.init_server(bind_port, bind_ip, std::move(ssl_options), bind_ipv6_address, use_ipv6, require_ipv4);
       if(!res)
       {
         LOG_ERROR("Failed to bind server");
@@ -147,7 +150,7 @@ namespace epee
         return true;
 
       const bool is_private = na.is_loopback() || na.is_local();
-      const auto elem = config.m_connections.find(na.host_str());
+      const auto elem = config.m_connections.find(net_utils::get_host_limit_key(na)); // public IPv6 counted per /64
       if (elem != config.m_connections.end())
       {
         if (is_private)

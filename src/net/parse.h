@@ -38,16 +38,27 @@
 namespace net
 {
     /*!
-      Identifies onion, i2p and IPv4 addresses and returns them as a generic
+      Splits an address string (IP, Tor, I2P or DNS name) into its host and port parts.
+
+      An IPv6 address must be given as "[x:x:..:x]:port" when it carries a port; a bare
+      "x:x:..:x" is accepted without one. The brackets are stripped from `host`.
+
+      \param[out] host The host part, always set.
+      \param[out] port The port part, only set when `address` contains one.
+    */
+    void get_network_address_host_and_port(const std::string& address, std::string& host, std::string& port);
+
+    /*!
+      Identifies onion, i2p, IPv4 and IPv6 addresses and returns them as a generic
       `network_address`. If the type is unsupported, it might be a hostname,
       and `error() == net::error::kUnsupportedAddress` is returned.
 
-      \param address An onion address, i2p address ipv4 address or hostname. Hostname
-          will return an error.
+      \param address An onion address, i2p address, ipv4 address, "[ipv6]" address or
+          hostname. Hostname will return an error.
       \param default_port If `address` does not specify a port, this value
           will be used.
 
-      \return A tor or IPv4 address, else error.
+      \return A tor, i2p, IPv4 or IPv6 address, else error.
     */
     expect<epee::net_utils::network_address>
         get_network_address(boost::string_ref address, std::uint16_t default_port);
@@ -64,4 +75,16 @@ namespace net
     */
     expect<epee::net_utils::ipv4_network_subnet>
         get_ipv4_subnet_address(boost::string_ref address, bool allow_implicit_32 = false);
+
+    /*!
+      Identifies an IPv6 subnet in CIDR notation ("2001:db8::/32", brackets around the
+      address allowed) and returns it as a generic `ipv6_network_subnet`.
+
+      \param address An ipv6 address with an optional /prefix.
+      \param allow_implicit_128 whether to accept an address without a /128 suffix
+
+      \return A ipv6 subnet, else error.
+    */
+    expect<epee::net_utils::ipv6_network_subnet>
+        get_ipv6_subnet_address(boost::string_ref address, bool allow_implicit_128 = false);
 }

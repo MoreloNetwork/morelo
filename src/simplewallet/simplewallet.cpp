@@ -2018,7 +2018,9 @@ bool simple_wallet::public_nodes(const std::vector<std::string> &args)
       char cphs[9];
       snprintf(cphs, sizeof(cphs), "%.3f", cph);
       const std::string last_seen = node.last_seen == 0 ? tr("never") : get_human_readable_timespan(std::chrono::seconds(now - node.last_seen));
-      std::string host = node.host + ":" + std::to_string(node.rpc_port);
+      // an IPv6 host (at least two ':') is bracketed, as set_daemon expects it
+      const bool ipv6 = std::count(node.host.begin(), node.host.end(), ':') >= 2;
+      std::string host = (ipv6 ? "[" + node.host + "]" : node.host) + ":" + std::to_string(node.rpc_port);
       message_writer() << boost::format("%32s %12s %16s") % host % cphs % last_seen;
       m_claimed_cph[host] = node.rpc_credits_per_hash;
     }
@@ -4600,7 +4602,8 @@ bool simple_wallet::set_daemon(const std::vector<std::string>& args)
     return true;
   }
 
-  boost::regex rgx("^(.*://)?([A-Za-z0-9\\-\\.]+)(:[0-9]+)?");
+  // hostname, IPv4 or bracketed IPv6 literal, with an optional port
+  boost::regex rgx("^(.*://)?(\\[[0-9A-Fa-f:\\.]+\\]|[A-Za-z0-9\\-\\.]+)(:[0-9]+)?");
   boost::cmatch match;
   // If user input matches URL regex
   if (boost::regex_match(args[0].c_str(), match, rgx))
