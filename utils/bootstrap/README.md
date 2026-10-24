@@ -9,9 +9,10 @@ repeated) or, on mainnet, from the DNSSEC checked TXT records of
 Mirrors are not trusted. Every block goes through the same checks as a block from
 a peer: up to the end of the compiled block hashes every group of 512 blocks must
 match them, past it every block is fully verified. A mirror which sends a bad
-block, fails or is too slow is dropped for the next one, keeping the blocks
-already added. When none is left the node syncs from peers. An interrupted
-bootstrap resumes on the next start (state in `<data-dir>/bootstrap.state`).
+block, fails or is too slow (under 1 MB/s) is dropped for the next one, keeping
+the blocks already added. When none is left the node syncs from peers. An
+interrupted bootstrap resumes on the next start (state in
+`<data-dir>/bootstrap.state`).
 
 ## Running a mirror
 
@@ -31,6 +32,8 @@ copy of the file already served only adds the new blocks. A cron line for the
     30 4 * * * cd /var/www/bootstrap && cp blockchain.raw blockchain.raw.tmp; morelo-blockchain-export --data-dir /var/lib/morelo --block-stop-margin 720 --output-file blockchain.raw.tmp && mv blockchain.raw.tmp blockchain.raw && sha256sum blockchain.raw > blockchain.raw.sha256
 
 The sha256 file lets operators check their mirrors agree, nodes do not use it.
+Appending trusts the blocks already in the file: should a reorganization deeper
+than the margin ever replace some of them, delete the file and export it again.
 
 Serve the file itself over https (nodes do not follow redirects) with range
 requests, which are on by default for static files in nginx and let nodes resume:
