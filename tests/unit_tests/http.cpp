@@ -29,6 +29,7 @@
 
 #include "gtest/gtest.h"
 #include "net/http_auth.h"
+#include "net/http_client.h"
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -96,13 +97,14 @@ std::string write_fields(const fields& args)
   return out;
 }
 
-http::http_request_info make_request(const fields& args)
+http::http_request_info make_request(const fields& args, const std::string& uri = {})
 {
   std::string out{"   DIGEST   "};
   write_fields(out, args);
 
   http::http_request_info request{};
   request.m_http_method_str = "NOP";
+  request.m_URI = uri;
   request.m_header_info.m_etc_fields.push_back(
     std::make_pair(u8"authorization", std::move(out))
   );
@@ -312,7 +314,7 @@ TEST(HTTP_Server_Auth, MD5)
     {u8"response", quoted(auth_code)},
     {u8"uri", quoted(uri)},
     {u8"username", quoted(user.username)}
-  });
+  }, uri);
 
   EXPECT_FALSE(bool(auth.get_response(request)));
 
@@ -363,7 +365,7 @@ TEST(HTTP_Server_Auth, MD5_sess)
     {u8"response", quoted(auth_code)},
     {u8"uri", quoted(uri)},
     {u8"username", quoted(user.username)}
-  });
+  }, uri);
 
   EXPECT_FALSE(bool(auth.get_response(request)));
 
@@ -424,7 +426,7 @@ TEST(HTTP_Server_Auth, MD5_auth)
     {u8"username", quoted(user.username)}
   };
 
-  const auto request = make_request(args);
+  const auto request = make_request(args, uri);
   EXPECT_FALSE(bool(auth.get_response(request)));
 
   for (unsigned i = 2; i < 20; ++i)
@@ -432,7 +434,7 @@ TEST(HTTP_Server_Auth, MD5_auth)
     nc = get_nc(i);
     args.at(u8"nc") = nc;
     args.at(u8"response") = quoted(generate_auth());
-    EXPECT_FALSE(auth.get_response(make_request(args)));
+    EXPECT_FALSE(auth.get_response(make_request(args, uri)));
   }
 
   const auto replay = auth.get_response(request);
@@ -492,7 +494,7 @@ TEST(HTTP_Server_Auth, MD5_sess_auth)
     {u8"username", quoted(user.username)}
   };
 
-  const auto request = make_request(args);
+  const auto request = make_request(args, uri);
   EXPECT_FALSE(bool(auth.get_response(request)));
 
   for (unsigned i = 2; i < 20; ++i)
@@ -500,7 +502,7 @@ TEST(HTTP_Server_Auth, MD5_sess_auth)
     nc = get_nc(i);
     args.at(u8"nc") = nc;
     args.at(u8"response") = quoted(generate_auth());
-    EXPECT_FALSE(auth.get_response(make_request(args)));
+    EXPECT_FALSE(auth.get_response(make_request(args, uri)));
   }
 
   const auto replay = auth.get_response(request);
@@ -515,6 +517,50 @@ TEST(HTTP_Server_Auth, MD5_sess_auth)
   EXPECT_STREQ(u8"true", parsed_replay[0].at(u8"stale").c_str());
 }
 
+
+TEST(HTTP_Auth, RequestTargetBinding)
+{
+  const struct
+  {
+    const char* digest_uri;
+    const char* request_uri;
+    bool accepted;
+  } cases[] = {
+    {"/json_rpc", "/json_rpc", true},
+    {"/json_rpc", "/stop_daemon", false},
+    {"/json_rpc?foo=1", "/json_rpc?foo=2", false}
+  };
+
+  const http::login user{"foo", "bar"};
+  for (const auto& test : cases)
+  {
+    SCOPED_TRACE(test.request_uri);
+    http::http_server_auth server{user, rng};
+    http::http_client_auth client{user};
+    http::http_request_info request{};
+    request.m_http_method_str = "POST";
+    request.m_URI = test.request_uri;
+
+    auto challenge = server.get_response(request);
+    ASSERT_TRUE(bool(challenge));
+    ASSERT_TRUE(is_unauthorized(*challenge));
+    challenge->m_header_info.m_etc_fields = challenge->m_additional_fields;
+    ASSERT_EQ(http::http_client_auth::kSuccess, client.handle_401(*challenge));
+
+    auto authorization = client.get_auth_field(request.m_http_method_str, test.digest_uri);
+    ASSERT_TRUE(bool(authorization));
+    request.m_header_info.m_etc_fields.push_back(std::move(*authorization));
+
+    const auto response = server.get_response(request);
+    if (test.accepted)
+      EXPECT_FALSE(bool(response));
+    else
+    {
+      ASSERT_TRUE(bool(response));
+      EXPECT_TRUE(is_unauthorized(*response));
+    }
+  }
+}
 
 TEST(HTTP_Auth, DogFood)
 {
@@ -615,10 +661,8 @@ TEST(HTTP_Client_Auth, BadSyntax)
 
 TEST(HTTP_Client_Auth, MD5)
 {
-  constexpr char method[] = "NOP";
   constexpr char nonce[] = "some crazy nonce";
   constexpr char realm[] = "the only realm";
-  constexpr char uri[] = "/some_file";
 
   const http::login user{"foo", "bar"};
   http::http_client_auth auth{user};
@@ -637,42 +681,11 @@ TEST(HTTP_Client_Auth, MD5)
     },
   });
 
-  EXPECT_EQ(http::http_client_auth::kSuccess, auth.handle_401(response));
-  const auto auth_field = auth.get_auth_field(method, uri);
-  ASSERT_TRUE(bool(auth_field));
-
-  const auto parsed = parse_fields(auth_field->second);
-  EXPECT_STREQ(u8"Authorization", auth_field->first.c_str());
-  EXPECT_EQ(parsed.end(), parsed.find(u8"opaque"));
-  EXPECT_EQ(parsed.end(), parsed.find(u8"qop"));
-  EXPECT_EQ(parsed.end(), parsed.find(u8"nc"));
-  EXPECT_STREQ(u8"MD5", parsed.at(u8"algorithm").c_str());
-  EXPECT_STREQ(nonce, parsed.at(u8"nonce").c_str());
-  EXPECT_STREQ(uri, parsed.at(u8"uri").c_str());
-  EXPECT_EQ(user.username, parsed.at(u8"username"));
-  EXPECT_STREQ(realm, parsed.at(u8"realm").c_str());
-
-  const std::string a1 = get_a1(user, parsed);
-  const std::string a2 = get_a2(uri);
-  const std::string auth_code = md5_hex(
-    boost::join(std::vector<std::string>{md5_hex(a1), nonce, md5_hex(a2)}, u8":")
-  );
-  EXPECT_TRUE(boost::iequals(auth_code, parsed.at(u8"response")));
-  {
-    const auto auth_field_dup = auth.get_auth_field(method, uri);
-    ASSERT_TRUE(bool(auth_field_dup));
-    EXPECT_EQ(*auth_field, *auth_field_dup);
-  }
-
-
-  EXPECT_EQ(http::http_client_auth::kBadPassword, auth.handle_401(response));
-  response.m_header_info.m_etc_fields.front().second.append(u8"," + write_fields({{u8"stale", u8"TRUE"}}));
-  EXPECT_EQ(http::http_client_auth::kSuccess, auth.handle_401(response));
+  EXPECT_EQ(http::http_client_auth::kParseFailure, auth.handle_401(response));
 }
 
 TEST(HTTP_Client_Auth, MD5_auth)
 {
-  constexpr char cnonce[] = "";
   constexpr char method[] = "NOP";
   constexpr char nonce[] = "some crazy nonce";
   constexpr char opaque[] = "this is the opaque";
@@ -724,7 +737,7 @@ TEST(HTTP_Client_Auth, MD5_auth)
     const std::string a1 = get_a1(user, parsed);
     const std::string a2 = get_a2(uri);
     const std::string auth_code = md5_hex(
-      boost::join(std::vector<std::string>{md5_hex(a1), nonce, nc, cnonce, u8"auth", md5_hex(a2)}, u8":")
+      boost::join(std::vector<std::string>{md5_hex(a1), nonce, nc, parsed.at(u8"cnonce"), u8"auth", md5_hex(a2)}, u8":")
     );
     EXPECT_TRUE(boost::iequals(auth_code, parsed.at(u8"response")));
   }
@@ -743,4 +756,203 @@ TEST(HTTP, Add_Field)
   epee::net_utils::http::add_field(str, {"moarbars", "moarfoo"});
 
   EXPECT_STREQ("leading textfoo: bar\r\nbar: foo\r\nmoarbars: moarfoo\r\n", str.c_str());
+}
+
+namespace
+{
+class dummy_client
+{
+public:
+  static constexpr size_t recv_size = 16384;
+
+  bool connect(const std::string&, int, std::chrono::milliseconds, bool = false, const std::string& = "0.0.0.0") { connected = true; return true; }
+  bool connect(const std::string&, const std::string&, std::chrono::milliseconds, bool = false, const std::string& = "0.0.0.0") { connected = true; return true; }
+  bool disconnect() { connected = false; return true; }
+  bool shutdown() { return true; }
+  bool send(const boost::string_ref, std::chrono::milliseconds) { return true; }
+  bool send(const void*, size_t) { return true; }
+  bool recv(std::string& buff, std::chrono::milliseconds)
+  {
+    buff.assign(data, 0, recv_size);
+    data.erase(0, buff.size());
+    return true;
+  }
+  void set_ssl(epee::net_utils::ssl_options_t) { }
+  bool is_connected(bool *ssl = NULL) { return connected; }
+  uint64_t get_bytes_sent() const { return 1; }
+  uint64_t get_bytes_received() const { return 1; }
+
+  void set_test_data(const std::string& s) { data = s; }
+
+private:
+  bool connected = true;
+  std::string data;
+};
+
+class test_http_client final : public http::http_simple_client_template<dummy_client>
+{
+public:
+  bool on_header(const http::http_response_info& headers) override
+  {
+    ++headers_seen;
+    last_headers = headers;
+    if (throw_on_header)
+    {
+      // only once, so a later call on the same client proves it recovered
+      throw_on_header = false;
+      throw std::runtime_error("simulated failure while processing response");
+    }
+    return true;
+  }
+
+  http::http_response_info last_headers;
+  unsigned headers_seen = 0;
+  bool throw_on_header = false;
+};
+}
+
+TEST(HTTP, Client_Keeps_Unknown_Header)
+{
+  test_http_client client;
+  const bool result = client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "X-Test: abc\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n",
+    std::chrono::milliseconds(1000)
+  );
+
+  ASSERT_TRUE(result);
+  EXPECT_EQ(1u, client.headers_seen);
+  ASSERT_EQ(1u, client.last_headers.m_header_info.m_etc_fields.size());
+  EXPECT_STREQ("X-Test", client.last_headers.m_header_info.m_etc_fields.front().first.c_str());
+  EXPECT_STREQ("abc", client.last_headers.m_header_info.m_etc_fields.front().second.c_str());
+}
+
+TEST(HTTP, Client_Rejects_Missing_Response_Status)
+{
+  test_http_client client;
+  const bool result = client.test(
+    "X-Test: abc\r\n"
+    "Content-Length: 3\r\n"
+    "\r\n"
+    "abc",
+    std::chrono::milliseconds(1000)
+  );
+
+  EXPECT_FALSE(result);
+  EXPECT_EQ(0u, client.headers_seen);
+  EXPECT_FALSE(client.is_connected());
+}
+
+TEST(HTTP, Client_Rejects_Oversized_Response_Header)
+{
+  test_http_client client;
+  std::string response = "HTTP/1.1 200 OK\r\nX-Test: ";
+  response.append(100000, 'a');
+  response += "\r\nContent-Length: 0\r\n\r\n";
+
+  EXPECT_FALSE(client.test(response, std::chrono::milliseconds(1000)));
+  EXPECT_EQ(0u, client.headers_seen);
+  EXPECT_FALSE(client.is_connected());
+}
+
+TEST(HTTP, Client_Accepts_Fragmented_Response_Header)
+{
+  test_http_client client;
+  std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-Test: ";
+  response.append(16384 - response.size() - 2, 'a');
+  response += "\r\n\r\n";
+
+  EXPECT_TRUE(client.test(response, std::chrono::milliseconds(1000)));
+  EXPECT_EQ(1u, client.headers_seen);
+  EXPECT_TRUE(client.is_connected());
+}
+
+TEST(HTTP, Client_Accepts_Large_Response_Body)
+{
+  test_http_client client;
+  const std::string body(100001, 'a');
+  const std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 100001\r\n\r\n" + body;
+
+  EXPECT_TRUE(client.test(response, std::chrono::milliseconds(1000)));
+  EXPECT_EQ(1u, client.headers_seen);
+  EXPECT_TRUE(client.is_connected());
+}
+
+TEST(HTTP, Client_Rejects_Body_Exceeding_Content_Length)
+{
+  test_http_client valid_client;
+  EXPECT_TRUE(valid_client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 3\r\n"
+    "\r\n"
+    "abc",
+    std::chrono::milliseconds(1000)
+  ));
+  EXPECT_TRUE(valid_client.is_connected());
+
+  test_http_client client;
+  EXPECT_FALSE(client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 3\r\n"
+    "\r\n"
+    "abcd",
+    std::chrono::milliseconds(1000)
+  ));
+  EXPECT_FALSE(client.is_connected());
+
+  test_http_client empty_client;
+  EXPECT_FALSE(empty_client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n"
+    "x",
+    std::chrono::milliseconds(1000)
+  ));
+  EXPECT_FALSE(empty_client.is_connected());
+}
+
+TEST(HTTP, Client_Recovers_From_Exception_During_Response_Processing)
+{
+  test_http_client client;
+  client.throw_on_header = true;
+
+  EXPECT_FALSE(client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n",
+    std::chrono::milliseconds(1000)
+  ));
+
+  ASSERT_TRUE(client.test(
+    "HTTP/1.1 200 OK\r\n"
+    "X-Test: abc\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n",
+    std::chrono::milliseconds(1000)
+  ));
+  ASSERT_EQ(1u, client.last_headers.m_header_info.m_etc_fields.size());
+  EXPECT_STREQ("X-Test", client.last_headers.m_header_info.m_etc_fields.front().first.c_str());
+}
+
+TEST(HTTP, Client_Chunked)
+{
+  const std::string header = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+
+  test_http_client valid;
+  EXPECT_TRUE(valid.test(header + "1\r\na\r\n0\r\n\r\n", std::chrono::milliseconds(1000)));
+
+  test_http_client large_body;
+  EXPECT_TRUE(large_body.test(header + "186a1\r\n" + std::string(100001, 'a') + "\r\n0\r\n\r\n",
+    std::chrono::milliseconds(1000)));
+
+  test_http_client oversized_head;
+  EXPECT_FALSE(oversized_head.test(header + std::string(100001, '0') + std::string(100000, 'a'),
+    std::chrono::milliseconds(1000)));
+
+  test_http_client excessive_separators;
+  EXPECT_FALSE(excessive_separators.test(header + "1\r\na" + std::string(100000, '\r') + "1\r\nb\r\n0\r\n\r\n",
+    std::chrono::milliseconds(1000)));
+  EXPECT_FALSE(excessive_separators.is_connected());
 }

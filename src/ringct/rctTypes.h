@@ -264,7 +264,7 @@ namespace rct {
           {
             ar.tag("pseudoOuts");
             ar.begin_array();
-            PREPARE_CUSTOM_VECTOR_SERIALIZATION(inputs, pseudoOuts);
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(inputs, pseudoOuts, sizeof(key));
             if (pseudoOuts.size() != inputs)
               return false;
             for (size_t i = 0; i < inputs; ++i)
@@ -278,7 +278,7 @@ namespace rct {
 
           ar.tag("ecdhInfo");
           ar.begin_array();
-          PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, ecdhInfo);
+          PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, ecdhInfo, sizeof(key) * 2); // mask, amount
           if (ecdhInfo.size() != outputs)
             return false;
           for (size_t i = 0; i < outputs; ++i)
@@ -291,7 +291,7 @@ namespace rct {
 
           ar.tag("outPk");
           ar.begin_array();
-          PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, outPk);
+          PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, outPk, sizeof(key));
           if (outPk.size() != outputs)
             return false;
           for (size_t i = 0; i < outputs; ++i)
@@ -322,7 +322,7 @@ namespace rct {
           {
             ar.tag("bp");
             ar.begin_array();
-            PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, bulletproofs);
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, bulletproofs, sizeof(key) * 9); // A, S, T1, T2, taux, mu, a, b, t
             if (bulletproofs.size() != outputs)
               return false;
             for (size_t i = 0; i < outputs; ++i)
@@ -341,7 +341,7 @@ namespace rct {
             ar.begin_array();
             if (nbp > outputs)
               return false;
-            PREPARE_CUSTOM_VECTOR_SERIALIZATION(nbp, bulletproofs);
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(nbp, bulletproofs, sizeof(key) * 9); // A, S, T1, T2, taux, mu, a, b, t
             for (size_t i = 0; i < nbp; ++i)
             {
               FIELDS(bulletproofs[i])
@@ -356,7 +356,7 @@ namespace rct {
           {
             ar.tag("rangeSigs");
             ar.begin_array();
-            PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, rangeSigs);
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(outputs, rangeSigs, sizeof(key) * 193); // asig (64 + 64 + 1), Ci (64)
             if (rangeSigs.size() != outputs)
               return false;
             for (size_t i = 0; i < outputs; ++i)
@@ -373,7 +373,7 @@ namespace rct {
           // we keep a byte for size of MGs, because we don't know whether this is
           // a simple or full rct signature, and it's starting to annoy the hell out of me
           size_t mg_elements = (type == RCTTypeSimple || type == RCTTypeBulletproof || type == RCTTypeSimpleBulletproof) ? inputs : 1;
-          PREPARE_CUSTOM_VECTOR_SERIALIZATION(mg_elements, MGs);
+          PREPARE_CUSTOM_VECTOR_SERIALIZATION(mg_elements, MGs, sizeof(key)); // cc (ss is empty for an empty ring)
           if (MGs.size() != mg_elements)
             return false;
           for (size_t i = 0; i < mg_elements; ++i)
@@ -384,14 +384,14 @@ namespace rct {
             ar.begin_object();
             ar.tag("ss");
             ar.begin_array();
-            PREPARE_CUSTOM_VECTOR_SERIALIZATION(mixin + 1, MGs[i].ss);
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(mixin + 1, MGs[i].ss, sizeof(key));
             if (MGs[i].ss.size() != mixin + 1)
               return false;
             for (size_t j = 0; j < mixin + 1; ++j)
             {
               ar.begin_array();
               size_t mg_ss2_elements = ((type == RCTTypeSimple || type == RCTTypeBulletproof || type == RCTTypeSimpleBulletproof) ? 1 : inputs) + 1;
-              PREPARE_CUSTOM_VECTOR_SERIALIZATION(mg_ss2_elements, MGs[i].ss[j]);
+              PREPARE_CUSTOM_VECTOR_SERIALIZATION(mg_ss2_elements, MGs[i].ss[j], sizeof(key));
               if (MGs[i].ss[j].size() != mg_ss2_elements)
                 return false;
               for (size_t k = 0; k < mg_ss2_elements; ++k)
@@ -420,7 +420,7 @@ namespace rct {
           {
             ar.tag("pseudoOuts");
             ar.begin_array();
-            PREPARE_CUSTOM_VECTOR_SERIALIZATION(inputs, pseudoOuts);
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(inputs, pseudoOuts, sizeof(key));
             if (pseudoOuts.size() != inputs)
               return false;
             for (size_t i = 0; i < inputs; ++i)

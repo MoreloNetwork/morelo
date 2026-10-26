@@ -125,7 +125,7 @@ namespace epee
     // should we include a specific character
     auto include = [](char input) {
         // we ignore spaces and colons
-        return !std::isspace(input) && input != ':';
+        return !std::isspace(static_cast<unsigned char>(input)) && input != ':';
     };
 
     // the number of relevant characters to decode
@@ -144,7 +144,7 @@ namespace epee
 
     // convert a single hex character to an unsigned integer
     auto char_to_int = [](const char *input) {
-      switch (std::tolower(*input)) {
+      switch (std::tolower(static_cast<unsigned char>(*input))) {
         case '0': return  0;
         case '1': return  1;
         case '2': return  2;
